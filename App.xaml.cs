@@ -81,7 +81,6 @@ namespace SteamOSConfigurator
         [DllImport("user32.dll")]
         static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-        // API de Cierre de Sesión Fulminante
         [DllImport("user32.dll", SetLastError = true)]
         static extern bool ExitWindowsEx(uint uFlags, uint dwReason);
 
@@ -106,13 +105,34 @@ namespace SteamOSConfigurator
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
-            if (e.Args.Length > 0 && e.Args[0] == "-shell") 
+            
+            // EL ENRUTADOR MAESTRO (Acepta -router y el viejo -shell por compatibilidad)
+            if (e.Args.Length > 0 && (e.Args[0] == "-router" || e.Args[0] == "-shell")) 
             {
-                _ = EjecutarModoConsolaAsync();
+                try
+                {
+                    if (Environment.UserName.Equals("SteamOS", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Somos la consola. Cargar entorno de juegos aislado.
+                        _ = EjecutarModoConsolaAsync();
+                    }
+                    else 
+                    {
+                        // Somos tu usuario normal. Cargar escritorio clásico de Windows inmediatamente.
+                        Process.Start("explorer.exe");
+                        Environment.Exit(0);
+                    }
+                }
+                catch 
+                {
+                    // Fallback de seguridad absoluto
+                    Process.Start("explorer.exe");
+                    Environment.Exit(0);
+                }
             }
             else 
             {
-                new MainWindow().Show();
+                new MainWindow().Show(); // Interfaz visual si se abre manualmente con doble clic
             }
         }
 
@@ -141,7 +161,6 @@ namespace SteamOSConfigurator
 
                 if (steam != null) MoverVentanaSteamAlMonitorPrincipal(steam.Id, 20);
 
-                // Esperamos pacientemente a que la cuenta de Steam se cierre (y sincronice en la nube)
                 while (!_modoEscritorio)
                 {
                     if (Process.GetProcessesByName("steam").Length == 0) break;
@@ -153,7 +172,6 @@ namespace SteamOSConfigurator
             {
                 if (!_modoEscritorio)
                 {
-                    // Cuando Steam muere, reactivamos los monitores y matamos la sesión al instante.
                     RestaurarEntornoOriginal();
                     CerrarSesionRapido();
                 }
@@ -162,9 +180,7 @@ namespace SteamOSConfigurator
 
         private void CerrarSesionRapido()
         {
-            // EWX_FORCE (4) fuerza el cierre de sesión destruyendo cualquier programa que bloquee.
             ExitWindowsEx(4, 0); 
-            // Environment.Exit(0) asesina nuestra propia ventana invisible de atajos de teclado sin preguntar.
             Environment.Exit(0);
         }
 

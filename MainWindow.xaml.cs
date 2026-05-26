@@ -10,7 +10,7 @@ using System.Linq;
 using System.Collections.Generic;
 using AudioSwitcher.AudioApi.CoreAudio; 
 using System.Drawing; 
-using System.Security.Principal; // Nueva librería nativa de seguridad
+using System.Security.Principal; 
 using System.Windows.Forms;
 
 namespace SteamOSConfigurator
@@ -73,7 +73,6 @@ namespace SteamOSConfigurator
         {
             try
             {
-                // Verificación nativa directa contra la base de datos de Windows
                 var cuenta = new NTAccount("SteamOS");
                 cuenta.Translate(typeof(SecurityIdentifier));
                 _entornoInstalado = true;
@@ -198,25 +197,23 @@ namespace SteamOSConfigurator
 
                 await Task.Run(() =>
                 {
+                    string rutaSeguraExe = InstalarEjecutableEnRutaSegura();
+
                     if (!_entornoInstalado)
                     {
                         OptimizarInicioNuevoUsuario();
                         CrearUsuarioSteam(nombreUsuario, passwordTemporal);
-                        string rutaSeguraExe = InstalarEjecutableEnRutaSegura();
                         
-                        // Windows exige la contraseña para construir el perfil interno
                         ConstruirPerfilEnSegundoPlano(nombreUsuario, passwordTemporal, rutaSeguraExe);
                         
                         string sid = ObtenerSidUsuario(nombreUsuario);
                         if (!string.IsNullOrEmpty(sid)) ConfigurarIconoSteamOS(sid); 
                         
-                        // EL TRUCO: Destruimos la contraseña nativamente dejándola en blanco
                         EjecutarComandoOculto($"net user {nombreUsuario} \"\"");
                     }
-                    else
-                    {
-                        InstalarEjecutableEnRutaSegura(); 
-                    }
+                    
+                    // Inyección de la Autoridad Máxima
+                    InyectarRouterGlobal(rutaSeguraExe);
                 });
 
                 GuardarConfiguracionJson(indiceMonitor, resolucionTexto, refrescoTexto, audioTexto);
@@ -241,7 +238,11 @@ namespace SteamOSConfigurator
                 btnDesinstalar.IsEnabled = false; btnDesinstalar.Content = "BORRANDO..."; btnInstalar.IsEnabled = false;
                 try
                 {
-                    await Task.Run(() => { EliminarUsuarioSteamOS(); });
+                    await Task.Run(() => 
+                    { 
+                        RemoverRouterGlobal(); // CRÍTICO: Devolverle el control de todo a Windows
+                        EliminarUsuarioSteamOS(); 
+                    });
                     System.Windows.MessageBox.Show("Entorno desinstalado del núcleo del sistema.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex) { System.Windows.MessageBox.Show($"Error de purga:\n{ex.Message}", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning); }
@@ -253,21 +254,39 @@ namespace SteamOSConfigurator
             }
         }
 
-        // --- INICIO DE HERRAMIENTAS DE FUERZA BRUTA NATIVA ---
+        // --- MANEJO DE ROUTER GLOBAL ---
+
+        private void InyectarRouterGlobal(string rutaEjecutable)
+        {
+            using (RegistryKey? key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon", writable: true))
+            {
+                if (key != null)
+                {
+                    key.SetValue("Shell", $"\"{rutaEjecutable}\" -router", RegistryValueKind.String);
+                }
+            }
+        }
+
+        private void RemoverRouterGlobal()
+        {
+            using (RegistryKey? key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon", writable: true))
+            {
+                if (key != null)
+                {
+                    key.SetValue("Shell", "explorer.exe", RegistryValueKind.String);
+                }
+            }
+        }
+
+        // --- FIN MANEJO DE ROUTER GLOBAL ---
 
         private void CrearUsuarioSteam(string nombreUsuario, string passwordTemporal)
         {
-            // 1. Crear usuario nativamente
             EjecutarComandoOculto($"net user {nombreUsuario} {passwordTemporal} /add /y");
-
-            // 2. Que la contraseña no expire nunca
             EjecutarComandoOculto($"wmic useraccount where \"name='{nombreUsuario}'\" set PasswordExpires=FALSE");
-
-            // 3. Darle permisos de Administrador (Cubre OS en español e inglés)
             EjecutarComandoOculto($"net localgroup Administradores {nombreUsuario} /add");
             EjecutarComandoOculto($"net localgroup Administrators {nombreUsuario} /add");
 
-            // 4. Forzar que Windows 11 lo muestre en la pantalla de inicio (Hack de Registro)
             try
             {
                 using (RegistryKey? key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList"))
@@ -285,8 +304,6 @@ namespace SteamOSConfigurator
             {
                 DeleteProfile(sid, null, null);
             }
-
-            // Purga nativa del usuario
             EjecutarComandoOculto("net user SteamOS /delete");
             try { Directory.Delete(@"C:\Users\SteamOS", true); } catch { }
         }
@@ -316,8 +333,6 @@ namespace SteamOSConfigurator
             }
             catch { return ""; }
         }
-
-        // --- FIN DE HERRAMIENTAS DE FUERZA BRUTA NATIVA ---
 
         private void GuardarConfiguracionJson(int indiceMonitor, string resolucion, string refresco, string audioPreferido)
         {
@@ -406,11 +421,7 @@ namespace SteamOSConfigurator
                 PROFILEINFO p = new PROFILEINFO { dwSize = Marshal.SizeOf(typeof(PROFILEINFO)), lpUserName = usuario };
                 if (LoadUserProfile(token, ref p))
                 {
-                    string sid = ObtenerSidUsuario(usuario);
-                    using (RegistryKey? key = Registry.Users.CreateSubKey($@"{sid}\Software\Microsoft\Windows NT\CurrentVersion\Winlogon"))
-                    {
-                        if (key != null) { key.SetValue("Shell", $"\"{rutaEjecutable}\" -shell", RegistryValueKind.String); key.Flush(); }
-                    }
+                    // Solo inicializamos el perfil para que cree las carpetas físicas. Ya no hackeamos su registro.
                     UnloadUserProfile(token, p.hProfile);
                 }
             }
