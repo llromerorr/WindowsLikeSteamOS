@@ -22,7 +22,7 @@ namespace SteamOSConfigurator
 
     public partial class App : System.Windows.Application
     {
-        // --- INICIO ESTRUCTURAS HARDWARE ---
+        // --- INICIO ESTRUCTURAS HARDWARE NATIVAS ---
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         public struct DISPLAY_DEVICE
         {
@@ -63,11 +63,8 @@ namespace SteamOSConfigurator
         const int DM_PELSHEIGHT = 0x00100000;
         const int DM_DISPLAYFREQUENCY = 0x00400000;
         const int DM_POSITION = 0x00000020;
-        const int CDS_UPDATEREGISTRY = 0x01;
-        const int CDS_NORESET = 0x10000000;
+        const int CDS_NORESET = 0x10000000; // Encola los cambios en memoria sin romper el registro de Windows
         // --- FIN ESTRUCTURAS HARDWARE ---
-
-        private Dictionary<string, DEVMODE> _monitoresOriginales = new Dictionary<string, DEVMODE>();
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -80,7 +77,7 @@ namespace SteamOSConfigurator
         {
             try
             {
-                // 1. Apagar pantallas secundarias, aplicar resolución y rutar el Audio
+                // 1. Apagar pantallas secundarias en memoria RAM y configurar audio
                 AplicarConfiguracionHardware();
 
                 string rutaSteam = ObtenerRutaSteam();
@@ -90,7 +87,7 @@ namespace SteamOSConfigurator
                 Process.Start(psi);
                 Thread.Sleep(10000);
 
-                // 2. Bucle Ninja
+                // 2. Bucle de Monitorización
                 while (true)
                 {
                     if (Process.GetProcessesByName("steam").Length == 0) break;
@@ -100,8 +97,7 @@ namespace SteamOSConfigurator
             catch { }
             finally
             {
-                // 3. Restaurar PC a la normalidad antes de salir
-                RestaurarMonitores();
+                // 3. Forzar salida segura de la sesión
                 CerrarSesion();
             }
         }
@@ -115,7 +111,7 @@ namespace SteamOSConfigurator
                 var config = JsonSerializer.Deserialize<ConfiguracionSteamOS>(File.ReadAllText(rutaConfig));
                 if (config == null) return;
 
-                // --- AUDIO ---
+                // --- ENRUTAMIENTO DE AUDIO EXCLUSIVO ---
                 if (!string.IsNullOrEmpty(config.AudioDispositivo) && config.AudioDispositivo != "Salida de audio por defecto")
                 {
                     CoreAudioController audioController = new CoreAudioController();
@@ -125,66 +121,51 @@ namespace SteamOSConfigurator
                     }
                 }
 
-                // --- MONITORES ---
+                // --- ANTES DE ARRANCAR STEAM: AISLAMIENTO RIGIDO DE MONITORES ---
                 int deviceId = 0;
                 DISPLAY_DEVICE displayDevice = new DISPLAY_DEVICE { cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE)) };
+                List<string> monitoresActivos = new List<string>();
 
-                // Guardar la foto del estado original de todas las pantallas conectadas
                 while (EnumDisplayDevices(null, deviceId, ref displayDevice, 0))
                 {
-                    if ((displayDevice.StateFlags & 1) != 0) // Si el monitor está activo
+                    if ((displayDevice.StateFlags & 1) != 0) 
                     {
-                        DEVMODE originalMode = new DEVMODE { dmSize = (short)Marshal.SizeOf(typeof(DEVMODE)) };
-                        if (EnumDisplaySettings(displayDevice.DeviceName, ENUM_CURRENT_SETTINGS, ref originalMode) != 0)
-                        {
-                            _monitoresOriginales[displayDevice.DeviceName] = originalMode;
-                        }
+                        monitoresActivos.Add(displayDevice.DeviceName);
                     }
                     deviceId++;
                 }
 
-                // Aplicar los cambios destructivos temporales
-                foreach (var kvp in _monitoresOriginales)
+                // Desactivar monitores no seleccionados temporalmente para esta sesión
+                foreach (string deviceName in monitoresActivos)
                 {
-                    string deviceName = kvp.Key;
-                    DEVMODE mode = kvp.Value;
+                    DEVMODE mode = new DEVMODE { dmSize = (short)Marshal.SizeOf(typeof(DEVMODE)) };
+                    EnumDisplaySettings(deviceName, ENUM_CURRENT_SETTINGS, ref mode);
 
                     if (deviceName == config.MonitorDeviceName)
                     {
-                        // Convertir en el Rey de la casa (Resolución, Hz y Coordenada Cero)
-                        mode.dmPelsWidth = config.ResolucionWidth; mode.dmPelsHeight = config.ResolucionHeight;
-                        mode.dmDisplayFrequency = config.RefreshRate; mode.dmPositionX = 0; mode.dmPositionY = 0;
+                        // Monitor Seleccionado: Forzar Resolución, Hz y fijar coordenada Cero (Primary)
+                        mode.dmPelsWidth = config.ResolucionWidth; 
+                        mode.dmPelsHeight = config.ResolucionHeight;
+                        mode.dmDisplayFrequency = config.RefreshRate; 
+                        mode.dmPositionX = 0; 
+                        mode.dmPositionY = 0;
                         mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY | DM_POSITION;
-                        ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero);
+                        ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, CDS_NORESET, IntPtr.Zero);
                     }
                     else
                     {
-                        // Apagar completamente cualquier otro monitor cortando su ancho y alto
-                        mode.dmPelsWidth = 0; mode.dmPelsHeight = 0;
+                        // Cortar señal eléctrica del hardware secundario (Apagar monitor por software)
+                        mode.dmPelsWidth = 0; 
+                        mode.dmPelsHeight = 0;
                         mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
-                        ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero);
+                        ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, CDS_NORESET, IntPtr.Zero);
                     }
                 }
                 
-                // Ejecutar el apagón y reconfiguración en la tarjeta gráfica de un solo golpe
+                // Ejecutar el apagón y reconfiguración masiva en la GPU de un solo golpe
                 ChangeDisplaySettingsEx(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
             }
             catch { }
-        }
-
-        private void RestaurarMonitores()
-        {
-            if (_monitoresOriginales.Count == 0) return;
-
-            // Devolver las resoluciones y posiciones originales a cada pantalla
-            foreach (var kvp in _monitoresOriginales)
-            {
-                DEVMODE mode = kvp.Value;
-                mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY | DM_POSITION;
-                ChangeDisplaySettingsEx(kvp.Key, ref mode, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero);
-            }
-            
-            ChangeDisplaySettingsEx(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero); // Aplicar restauración
         }
 
         private string ObtenerRutaSteam()
@@ -202,6 +183,8 @@ namespace SteamOSConfigurator
 
         private void CerrarSesion()
         {
+            // Nota: Al usar flags puramente dinámicos en ChangeDisplaySettingsEx, al cerrarse la sesión,
+            // Windows destruye los cambios en la RAM y recarga tu escritorio original intacto para el siguiente Login.
             Process.Start("shutdown", "/l /f");
             Shutdown();
         }

@@ -54,6 +54,12 @@ namespace SteamOSConfigurator
         public static extern bool DeleteProfile(string lpSidString, string? lpProfilePath, string? lpComputerName);
         [DllImport("user32.dll")]
         public static extern int EnumDisplaySettings(string? deviceName, int modeNum, ref DEVMODE devMode);
+        
+        // Extractor Quirúrgico de iconos en Alta Definición de Windows (Master resolution)
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        public static extern int PrivateExtractIcons(string lpszFile, int nIconIndex, int cxIcon, int cyIcon, IntPtr[] phicon, int[] piconid, int nIcons, int flags);
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool DestroyIcon(IntPtr hIcon);
         // --- FIN API NATIVA ---
 
         private bool _entornoInstalado = false;
@@ -105,17 +111,15 @@ namespace SteamOSConfigurator
             if (VerificarSteamInstalado())
             {
                 lblEstadoSteam.Text = "Listo";
-                lblEstadoSteam.Foreground = System.Windows.Media.Brushes.ForestGreen;
+                lblEstadoSteam.Foreground = System.Windows.Media.Brushes.SpringGreen;
                 btnInstalar.IsEnabled = true;
             }
             else
             {
                 lblEstadoSteam.Text = "No detectado";
-                lblEstadoSteam.Foreground = System.Windows.Media.Brushes.Firebrick;
+                lblEstadoSteam.Foreground = System.Windows.Media.Brushes.Crimson;
                 btnInstalar.IsEnabled = false; 
             }
-            lblEstadoDriver.Text = "No instalado";
-            lblEstadoDriver.Foreground = System.Windows.Media.Brushes.Orange;
         }
 
         private void CmbMonitores_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -181,8 +185,6 @@ namespace SteamOSConfigurator
             return File.Exists(@"C:\Program Files (x86)\Steam\steam.exe");
         }
 
-        private void BtnMapear_Click(object sender, RoutedEventArgs e) { }
-
         private async void BtnInstalar_Click(object sender, RoutedEventArgs e)
         {
             int indiceMonitor = cmbMonitores.SelectedIndex;
@@ -215,15 +217,17 @@ namespace SteamOSConfigurator
                     {
                         InstalarEjecutableEnRutaSegura(); 
                     }
+                    // PAUSA DE SEGURIDAD PARA I/O DE DISCO
+                    System.Threading.Thread.Sleep(1000); 
                 });
 
                 GuardarConfiguracionJson(indiceMonitor, resolucionTexto, refrescoTexto, audioTexto);
-                System.Windows.MessageBox.Show(_entornoInstalado ? "Configuración actualizada." : "¡Entorno creado con éxito! Inicia sesión en SteamOS.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+                System.Windows.MessageBox.Show(_entornoInstalado ? "Configuración de juego actualizada con éxito." : "¡Entorno Gaming creado! Inicia sesión libremente en SteamOS.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
                 VerificarEstadoSistema(); 
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"Error:\n{ex.Message}", "Error Crítico", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Windows.MessageBox.Show($"Error en despliegue:\n{ex.Message}", "Error Crítico", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -234,15 +238,15 @@ namespace SteamOSConfigurator
 
         private async void BtnDesinstalar_Click(object sender, RoutedEventArgs e)
         {
-            if (System.Windows.MessageBox.Show("¿Eliminar el entorno consola?", "Desinstalar", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            if (System.Windows.MessageBox.Show("¿Eliminar el entorno de consola y purgar la cuenta?", "Desinstalar", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
             {
                 btnDesinstalar.IsEnabled = false; btnDesinstalar.Content = "BORRANDO..."; btnInstalar.IsEnabled = false;
                 try
                 {
                     await Task.Run(() => { EliminarUsuarioSteamOS(); });
-                    System.Windows.MessageBox.Show("Entorno desinstalado correctamente.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+                    System.Windows.MessageBox.Show("Entorno desinstalado del núcleo del sistema.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
-                catch (Exception ex) { System.Windows.MessageBox.Show($"Error:\n{ex.Message}", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning); }
+                catch (Exception ex) { System.Windows.MessageBox.Show($"Error de purga:\n{ex.Message}", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning); }
                 finally
                 {
                     btnDesinstalar.IsEnabled = true; btnDesinstalar.Content = "DESINSTALAR";
@@ -280,10 +284,20 @@ namespace SteamOSConfigurator
                 if (File.Exists(rutaSteam))
                 {
                     string rutaAvatar = @"C:\ProgramData\SteamOS\avatar.png";
-                    using (var icon = System.Drawing.Icon.ExtractAssociatedIcon(rutaSteam))
-                    using (var bitmap = icon.ToBitmap())
+                    IntPtr[] phicon = new IntPtr[1];
+                    int[] piconid = new int[1];
+
+                    // EXTRAER EL ICONO MASTER DE 256x256
+                    int result = PrivateExtractIcons(rutaSteam, 0, 256, 256, phicon, piconid, 1, 0);
+                    if (result > 0 && phicon[0] != IntPtr.Zero)
                     {
-                        bitmap.Save(rutaAvatar, System.Drawing.Imaging.ImageFormat.Png);
+                        // Le indicamos explícitamente que use la clase de dibujo y no la propiedad de la ventana
+                        using (System.Drawing.Icon icon = System.Drawing.Icon.FromHandle(phicon[0]))
+                        using (System.Drawing.Bitmap bitmap = icon.ToBitmap())
+                        {
+                            bitmap.Save(rutaAvatar, System.Drawing.Imaging.ImageFormat.Png);
+                        }
+                        DestroyIcon(phicon[0]); // Limpieza de punteros
                     }
                     
                     using (RegistryKey key = Registry.LocalMachine.CreateSubKey($@"SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\{sidUsuario}"))
@@ -356,7 +370,7 @@ namespace SteamOSConfigurator
             IntPtr token = IntPtr.Zero;
             try
             {
-                if (!LogonUser(usuario, ".", contrasena, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, out token)) throw new Exception("Error de inicio.");
+                if (!LogonUser(usuario, ".", contrasena, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, out token)) throw new Exception("Error de token.");
                 PROFILEINFO p = new PROFILEINFO { dwSize = Marshal.SizeOf(typeof(PROFILEINFO)), lpUserName = usuario };
                 if (LoadUserProfile(token, ref p))
                 {
