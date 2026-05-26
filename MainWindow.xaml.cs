@@ -1,9 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Windows;
-using System.DirectoryServices.AccountManagement;
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
+using System.Diagnostics;
 using Microsoft.Win32;
 using System.Threading.Tasks;
 using System.Text.Json;
@@ -11,6 +10,8 @@ using System.Linq;
 using System.Collections.Generic;
 using AudioSwitcher.AudioApi.CoreAudio; 
 using System.Drawing; 
+using System.Security.Principal; // Nueva librería nativa de seguridad
+using System.Windows.Forms;
 
 namespace SteamOSConfigurator
 {
@@ -72,11 +73,10 @@ namespace SteamOSConfigurator
         {
             try
             {
-                using (PrincipalContext context = new PrincipalContext(ContextType.Machine))
-                {
-                    UserPrincipal usuarioExistente = UserPrincipal.FindByIdentity(context, "SteamOS");
-                    _entornoInstalado = (usuarioExistente != null);
-                }
+                // Verificación nativa directa contra la base de datos de Windows
+                var cuenta = new NTAccount("SteamOS");
+                cuenta.Translate(typeof(SecurityIdentifier));
+                _entornoInstalado = true;
             }
             catch { _entornoInstalado = false; }
             btnInstalar.Content = _entornoInstalado ? "APLICAR CONFIGURACIÓN" : "INSTALAR ENTORNO";
@@ -146,7 +146,6 @@ namespace SteamOSConfigurator
 
         private void CmbResoluciones_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            // ¡FIX CS8602! Añadida validación estricta de nulidad
             if (cmbResoluciones.SelectedIndex < 0 || cmbResoluciones.SelectedItem == null) return;
             cmbRefresco.Items.Clear();
             
@@ -204,11 +203,15 @@ namespace SteamOSConfigurator
                         OptimizarInicioNuevoUsuario();
                         CrearUsuarioSteam(nombreUsuario, passwordTemporal);
                         string rutaSeguraExe = InstalarEjecutableEnRutaSegura();
+                        
+                        // Windows exige la contraseña para construir el perfil interno
                         ConstruirPerfilEnSegundoPlano(nombreUsuario, passwordTemporal, rutaSeguraExe);
                         
                         string sid = ObtenerSidUsuario(nombreUsuario);
-                        ConfigurarIconoSteamOS(sid); 
-                        RemoverContrasena(nombreUsuario); 
+                        if (!string.IsNullOrEmpty(sid)) ConfigurarIconoSteamOS(sid); 
+                        
+                        // EL TRUCO: Destruimos la contraseña nativamente dejándola en blanco
+                        EjecutarComandoOculto($"net user {nombreUsuario} \"\"");
                     }
                     else
                     {
@@ -217,7 +220,7 @@ namespace SteamOSConfigurator
                 });
 
                 GuardarConfiguracionJson(indiceMonitor, resolucionTexto, refrescoTexto, audioTexto);
-                System.Windows.MessageBox.Show(_entornoInstalado ? "Configuración de juego actualizada con éxito." : "¡Entorno Gaming creado! Inicia sesión libremente en SteamOS.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+                System.Windows.MessageBox.Show(_entornoInstalado ? "Configuración de juego actualizada con éxito." : "¡Entorno Gaming creado con éxito!\n\nTu cuenta SteamOS está lista y SIN contraseña. Solo haz clic en ella y a jugar.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
                 VerificarEstadoSistema(); 
             }
             catch (Exception ex)
@@ -249,6 +252,72 @@ namespace SteamOSConfigurator
                 }
             }
         }
+
+        // --- INICIO DE HERRAMIENTAS DE FUERZA BRUTA NATIVA ---
+
+        private void CrearUsuarioSteam(string nombreUsuario, string passwordTemporal)
+        {
+            // 1. Crear usuario nativamente
+            EjecutarComandoOculto($"net user {nombreUsuario} {passwordTemporal} /add /y");
+
+            // 2. Que la contraseña no expire nunca
+            EjecutarComandoOculto($"wmic useraccount where \"name='{nombreUsuario}'\" set PasswordExpires=FALSE");
+
+            // 3. Darle permisos de Administrador (Cubre OS en español e inglés)
+            EjecutarComandoOculto($"net localgroup Administradores {nombreUsuario} /add");
+            EjecutarComandoOculto($"net localgroup Administrators {nombreUsuario} /add");
+
+            // 4. Forzar que Windows 11 lo muestre en la pantalla de inicio (Hack de Registro)
+            try
+            {
+                using (RegistryKey? key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList"))
+                {
+                    key?.SetValue(nombreUsuario, 1, RegistryValueKind.DWord);
+                }
+            }
+            catch { }
+        }
+
+        private void EliminarUsuarioSteamOS()
+        {
+            string sid = ObtenerSidUsuario("SteamOS");
+            if (!string.IsNullOrEmpty(sid)) 
+            {
+                DeleteProfile(sid, null, null);
+            }
+
+            // Purga nativa del usuario
+            EjecutarComandoOculto("net user SteamOS /delete");
+            try { Directory.Delete(@"C:\Users\SteamOS", true); } catch { }
+        }
+
+        private void EjecutarComandoOculto(string comando)
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", $"/c {comando}")
+                {
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+                Process.Start(psi)?.WaitForExit();
+            }
+            catch { }
+        }
+
+        private string ObtenerSidUsuario(string nombreUsuario)
+        {
+            try
+            {
+                var cuenta = new NTAccount(nombreUsuario);
+                var sid = (SecurityIdentifier)cuenta.Translate(typeof(SecurityIdentifier));
+                return sid.Value;
+            }
+            catch { return ""; }
+        }
+
+        // --- FIN DE HERRAMIENTAS DE FUERZA BRUTA NATIVA ---
 
         private void GuardarConfiguracionJson(int indiceMonitor, string resolucion, string refresco, string audioPreferido)
         {
@@ -318,39 +387,8 @@ namespace SteamOSConfigurator
             catch { }
         }
 
-        private void CrearUsuarioSteam(string nombreUsuario, string passwordTemporal)
-        {
-            using (PrincipalContext context = new PrincipalContext(ContextType.Machine))
-            {
-                if (UserPrincipal.FindByIdentity(context, nombreUsuario) != null) return;
-                using (UserPrincipal nuevoUsuario = new UserPrincipal(context))
-                {
-                    nuevoUsuario.Name = nombreUsuario; nuevoUsuario.DisplayName = nombreUsuario;
-                    nuevoUsuario.SetPassword(passwordTemporal);
-                    nuevoUsuario.UserCannotChangePassword = false; nuevoUsuario.PasswordNeverExpires = true;
-                    nuevoUsuario.Save();
-                }
-                GroupPrincipal grupoAdmins = GroupPrincipal.FindByIdentity(context, "Administrators");
-                if (grupoAdmins != null)
-                {
-                    grupoAdmins.Members.Add(UserPrincipal.FindByIdentity(context, nombreUsuario));
-                    grupoAdmins.Save();
-                }
-            }
-        }
-
-        private void RemoverContrasena(string nombreUsuario)
-        {
-            using (PrincipalContext context = new PrincipalContext(ContextType.Machine))
-            {
-                UserPrincipal usuario = UserPrincipal.FindByIdentity(context, nombreUsuario);
-                if (usuario != null) { try { usuario.SetPassword(""); usuario.Save(); } catch { } }
-            }
-        }
-
         private string InstalarEjecutableEnRutaSegura()
         {
-            // ¡FIX CS8604! Validación estricta usando coalescencia nula
             string rutaOrigen = Environment.ProcessPath ?? throw new Exception("No se pudo detectar la ruta del ejecutable principal.");
             string carpetaDestino = @"C:\ProgramData\SteamOS";
             string rutaDestino = Path.Combine(carpetaDestino, "WindowsLikeSteamOS.exe");
@@ -377,28 +415,6 @@ namespace SteamOSConfigurator
                 }
             }
             finally { if (token != IntPtr.Zero) CloseHandle(token); }
-        }
-
-        private string ObtenerSidUsuario(string nombreUsuario)
-        {
-            using (PrincipalContext context = new PrincipalContext(ContextType.Machine))
-            {
-                return UserPrincipal.FindByIdentity(context, nombreUsuario).Sid.Value;
-            }
-        }
-
-        private void EliminarUsuarioSteamOS()
-        {
-            using (PrincipalContext context = new PrincipalContext(ContextType.Machine))
-            {
-                UserPrincipal usuario = UserPrincipal.FindByIdentity(context, "SteamOS");
-                if (usuario != null)
-                {
-                    DeleteProfile(usuario.Sid.Value, null, null);
-                    usuario.Delete();
-                    try { Directory.Delete(@"C:\Users\SteamOS", true); } catch { }
-                }
-            }
         }
     }
 }
