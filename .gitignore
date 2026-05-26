@@ -1,0 +1,41 @@
+## Visual Studio / .NET
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Build artifacts
+bin/
+obj/
+publish/
+**/publish/
+TestResults/
+
+## Rider
+.idea/
+
+## NuGet
+*.nupkg
+packages/
+.nuget/
+
+## Generated files
+*.g.cs
+*.g.i.cs
+*.g.resources
+*.GeneratedMSBuildEditorConfig.editorconfig
+WindowsLikeSteamOS.GeneratedMSBuildEditorConfig.editorconfig
+
+## OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+## Logs
+*.log
+
+## Runtime files (build outputs)
+*.deps.json
+*.runtimeconfig.json
