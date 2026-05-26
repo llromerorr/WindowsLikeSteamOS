@@ -1,93 +1,123 @@
 ﻿<Window x:Class="SteamOSConfigurator.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="SteamOS Custom Shell Configurator" Height="550" Width="450"
+        Title="WindowsLikeSteamOS" Height="580" Width="480"
         WindowStartupLocation="CenterScreen"
-        Background="#F8F9FA" FontFamily="Segoe UI" ResizeMode="NoResize">
+        Background="#121318" FontFamily="Segoe UI" ResizeMode="NoResize">
 
     <Window.Resources>
         <Style TargetType="Label">
-            <Setter Property="Foreground" Value="#495057"/>
+            <Setter Property="Foreground" Value="#707A8C"/>
             <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
         </Style>
+
+        <ControlTemplate x:Key="ComboBoxToggleButton" TargetType="ToggleButton">
+            <Border Background="#1A1C23" BorderBrush="#2A2D38" BorderThickness="1" CornerRadius="4">
+                <Path x:Name="Arrow" Fill="#707A8C" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" Data="M 0 0 L 4 4 L 8 0 Z"/>
+            </Border>
+        </ControlTemplate>
 
         <Style TargetType="ComboBox">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="Foreground" Value="#212529"/>
-            <Setter Property="BorderBrush" Value="#CED4DA"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Height" Value="36"/>
-            <Setter Property="Padding" Value="8,5"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
+            <Setter Property="Foreground" Value="#D5D8DF"/>
+            <Setter Property="Background" Value="#1A1C23"/>
+            <Setter Property="BorderBrush" Value="#2A2D38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Margin" Value="0,0,0,18"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton Name="ToggleButton" Template="{StaticResource ComboBoxToggleButton}" Focusable="false" IsChecked="{Binding Path=IsDropDownOpen,Mode=TwoWay,RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press"/>
+                            <ContentPresenter Name="ContentSite" IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" Margin="12,0,30,0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                            <Popup Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+                                <Border Name="DropDownBorder" Background="#1A1C23" BorderThickness="1" BorderBrush="#2A2D38" MinWidth="{Binding ActualWidth, ElementName=ToggleButton}">
+                                    <ScrollViewer Margin="4,6,4,6" SnapsToDevicePixels="True">
+                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
-        <Style x:Key="StandardButton" TargetType="Button">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="BorderBrush" Value="#ADB5BD"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Foreground" Value="#212529"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="#D5D8DF"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border Name="Border" Padding="{TemplateBinding Padding}" Background="Transparent" CornerRadius="3">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="true">
+                                <Setter TargetName="Border" Property="Background" Value="#252833"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="BaseButton" TargetType="Button">
             <Setter Property="Height" Value="42"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" 
-                                BorderBrush="{TemplateBinding BorderBrush}" 
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E9ECEF"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
-        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource StandardButton}">
-            <Setter Property="Background" Value="#0D6EFD"/>
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+            <Setter Property="Background" Value="#1068E5"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
-            <Setter Property="BorderBrush" Value="#0D6EFD"/>
+            <Setter Property="BorderBrush" Value="#1068E5"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#0B5ED7"/>
+                    <Setter Property="Background" Value="#0E5BCA"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource StandardButton}">
-            <Setter Property="BorderBrush" Value="#DC3545"/>
-            <Setter Property="Foreground" Value="#DC3545"/>
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#E54D5D"/>
+            <Setter Property="BorderBrush" Value="#E54D5D"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#DC3545"/>
-                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                    <Setter Property="Background" Value="#1D1619"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
     </Window.Resources>
 
-    <Grid Margin="25">
+    <Grid Margin="30,25">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="STEAMOS ENGINE" FontSize="24" FontWeight="Black" Foreground="#212529"/>
-            <TextBlock Text="INTEGRACIÓN DE ENTORNO CRÍTICO AUTOMÁTICO" FontSize="9" Foreground="#6C757D" FontWeight="Bold"/>
-            <Border Height="1" Background="#DEE2E6" Margin="0,12,0,0"/>
+        <StackPanel Grid.Row="0" Margin="0,0,0,25">
+            <TextBlock Text="WindowsLikeSteamOS" FontSize="24" FontWeight="Black" Foreground="#FFFFFF"/>
+            <TextBlock Text="SHELL DE RENDIMIENTO AISLADO" FontSize="10" Foreground="#1068E5" FontWeight="Bold" Margin="0,2,0,0"/>
+            <Border Height="1" Background="#2A2D38" Margin="0,15,0,0"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1">
-            <Label Content="PANTALLA DESTINO REQUERIDA"/>
+            <Label Content="PANTALLA GAMING PRINCIPAL"/>
             <ComboBox x:Name="cmbMonitores" SelectionChanged="CmbMonitores_SelectionChanged"/>
 
             <Grid>
@@ -96,45 +126,42 @@
                     <ColumnDefinition Width="15"/>
                     <ColumnDefinition Width="1*"/>
                 </Grid.ColumnDefinitions>
-                
                 <StackPanel Grid.Column="0">
                     <Label Content="RESOLUCIÓN FORZADA"/>
                     <ComboBox x:Name="cmbResoluciones" SelectionChanged="CmbResoluciones_SelectionChanged"/>
                 </StackPanel>
-
                 <StackPanel Grid.Column="2">
                     <Label Content="REFRESCO"/>
                     <ComboBox x:Name="cmbRefresco"/>
                 </StackPanel>
             </Grid>
 
-            <Label Content="DISPOSITIVO DE AUDIO EXCLUSIVO"/>
+            <Label Content="ENRUTAMIENTO DE AUDIO"/>
             <ComboBox x:Name="cmbAudio"/>
 
-            <Border Background="#FFFFFF" CornerRadius="5" Padding="15" Margin="0,10,0,0" BorderBrush="#DEE2E6" BorderThickness="1">
+            <Border Background="#16181E" CornerRadius="6" Padding="15" Margin="0,10,0,0" BorderBrush="#2A2D38" BorderThickness="1">
                 <StackPanel>
-                    <TextBlock Text="REQUISITOS DEL SISTEMA OPERATIVO" FontSize="10" FontWeight="Bold" Foreground="#6C757D" Margin="0,0,0,8"/>
+                    <TextBlock Text="ESTADO DEL SISTEMA" FontSize="10" FontWeight="Bold" Foreground="#707A8C" Margin="0,0,0,10"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="• Núcleo Launcher Steam: " Foreground="#212529" FontSize="13"/>
-                        <TextBlock x:Name="lblEstadoSteam" Grid.Column="1" Text="Buscando..." FontSize="13" FontWeight="Bold"/>
+                        <TextBlock Text="Integración con núcleo Steam:" Foreground="#D5D8DF" FontSize="12"/>
+                        <TextBlock x:Name="lblEstadoSteam" Grid.Column="1" Text="Evaluando..." FontSize="12" FontWeight="Bold" HorizontalAlignment="Right"/>
                     </Grid>
                 </StackPanel>
             </Border>
         </StackPanel>
 
-        <Grid Grid.Row="2" Margin="0,10,0,0">
+        <Grid Grid.Row="2" Margin="0,20,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="15"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="1.5*"/>
             </Grid.ColumnDefinitions>
-            
-            <Button x:Name="btnDesinstalar" Grid.Column="0" Content="DESINSTALAR" Style="{StaticResource DangerButton}" Click="BtnDesinstalar_Click"/>
-            <Button x:Name="btnInstalar" Grid.Column="2" Content="INSTALAR ENTORNO" Style="{StaticResource PrimaryButton}" Click="BtnInstalar_Click"/>
+            <Button x:Name="btnDesinstalar" Grid.Column="0" Content="DESINSTALAR" Style="{StaticResource SecondaryButton}" Click="BtnDesinstalar_Click"/>
+            <Button x:Name="btnInstalar" Grid.Column="2" Content="APLICAR CONFIGURACIÓN" Style="{StaticResource PrimaryButton}" Click="BtnInstalar_Click"/>
         </Grid>
     </Grid>
 </Window>

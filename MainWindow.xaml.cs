@@ -16,7 +16,6 @@ namespace SteamOSConfigurator
 {
     public partial class MainWindow : Window
     {
-        // --- INICIO API NATIVA ---
         const int LOGON32_LOGON_INTERACTIVE = 2;
         const int LOGON32_PROVIDER_DEFAULT = 0;
 
@@ -54,13 +53,10 @@ namespace SteamOSConfigurator
         public static extern bool DeleteProfile(string lpSidString, string? lpProfilePath, string? lpComputerName);
         [DllImport("user32.dll")]
         public static extern int EnumDisplaySettings(string? deviceName, int modeNum, ref DEVMODE devMode);
-        
-        // Extractor Quirúrgico de iconos en Alta Definición de Windows (Master resolution)
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         public static extern int PrivateExtractIcons(string lpszFile, int nIconIndex, int cxIcon, int cyIcon, IntPtr[] phicon, int[] piconid, int nIcons, int flags);
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool DestroyIcon(IntPtr hIcon);
-        // --- FIN API NATIVA ---
 
         private bool _entornoInstalado = false;
         private List<DEVMODE> _resolucionesSoportadas = new List<DEVMODE>();
@@ -150,10 +146,11 @@ namespace SteamOSConfigurator
 
         private void CmbResoluciones_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            if (cmbResoluciones.SelectedIndex < 0) return;
+            // ¡FIX CS8602! Añadida validación estricta de nulidad
+            if (cmbResoluciones.SelectedIndex < 0 || cmbResoluciones.SelectedItem == null) return;
             cmbRefresco.Items.Clear();
             
-            string[] partes = cmbResoluciones.SelectedItem.ToString().Split('x');
+            string[] partes = cmbResoluciones.SelectedItem.ToString()!.Split('x');
             int w = int.Parse(partes[0].Trim());
             int h = int.Parse(partes[1].Trim());
             
@@ -217,8 +214,6 @@ namespace SteamOSConfigurator
                     {
                         InstalarEjecutableEnRutaSegura(); 
                     }
-                    // PAUSA DE SEGURIDAD PARA I/O DE DISCO
-                    System.Threading.Thread.Sleep(1000); 
                 });
 
                 GuardarConfiguracionJson(indiceMonitor, resolucionTexto, refrescoTexto, audioTexto);
@@ -287,17 +282,15 @@ namespace SteamOSConfigurator
                     IntPtr[] phicon = new IntPtr[1];
                     int[] piconid = new int[1];
 
-                    // EXTRAER EL ICONO MASTER DE 256x256
                     int result = PrivateExtractIcons(rutaSteam, 0, 256, 256, phicon, piconid, 1, 0);
                     if (result > 0 && phicon[0] != IntPtr.Zero)
                     {
-                        // Le indicamos explícitamente que use la clase de dibujo y no la propiedad de la ventana
                         using (System.Drawing.Icon icon = System.Drawing.Icon.FromHandle(phicon[0]))
                         using (System.Drawing.Bitmap bitmap = icon.ToBitmap())
                         {
                             bitmap.Save(rutaAvatar, System.Drawing.Imaging.ImageFormat.Png);
                         }
-                        DestroyIcon(phicon[0]); // Limpieza de punteros
+                        DestroyIcon(phicon[0]); 
                     }
                     
                     using (RegistryKey key = Registry.LocalMachine.CreateSubKey($@"SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\{sidUsuario}"))
@@ -357,7 +350,8 @@ namespace SteamOSConfigurator
 
         private string InstalarEjecutableEnRutaSegura()
         {
-            string? rutaOrigen = Environment.ProcessPath;
+            // ¡FIX CS8604! Validación estricta usando coalescencia nula
+            string rutaOrigen = Environment.ProcessPath ?? throw new Exception("No se pudo detectar la ruta del ejecutable principal.");
             string carpetaDestino = @"C:\ProgramData\SteamOS";
             string rutaDestino = Path.Combine(carpetaDestino, "WindowsLikeSteamOS.exe");
             if (!Directory.Exists(carpetaDestino)) Directory.CreateDirectory(carpetaDestino);
