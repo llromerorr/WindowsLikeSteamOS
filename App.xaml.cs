@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using AudioSwitcher.AudioApi.CoreAudio;
 using System.Windows.Interop;
-using System.Security.Principal; // Necesario para la Auto-Elevación
+using System.Security.Principal;
 
 namespace SteamOSConfigurator
 {
@@ -48,6 +48,7 @@ namespace SteamOSConfigurator
 
         private Dictionary<string, DEVMODE> _monitoresOriginales = new();
         private bool _modoEscritorio = false;
+        private bool _aislamientoActivo = false;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -55,31 +56,39 @@ namespace SteamOSConfigurator
             
             if (e.Args.Length > 0 && e.Args[0] == "-shell") 
             {
-                // MODO CONSOLA: Se ejecuta como usuario normal en las sombras.
+                // SUSCRIPCIÓN A EVENTOS DEL SISTEMA (Cambio de Usuario)
+                SystemEvents.SessionSwitch += SystemEvents_SessionSwitch;
                 _ = EjecutarModoConsolaAsync();
             }
             else 
             {
-                // MODO INTERFAZ: Verificamos si es Administrador
                 if (!EsAdministrador())
                 {
-                    // Si no lo es, relanzamos la app pidiendo el Escudo de Administrador
                     try
                     {
-                        ProcessStartInfo proc = new ProcessStartInfo
-                        {
-                            UseShellExecute = true,
-                            WorkingDirectory = Environment.CurrentDirectory,
-                            FileName = Environment.ProcessPath,
-                            Verb = "runas"
-                        };
+                        ProcessStartInfo proc = new ProcessStartInfo { UseShellExecute = true, WorkingDirectory = Environment.CurrentDirectory, FileName = Environment.ProcessPath, Verb = "runas" };
                         Process.Start(proc);
                     }
-                    catch { /* El usuario le dio a "No" */ }
+                    catch { }
                     Environment.Exit(0);
                     return;
                 }
                 new MainWindow().Show();
+            }
+        }
+
+        // --- EVENTO: CAMBIO DE USUARIO / BLOQUEO ---
+        private void SystemEvents_SessionSwitch(object sender, SessionSwitchEventArgs e)
+        {
+            // Si el usuario bloquea la PC o le da a "Cambiar de usuario"
+            if (e.Reason == SessionSwitchReason.ConsoleDisconnect || e.Reason == SessionSwitchReason.SessionLock)
+            {
+                RestaurarEntornoOriginal();
+            }
+            // Si el usuario vuelve a entrar a la cuenta de SteamOS
+            else if (e.Reason == SessionSwitchReason.ConsoleConnect || e.Reason == SessionSwitchReason.SessionUnlock)
+            {
+                AislarPantallaYAudio();
             }
         }
 
@@ -104,7 +113,9 @@ namespace SteamOSConfigurator
 
                 LimpiarPosicionVentanaSteam();
                 Process? steam = Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true });
-                if (steam != null) MoverVentanaSteamAlMonitorPrincipal(steam.Id, 20);
+                
+                // Anclaje Agresivo al Monitor Principal
+                if (steam != null) MoverVentanaSteamAlMonitorPrincipal(steam.Id, 25);
 
                 while (!_modoEscritorio)
                 {
@@ -119,7 +130,12 @@ namespace SteamOSConfigurator
             }
         }
 
-        private void CerrarSesionRapido() { ExitWindowsEx(4, 0); Environment.Exit(0); }
+        private void CerrarSesionRapido() 
+        { 
+            SystemEvents.SessionSwitch -= SystemEvents_SessionSwitch; // Limpiar memoria
+            ExitWindowsEx(4, 0); 
+            Environment.Exit(0); 
+        }
 
         private void RegistrarAtajoTecladoSilencioso()
         {
@@ -143,21 +159,43 @@ namespace SteamOSConfigurator
 
         private void AislarPantallaYAudio()
         {
+            if (_aislamientoActivo) return; // Evitar ciclos duplicados
+
             try
             {
                 var config = CargarConfig(); if (config == null) return;
+                
                 if (!string.IsNullOrEmpty(config.AudioDispositivo) && config.AudioDispositivo != "Salida de audio por defecto")
                 {
                     CoreAudioController ctrl = new CoreAudioController();
                     foreach (var dev in ctrl.GetPlaybackDevices()) if (dev.FullName == config.AudioDispositivo) { dev.SetAsDefault(); break; }
                 }
 
-                int id = 0; DISPLAY_DEVICE dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() }; List<string> activos = new();
+                int id = 0; DISPLAY_DEVICE dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() }; 
+                List<string> activos = new();
+                bool monitorSeleccionadoConectado = false;
+
                 while (EnumDisplayDevices(null, id, ref dd, 0))
                 {
-                    if ((dd.StateFlags & 0x1) != 0) { activos.Add(dd.DeviceName); DEVMODE modeOrig = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() }; if (EnumDisplaySettings(dd.DeviceName, ENUM_CURRENT_SETTINGS, ref modeOrig) != 0) _monitoresOriginales[dd.DeviceName] = modeOrig; }
+                    if ((dd.StateFlags & 0x1) != 0) 
+                    { 
+                        activos.Add(dd.DeviceName); 
+                        if (dd.DeviceName == config.MonitorDeviceName) monitorSeleccionadoConectado = true;
+
+                        // Solo tomar la "foto" original la primera vez, para no perderla si cambiamos de usuario
+                        if (!_monitoresOriginales.ContainsKey(dd.DeviceName))
+                        {
+                            DEVMODE modeOrig = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() }; 
+                            if (EnumDisplaySettings(dd.DeviceName, ENUM_CURRENT_SETTINGS, ref modeOrig) != 0) 
+                                _monitoresOriginales[dd.DeviceName] = modeOrig; 
+                        }
+                    }
                     id++; dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() };
                 }
+
+                // Si el monitor elegido no está físicamente conectado, abortamos el aislamiento
+                // para que Steam se abra en el monitor que esté disponible, evitando que se pierda en el limbo.
+                if (!monitorSeleccionadoConectado) return;
 
                 foreach (string deviceName in activos)
                 {
@@ -167,19 +205,24 @@ namespace SteamOSConfigurator
                 {
                     if (deviceName != config.MonitorDeviceName) { DEVMODE modeDetach = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() }; modeDetach.dmPelsWidth = 0; modeDetach.dmPelsHeight = 0; modeDetach.dmPositionX = 0; modeDetach.dmPositionY = 0; modeDetach.dmFields = DM_POSITION | DM_PELSWIDTH | DM_PELSHEIGHT; ChangeDisplaySettingsEx(deviceName, ref modeDetach, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero); }
                 }
+                
                 ChangeDisplaySettingsExReset(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
+                _aislamientoActivo = true;
             }
             catch { }
         }
 
         private void RestaurarEntornoOriginal()
         {
+            if (!_aislamientoActivo) return;
+
             try
             {
                 if (_monitoresOriginales.Count == 0) return;
                 foreach (var kvp in _monitoresOriginales) { DEVMODE mode = kvp.Value; if (mode.dmPositionX == 0 && mode.dmPositionY == 0) { mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY | DM_POSITION; ChangeDisplaySettingsEx(kvp.Key, ref mode, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_SET_PRIMARY | CDS_NORESET, IntPtr.Zero); } }
                 foreach (var kvp in _monitoresOriginales) { DEVMODE mode = kvp.Value; if (mode.dmPositionX == 0 && mode.dmPositionY == 0) continue; mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY | DM_POSITION; ChangeDisplaySettingsEx(kvp.Key, ref mode, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero); }
                 ChangeDisplaySettingsExReset(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
+                _aislamientoActivo = false;
             }
             catch { }
         }
@@ -188,11 +231,34 @@ namespace SteamOSConfigurator
 
         private void MoverVentanaSteamAlMonitorPrincipal(int steamPid, int intentos)
         {
-            Task.Run(async () => { for (int i = 0; i < intentos; i++) { await Task.Delay(1500); List<IntPtr> ventanas = new(); EnumWindows((hWnd, _) => { GetWindowThreadProcessId(hWnd, out uint pid); if (pid == (uint)steamPid && IsWindowVisible(hWnd)) ventanas.Add(hWnd); return true; }, IntPtr.Zero); if (ventanas.Count > 0) { foreach (IntPtr hWnd in ventanas) { ShowWindow(hWnd, SW_RESTORE); SetWindowPos(hWnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOZORDER); } break; } } });
+            Task.Run(async () => 
+            { 
+                for (int i = 0; i < intentos; i++) 
+                { 
+                    await Task.Delay(1000); // Reducido a 1 segundo para ser más agresivo y rápido
+                    List<IntPtr> ventanas = new(); 
+                    EnumWindows((hWnd, _) => 
+                    { 
+                        GetWindowThreadProcessId(hWnd, out uint pid); 
+                        if (pid == (uint)steamPid && IsWindowVisible(hWnd)) ventanas.Add(hWnd); 
+                        return true; 
+                    }, IntPtr.Zero); 
+                    
+                    if (ventanas.Count > 0) 
+                    { 
+                        foreach (IntPtr hWnd in ventanas) 
+                        { 
+                            ShowWindow(hWnd, SW_RESTORE); 
+                            // Forza agresivamente la ventana a la coordenada (0,0) que es nuestro monitor aislado
+                            SetWindowPos(hWnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOZORDER); 
+                        } 
+                        break; 
+                    } 
+                } 
+            });
         }
 
         private ConfiguracionSteamOS? CargarConfig() { string ruta = @"C:\ProgramData\SteamOS\config.json"; if (!File.Exists(ruta)) return null; return JsonSerializer.Deserialize<ConfiguracionSteamOS>(File.ReadAllText(ruta)); }
-
         private string ObtenerRutaSteam() { try { using RegistryKey? key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Valve\Steam"); if (key != null) return Path.Combine(key.GetValue("InstallPath") as string ?? "", "steam.exe"); } catch { } return @"C:\Program Files (x86)\Steam\steam.exe"; }
     }
 }
