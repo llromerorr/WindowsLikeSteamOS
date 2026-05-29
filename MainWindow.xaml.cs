@@ -14,6 +14,17 @@ using System.Security.Principal;
 
 namespace SteamOSConfigurator
 {
+    // AGREGAMOS LA VARIABLE EmuladorActivado AL MODELO DE DATOS
+    public class ConfiguracionLocal
+    {
+        public string? MonitorDeviceName { get; set; }
+        public int ResolucionWidth { get; set; }
+        public int ResolucionHeight { get; set; }
+        public int RefreshRate { get; set; }
+        public string? AudioDispositivo { get; set; }
+        public bool EmuladorActivado { get; set; } = true; 
+    }
+
     public partial class MainWindow : Window
     {
         const int LOGON32_LOGON_INTERACTIVE = 2; const int LOGON32_PROVIDER_DEFAULT = 0;
@@ -48,11 +59,95 @@ namespace SteamOSConfigurator
         {
             cmbMonitores.Items.Clear(); foreach (Screen pantalla in Screen.AllScreens) cmbMonitores.Items.Add($"{pantalla.DeviceName} ({(pantalla.Primary ? "Principal" : "Secundario")})");
             if (cmbMonitores.Items.Count > 0) cmbMonitores.SelectedIndex = 0;
+            
             cmbAudio.Items.Clear();
             try { CoreAudioController controller = new CoreAudioController(); foreach (var device in controller.GetPlaybackDevices()) cmbAudio.Items.Add(device.FullName); } catch { }
             if (cmbAudio.Items.Count == 0) cmbAudio.Items.Add("Salida de audio por defecto"); cmbAudio.SelectedIndex = 0;
+            
             if (VerificarSteamInstalado()) { lblEstadoSteam.Text = "Listo"; lblEstadoSteam.Foreground = System.Windows.Media.Brushes.SpringGreen; btnInstalar.IsEnabled = true; }
             else { lblEstadoSteam.Text = "No detectado"; lblEstadoSteam.Foreground = System.Windows.Media.Brushes.Crimson; btnInstalar.IsEnabled = false; }
+
+            VerificarDriversMando();
+            CargarConfiguracionGuardada();
+        }
+
+        private void VerificarDriversMando()
+        {
+            bool vigem = File.Exists(@"C:\Windows\System32\drivers\ViGEmBus.sys");
+            bool hidhide = File.Exists(@"C:\Windows\System32\drivers\HidHide.sys");
+
+            if (vigem && hidhide)
+            {
+                lblEstadoDrivers.Text = "Instalados (ViGEm + HidHide)";
+                lblEstadoDrivers.Foreground = System.Windows.Media.Brushes.SpringGreen;
+                btnConfigurarMando.IsEnabled = true;
+                chkEmulador.IsEnabled = true;
+            }
+            else
+            {
+                lblEstadoDrivers.Text = "No detectados";
+                lblEstadoDrivers.Foreground = System.Windows.Media.Brushes.Crimson;
+                btnConfigurarMando.IsEnabled = false;
+                chkEmulador.IsEnabled = false;
+                chkEmulador.IsChecked = false;
+            }
+        }
+
+        private void CargarConfiguracionGuardada()
+        {
+            string rutaConfig = @"C:\ProgramData\SteamOS\config.json";
+            if (File.Exists(rutaConfig))
+            {
+                try
+                {
+                    var config = JsonSerializer.Deserialize<ConfiguracionLocal>(File.ReadAllText(rutaConfig));
+                    if (config != null)
+                    {
+                        for (int i = 0; i < cmbMonitores.Items.Count; i++) if (cmbMonitores.Items[i].ToString()!.Contains(config.MonitorDeviceName!)) { cmbMonitores.SelectedIndex = i; break; }
+                        
+                        // Setear resoluciones editables (incluso si no existen en la lista)
+                        cmbResoluciones.Text = $"{config.ResolucionWidth} x {config.ResolucionHeight}";
+                        cmbRefresco.Text = $"{config.RefreshRate} Hz";
+                        
+                        for (int i = 0; i < cmbAudio.Items.Count; i++) if (cmbAudio.Items[i].ToString() == config.AudioDispositivo) { cmbAudio.SelectedIndex = i; break; }
+                        
+                        chkEmulador.IsChecked = config.EmuladorActivado;
+                    }
+                }
+                catch { }
+            }
+
+            ActualizarNombreMando();
+        }
+
+        private void ActualizarNombreMando()
+        {
+            string rutaMapeo = @"C:\ProgramData\SteamOS\mapeo_config.json";
+            if (File.Exists(rutaMapeo))
+            {
+                try
+                {
+                    var mapeo = JsonSerializer.Deserialize<MapeoControl>(File.ReadAllText(rutaMapeo));
+                    if (mapeo != null && !string.IsNullOrEmpty(mapeo.NombreControl))
+                    {
+                        lblNombreMando.Text = mapeo.NombreControl;
+                        btnConfigurarMando.Content = "RECONFIGURAR";
+                        lblNombreMando.Foreground = System.Windows.Media.Brushes.SpringGreen;
+                        return;
+                    }
+                }
+                catch { }
+            }
+            lblNombreMando.Text = "Ningún mando configurado";
+            btnConfigurarMando.Content = "CONFIGURAR";
+            lblNombreMando.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#707A8C")!;
+        }
+
+        private void BtnConfigurarMando_Click(object sender, RoutedEventArgs e)
+        {
+            VentanaMapeo ventana = new VentanaMapeo { Owner = this };
+            ventana.ShowDialog();
+            ActualizarNombreMando(); // Refresca el nombre tras cerrar la ventana
         }
 
         private void CmbMonitores_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -79,7 +174,12 @@ namespace SteamOSConfigurator
 
         private async void BtnInstalar_Click(object sender, RoutedEventArgs e)
         {
-            int indiceMonitor = cmbMonitores.SelectedIndex; string resolucionTexto = cmbResoluciones.Text; string refrescoTexto = cmbRefresco.Text; string audioTexto = cmbAudio.Text;
+            int indiceMonitor = cmbMonitores.SelectedIndex; 
+            string resolucionTexto = cmbResoluciones.Text; // Lee el texto (aunque sea tipeado a mano)
+            string refrescoTexto = cmbRefresco.Text; 
+            string audioTexto = cmbAudio.Text;
+            bool emuladorActivado = chkEmulador.IsChecked ?? false;
+
             btnInstalar.IsEnabled = false; btnDesinstalar.IsEnabled = false; btnInstalar.Content = _entornoInstalado ? "APLICANDO..." : "INSTALANDO...";
 
             try
@@ -94,8 +194,6 @@ namespace SteamOSConfigurator
                     {
                         OptimizarInicioNuevoUsuario();
                         CrearUsuarioSteam(nombreUsuario, passwordTemporal);
-                        
-                        // VOLVEMOS A LA INYECCIÓN SEGURA POR USUARIO
                         ConstruirPerfilEnSegundoPlano(nombreUsuario, passwordTemporal, rutaSeguraExe);
                         
                         string sid = ObtenerSidUsuario(nombreUsuario);
@@ -105,8 +203,8 @@ namespace SteamOSConfigurator
                     }
                 });
 
-                GuardarConfiguracionJson(indiceMonitor, resolucionTexto, refrescoTexto, audioTexto);
-                System.Windows.MessageBox.Show(_entornoInstalado ? "Configuración de juego actualizada con éxito." : "¡Entorno Gaming creado con éxito!\n\nTu cuenta SteamOS está lista y SIN contraseña. Solo haz clic en ella y a jugar.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+                GuardarConfiguracionJson(indiceMonitor, resolucionTexto, refrescoTexto, audioTexto, emuladorActivado);
+                System.Windows.MessageBox.Show(_entornoInstalado ? "Configuración de juego actualizada con éxito." : "¡Entorno Gaming creado con éxito!\n\nTu cuenta SteamOS está lista y SIN contraseña.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
                 VerificarEstadoSistema(); 
             }
             catch (Exception ex) { System.Windows.MessageBox.Show($"Error en despliegue:\n{ex.Message}", "Error Crítico", MessageBoxButton.OK, MessageBoxImage.Error); }
@@ -130,7 +228,6 @@ namespace SteamOSConfigurator
             EjecutarComandoOculto($"wmic useraccount where \"name='{nombreUsuario}'\" set PasswordExpires=FALSE");
             EjecutarComandoOculto($"net localgroup Administradores {nombreUsuario} /add");
             EjecutarComandoOculto($"net localgroup Administrators {nombreUsuario} /add");
-
             try { using (RegistryKey? key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList")) { key?.SetValue(nombreUsuario, 1, RegistryValueKind.DWord); } } catch { }
         }
 
@@ -142,20 +239,21 @@ namespace SteamOSConfigurator
             try { Directory.Delete(@"C:\Users\SteamOS", true); } catch { }
         }
 
-        private void EjecutarComandoOculto(string comando)
-        {
-            try { ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", $"/c {comando}") { WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true, UseShellExecute = false }; Process.Start(psi)?.WaitForExit(); } catch { }
-        }
+        private void EjecutarComandoOculto(string comando) { try { ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", $"/c {comando}") { WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true, UseShellExecute = false }; Process.Start(psi)?.WaitForExit(); } catch { } }
+        private string ObtenerSidUsuario(string nombreUsuario) { try { var cuenta = new NTAccount(nombreUsuario); var sid = (SecurityIdentifier)cuenta.Translate(typeof(SecurityIdentifier)); return sid.Value; } catch { return ""; } }
 
-        private string ObtenerSidUsuario(string nombreUsuario)
+        private void GuardarConfiguracionJson(int indiceMonitor, string resolucion, string refresco, string audioPreferido, bool emuActivado)
         {
-            try { var cuenta = new NTAccount(nombreUsuario); var sid = (SecurityIdentifier)cuenta.Translate(typeof(SecurityIdentifier)); return sid.Value; } catch { return ""; }
-        }
+            // Protegemos el guardado si el usuario escribió mal
+            int w = 1920, h = 1080, hz = 60;
+            try
+            {
+                string[] partesRes = resolucion.Split('x');
+                w = int.Parse(partesRes[0].Trim()); h = int.Parse(partesRes[1].Trim());
+                hz = int.Parse(refresco.Replace("Hz", "").Trim());
+            } catch { }
 
-        private void GuardarConfiguracionJson(int indiceMonitor, string resolucion, string refresco, string audioPreferido)
-        {
-            string[] partesRes = resolucion.Split('x');
-            var config = new { MonitorDeviceName = Screen.AllScreens[indiceMonitor].DeviceName, ResolucionWidth = int.Parse(partesRes[0].Trim()), ResolucionHeight = int.Parse(partesRes[1].Trim()), RefreshRate = int.Parse(refresco.Replace("Hz", "").Trim()), AudioDispositivo = audioPreferido };
+            var config = new { MonitorDeviceName = Screen.AllScreens[indiceMonitor].DeviceName, ResolucionWidth = w, ResolucionHeight = h, RefreshRate = hz, AudioDispositivo = audioPreferido, EmuladorActivado = emuActivado };
             string rutaConfig = Path.Combine(@"C:\ProgramData\SteamOS", "config.json");
             File.WriteAllText(rutaConfig, JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true }));
         }
@@ -200,8 +298,6 @@ namespace SteamOSConfigurator
                 if (LoadUserProfile(token, ref p))
                 {
                     string sid = ObtenerSidUsuario(usuario);
-                    
-                    // ESCRIBIMOS EL SHELL EXCLUSIVAMENTE EN EL REGISTRO DE ESE USUARIO
                     using (RegistryKey? key = Registry.Users.CreateSubKey($@"{sid}\Software\Microsoft\Windows NT\CurrentVersion\Winlogon"))
                     {
                         if (key != null) { key.SetValue("Shell", $"\"{rutaEjecutable}\" -shell", RegistryValueKind.String); key.Flush(); }

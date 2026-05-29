@@ -1,7 +1,7 @@
 ﻿<Window x:Class="SteamOSConfigurator.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="WindowsLikeSteamOS" Height="580" Width="480"
+        Title="WindowsLikeSteamOS" Width="480" SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
         Background="#121318" FontFamily="Segoe UI" ResizeMode="NoResize">
 
@@ -32,6 +32,7 @@
                         <Grid>
                             <ToggleButton Name="ToggleButton" Template="{StaticResource ComboBoxToggleButton}" Focusable="false" IsChecked="{Binding Path=IsDropDownOpen,Mode=TwoWay,RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press"/>
                             <ContentPresenter Name="ContentSite" IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" Margin="12,0,30,0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                            <TextBox x:Name="PART_EditableTextBox" Visibility="Hidden" IsReadOnly="{TemplateBinding IsReadOnly}" Margin="12,0,30,0" VerticalAlignment="Center" HorizontalAlignment="Left" Background="Transparent" Foreground="#D5D8DF" BorderThickness="0"/>
                             <Popup Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
                                 <Border Name="DropDownBorder" Background="#1A1C23" BorderThickness="1" BorderBrush="#2A2D38" MinWidth="{Binding ActualWidth, ElementName=ToggleButton}">
                                     <ScrollViewer Margin="4,6,4,6" SnapsToDevicePixels="True">
@@ -40,6 +41,12 @@
                                 </Border>
                             </Popup>
                         </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEditable" Value="True">
+                                <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="ContentSite" Property="Visibility" Value="Hidden"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -101,6 +108,21 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="GhostButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+            <Setter Property="Background" Value="#1A1C23"/>
+            <Setter Property="Foreground" Value="#D5D8DF"/>
+            <Setter Property="BorderBrush" Value="#2A2D38"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#252833"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="#4C5366"/>
+                    <Setter Property="Background" Value="#121318"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="30,25">
@@ -127,22 +149,39 @@
                     <ColumnDefinition Width="1*"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
-                    <Label Content="RESOLUCIÓN FORZADA"/>
-                    <ComboBox x:Name="cmbResoluciones" SelectionChanged="CmbResoluciones_SelectionChanged"/>
+                    <Label Content="RESOLUCIÓN FORZADA (EDITABLE)"/>
+                    <ComboBox x:Name="cmbResoluciones" IsEditable="True" SelectionChanged="CmbResoluciones_SelectionChanged"/>
                 </StackPanel>
                 <StackPanel Grid.Column="2">
-                    <Label Content="REFRESCO"/>
-                    <ComboBox x:Name="cmbRefresco"/>
+                    <Label Content="REFRESCO (EDITABLE)"/>
+                    <ComboBox x:Name="cmbRefresco" IsEditable="True"/>
                 </StackPanel>
             </Grid>
 
             <Label Content="ENRUTAMIENTO DE AUDIO"/>
             <ComboBox x:Name="cmbAudio"/>
 
+            <Label Content="MANDO GAMING (GENERIC A XBOX)"/>
+            <Grid Margin="0,0,0,18">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="15"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <CheckBox x:Name="chkEmulador" Content="Emulador" VerticalAlignment="Center" Foreground="#D5D8DF" Margin="0,0,10,0" IsChecked="True"/>
+                
+                <Border Grid.Column="1" Background="#1A1C23" BorderBrush="#2A2D38" BorderThickness="1" CornerRadius="4" Padding="10,0">
+                    <TextBlock x:Name="lblNombreMando" Text="Ningún mando configurado" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#707A8C" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                </Border>
+                <Button x:Name="btnConfigurarMando" Grid.Column="3" Content="CONFIGURAR" Style="{StaticResource GhostButton}" Width="110" Click="BtnConfigurarMando_Click"/>
+            </Grid>
+
             <Border Background="#16181E" CornerRadius="6" Padding="15" Margin="0,10,0,0" BorderBrush="#2A2D38" BorderThickness="1">
                 <StackPanel>
                     <TextBlock Text="ESTADO DEL SISTEMA" FontSize="10" FontWeight="Bold" Foreground="#707A8C" Margin="0,0,0,10"/>
-                    <Grid>
+                    <Grid Margin="0,0,0,6">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
@@ -150,11 +189,19 @@
                         <TextBlock Text="Integración con núcleo Steam:" Foreground="#D5D8DF" FontSize="12"/>
                         <TextBlock x:Name="lblEstadoSteam" Grid.Column="1" Text="Evaluando..." FontSize="12" FontWeight="Bold" HorizontalAlignment="Right"/>
                     </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Drivers del emulador de mando:" Foreground="#D5D8DF" FontSize="12"/>
+                        <TextBlock x:Name="lblEstadoDrivers" Grid.Column="1" Text="Buscando..." FontSize="12" FontWeight="Bold" HorizontalAlignment="Right"/>
+                    </Grid>
                 </StackPanel>
             </Border>
         </StackPanel>
 
-        <Grid Grid.Row="2" Margin="0,20,0,0">
+        <Grid Grid.Row="2" Margin="0,20,0,25">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="15"/>

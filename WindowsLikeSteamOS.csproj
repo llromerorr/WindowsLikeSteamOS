@@ -11,9 +11,14 @@
 
   <ItemGroup>
     <PackageReference Include="AudioSwitcher.AudioApi.CoreAudio" Version="3.0.3" />
+    <PackageReference Include="HidSharp" Version="2.6.4" />
     <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="Nefarius.Drivers.HidHide" Version="3.4.0" />
+    <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />
+    <PackageReference Include="SharpDX.DirectInput" Version="4.2.0" />
     <PackageReference Include="System.DirectoryServices.AccountManagement" Version="10.0.8" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.8" />
+    <PackageReference Include="System.Text.Json" Version="10.0.8" />
   </ItemGroup>
 
 </Project>
