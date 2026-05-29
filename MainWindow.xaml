@@ -157,6 +157,8 @@
                     <ComboBox x:Name="cmbRefresco" IsEditable="True"/>
                 </StackPanel>
             </Grid>
+            
+            <Button x:Name="btnForzarResolucion" Content="⚡ FORZAR BLIND OUTPUT AL TV" Style="{StaticResource SecondaryButton}" Height="30" Margin="0,8,0,18" Click="BtnForzarResolucion_Click"/>
 
             <Label Content="ENRUTAMIENTO DE AUDIO"/>
             <ComboBox x:Name="cmbAudio"/>

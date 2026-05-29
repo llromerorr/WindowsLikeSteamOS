@@ -46,11 +46,11 @@ namespace SteamOSConfigurator
         const uint SWP_NOSIZE = 0x0001; const uint SWP_NOZORDER = 0x0004; const int SW_RESTORE = 9;
         const int DM_POSITION = 0x00000020; const int DM_BITSPERPEL = 0x00040000; const int DM_PELSWIDTH = 0x00080000; const int DM_PELSHEIGHT = 0x00100000; const int DM_DISPLAYFREQUENCY = 0x00400000;
         
-        // El secreto: Solo usamos CDS_FULLSCREEN (memoria volátil) sin CDS_UPDATEREGISTRY
         const int CDS_FULLSCREEN = 0x00000004; 
         const int CDS_SET_PRIMARY = 0x00000010; 
         const int ENUM_CURRENT_SETTINGS = -1;
 
+        // AQUÍ ESTÁ LA VARIABLE QUE ME SALTÉ
         private Dictionary<string, DEVMODE> _monitoresOriginales = new();
         private bool _modoEscritorio = false;
         private bool _aislamientoActivo = false;
@@ -61,7 +61,6 @@ namespace SteamOSConfigurator
             
             if (e.Args.Length > 0 && e.Args[0] == "-shell") 
             {
-                SystemEvents.SessionSwitch += SystemEvents_SessionSwitch;
                 _ = EjecutarModoConsolaAsync();
             }
             else 
@@ -73,12 +72,6 @@ namespace SteamOSConfigurator
                 }
                 new MainWindow().Show();
             }
-        }
-
-        private void SystemEvents_SessionSwitch(object sender, SessionSwitchEventArgs e)
-        {
-            if (e.Reason == SessionSwitchReason.ConsoleDisconnect || e.Reason == SessionSwitchReason.SessionLock) RestaurarEntornoOriginal();
-            else if (e.Reason == SessionSwitchReason.ConsoleConnect || e.Reason == SessionSwitchReason.SessionUnlock) AislarPantallaYAudio();
         }
 
         private bool EsAdministrador()
@@ -118,7 +111,6 @@ namespace SteamOSConfigurator
 
         private void CerrarSesionRapido() 
         { 
-            SystemEvents.SessionSwitch -= SystemEvents_SessionSwitch; 
             TraductorMando.Detener(); 
             ExitWindowsEx(4, 0); 
             Environment.Exit(0); 
@@ -160,15 +152,12 @@ namespace SteamOSConfigurator
 
                 int id = 0; DISPLAY_DEVICE dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() }; 
                 List<string> activos = new();
-                bool monitorSeleccionadoConectado = false;
 
                 while (EnumDisplayDevices(null, id, ref dd, 0))
                 {
                     if ((dd.StateFlags & 0x1) != 0) 
-                    { 
-                        activos.Add(dd.DeviceName); 
-                        if (dd.DeviceName == config.MonitorDeviceName) monitorSeleccionadoConectado = true;
-
+                    {
+                        activos.Add(dd.DeviceName);
                         if (!_monitoresOriginales.ContainsKey(dd.DeviceName))
                         {
                             DEVMODE modeOrig = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() }; 
@@ -179,18 +168,23 @@ namespace SteamOSConfigurator
                     id++; dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() };
                 }
 
-                if (!monitorSeleccionadoConectado) return;
-
                 foreach (string deviceName in activos)
                 {
-                    if (deviceName == config.MonitorDeviceName) { DEVMODE mode = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() }; EnumDisplaySettings(deviceName, ENUM_CURRENT_SETTINGS, ref mode); mode.dmPelsWidth = config.ResolucionWidth; mode.dmPelsHeight = config.ResolucionHeight; mode.dmDisplayFrequency = config.RefreshRate; mode.dmPositionX = 0; mode.dmPositionY = 0; mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY | DM_POSITION; ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, CDS_SET_PRIMARY | CDS_FULLSCREEN, IntPtr.Zero); }
-                }
-                foreach (string deviceName in activos)
-                {
-                    if (deviceName != config.MonitorDeviceName) { DEVMODE modeDetach = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() }; modeDetach.dmPelsWidth = 0; modeDetach.dmPelsHeight = 0; modeDetach.dmPositionX = 0; modeDetach.dmPositionY = 0; modeDetach.dmFields = DM_POSITION | DM_PELSWIDTH | DM_PELSHEIGHT; ChangeDisplaySettingsEx(deviceName, ref modeDetach, IntPtr.Zero, CDS_FULLSCREEN, IntPtr.Zero); }
+                    if (deviceName == config.MonitorDeviceName) { 
+                        DEVMODE mode = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() }; 
+                        EnumDisplaySettings(deviceName, ENUM_CURRENT_SETTINGS, ref mode); 
+                        mode.dmPelsWidth = config.ResolucionWidth; mode.dmPelsHeight = config.ResolucionHeight; mode.dmDisplayFrequency = config.RefreshRate; mode.dmPositionX = 0; mode.dmPositionY = 0; 
+                        mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY | DM_POSITION; 
+                        ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, CDS_SET_PRIMARY | CDS_FULLSCREEN, IntPtr.Zero); 
+                    }
+                    else { 
+                        DEVMODE modeDetach = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() }; 
+                        modeDetach.dmPelsWidth = 0; modeDetach.dmPelsHeight = 0; modeDetach.dmPositionX = 0; modeDetach.dmPositionY = 0; 
+                        modeDetach.dmFields = DM_POSITION | DM_PELSWIDTH | DM_PELSHEIGHT; 
+                        ChangeDisplaySettingsEx(deviceName, ref modeDetach, IntPtr.Zero, CDS_FULLSCREEN, IntPtr.Zero); 
+                    }
                 }
                 
-                ChangeDisplaySettingsExReset(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
                 _aislamientoActivo = true;
             }
             catch { }
@@ -202,9 +196,12 @@ namespace SteamOSConfigurator
 
             try
             {
-                if (_monitoresOriginales.Count == 0) return;
-                foreach (var kvp in _monitoresOriginales) { DEVMODE mode = kvp.Value; if (mode.dmPositionX == 0 && mode.dmPositionY == 0) { mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY | DM_POSITION; ChangeDisplaySettingsEx(kvp.Key, ref mode, IntPtr.Zero, CDS_SET_PRIMARY | CDS_FULLSCREEN, IntPtr.Zero); } }
-                foreach (var kvp in _monitoresOriginales) { DEVMODE mode = kvp.Value; if (mode.dmPositionX == 0 && mode.dmPositionY == 0) continue; mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY | DM_POSITION; ChangeDisplaySettingsEx(kvp.Key, ref mode, IntPtr.Zero, CDS_FULLSCREEN, IntPtr.Zero); }
+                if (_monitoresOriginales.Count > 0)
+                {
+                    foreach (var kvp in _monitoresOriginales) { DEVMODE mode = kvp.Value; if (mode.dmPositionX == 0 && mode.dmPositionY == 0) { mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY | DM_POSITION; ChangeDisplaySettingsEx(kvp.Key, ref mode, IntPtr.Zero, CDS_SET_PRIMARY | CDS_FULLSCREEN, IntPtr.Zero); } }
+                    foreach (var kvp in _monitoresOriginales) { DEVMODE mode = kvp.Value; if (mode.dmPositionX == 0 && mode.dmPositionY == 0) continue; mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY | DM_POSITION; ChangeDisplaySettingsEx(kvp.Key, ref mode, IntPtr.Zero, CDS_FULLSCREEN, IntPtr.Zero); }
+                }
+                
                 ChangeDisplaySettingsExReset(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
                 _aislamientoActivo = false;
             }

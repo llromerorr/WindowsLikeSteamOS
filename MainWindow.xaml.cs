@@ -29,6 +29,10 @@ namespace SteamOSConfigurator
     {
         const int LOGON32_LOGON_INTERACTIVE = 2; const int LOGON32_PROVIDER_DEFAULT = 0;
 
+        const int DISP_CHANGE_SUCCESSFUL = 0;
+        const int DISP_CHANGE_BADMODE = -2;
+        const int CDS_TEST = 0x00000002;
+
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         public struct PROFILEINFO { public int dwSize; public int dwFlags; public string lpUserName; public string lpProfilePath; public string lpDefaultPath; public string lpServerName; public string lpPolicyPath; public IntPtr hProfile; }
         [StructLayout(LayoutKind.Sequential)]
@@ -42,7 +46,12 @@ namespace SteamOSConfigurator
         [DllImport("user32.dll")] public static extern int EnumDisplaySettings(string? deviceName, int modeNum, ref DEVMODE devMode);
         [DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern int PrivateExtractIcons(string lpszFile, int nIconIndex, int cxIcon, int cyIcon, IntPtr[] phicon, int[] piconid, int nIcons, int flags);
         [DllImport("user32.dll", SetLastError = true)] public static extern bool DestroyIcon(IntPtr hIcon);
-
+        [DllImport("user32.dll")] public static extern int ChangeDisplaySettingsEx(string? lpszDeviceName, ref DEVMODE lpDevMode, IntPtr hwnd, int dwflags, IntPtr lParam);
+        
+        const int ENUM_CURRENT_SETTINGS = -1;
+        const int DM_PELSWIDTH = 0x00080000;
+        const int DM_PELSHEIGHT = 0x00100000;
+        const int DM_DISPLAYFREQUENCY = 0x00400000;
         private bool _entornoInstalado = false;
         private List<DEVMODE> _resolucionesSoportadas = new List<DEVMODE>();
 
@@ -165,6 +174,59 @@ namespace SteamOSConfigurator
             string[] partes = cmbResoluciones.SelectedItem.ToString()!.Split('x'); int w = int.Parse(partes[0].Trim()); int h = int.Parse(partes[1].Trim());
             var hzUnicos = _resolucionesSoportadas.Where(d => d.dmPelsWidth == w && d.dmPelsHeight == h).Select(d => d.dmDisplayFrequency).Distinct().OrderByDescending(hz => hz).ToList();
             foreach(var hz in hzUnicos) cmbRefresco.Items.Add($"{hz} Hz"); if (cmbRefresco.Items.Count > 0) cmbRefresco.SelectedIndex = 0;
+        }
+
+        private void BtnForzarResolucion_Click(object sender, RoutedEventArgs e)
+        {
+            if (cmbMonitores.SelectedIndex < 0) return;
+            string deviceName = Screen.AllScreens[cmbMonitores.SelectedIndex].DeviceName;
+
+            try
+            {
+                // Leemos lo que escribiste a mano en las cajas
+                string[] partesRes = cmbResoluciones.Text.Split('x');
+                int w = int.Parse(partesRes[0].Trim());
+                int h = int.Parse(partesRes[1].Trim());
+                int hz = int.Parse(cmbRefresco.Text.Replace("Hz", "").Trim());
+
+                DEVMODE mode = new DEVMODE { dmSize = (short)Marshal.SizeOf(typeof(DEVMODE)) };
+                EnumDisplaySettings(deviceName, ENUM_CURRENT_SETTINGS, ref mode);
+
+                mode.dmPelsWidth = w;
+                mode.dmPelsHeight = h;
+                mode.dmDisplayFrequency = hz;
+                mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+
+                // FASE 1: El test de estrés a la tarjeta gráfica
+                int testResult = ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, CDS_TEST, IntPtr.Zero);
+
+                if (testResult == DISP_CHANGE_SUCCESSFUL)
+                {
+                    // FASE 2: Si lo acepta, lo inyectamos al registro a la fuerza
+                    int applyResult = ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, 0x00000001 /* CDS_UPDATEREGISTRY */, IntPtr.Zero);
+                    
+                    if (applyResult == DISP_CHANGE_SUCCESSFUL)
+                    {
+                         System.Windows.MessageBox.Show($"¡Inyección exitosa! La tarjeta gráfica aceptó forzar la señal a {w}x{h} @ {hz}Hz.", "Blind Output Exitoso", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                         System.Windows.MessageBox.Show($"La tarjeta pasó el test, pero Windows bloqueó la aplicación final. Código: {applyResult}", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                }
+                else if (testResult == DISP_CHANGE_BADMODE)
+                {
+                    System.Windows.MessageBox.Show($"❌ EL DRIVER RECHAZÓ LA SEÑAL (Código -2: BADMODE).\n\nEl televisor tiene el hardware bloqueado y la gráfica se niega a disparar a ciegas. Oficialmente necesitamos modificar el EDID (Mini-CRU) para engañarla.", "Hardware Bloqueado", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                else
+                {
+                    System.Windows.MessageBox.Show($"Fallo desconocido de la API. Código de error: {testResult}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception)
+            {
+                System.Windows.MessageBox.Show("Por favor, asegúrate de escribir el formato correcto.\nEjemplo: '3840 x 2160' en resolución y '60' en hercios.", "Error de Formato", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private bool VerificarSteamInstalado()
