@@ -116,7 +116,7 @@ namespace SteamOSConfigurator
 
         // Variables de Memoria para Juegos y Hooks
         private List<IntPtr> _ventanasSteamOcultas = new List<IntPtr>();
-        private IntPtr _juegoActivoHwnd = IntPtr.Zero; // Recordamos cuál es la ventana del juego
+        private IntPtr _juegoActivoHwnd = IntPtr.Zero; 
         
         private WinEventDelegate? _winEventDelegate;
         private IntPtr _hWinEventHook = IntPtr.Zero;
@@ -135,7 +135,6 @@ namespace SteamOSConfigurator
                 Environment.Exit(0); return;
             }
 
-            // Desactivamos la seguridad de foco de Windows para tener poder absoluto
             SystemParametersInfoTimeout(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, IntPtr.Zero, SPIF_SENDCHANGE | SPIF_UPDATEINIFILE);
 
             if (e.Args.Length > 0 && e.Args[0] == "-shell") { _ = EjecutarModoConsolaAsync(); } else { new MainWindow().Show(); }
@@ -165,6 +164,34 @@ namespace SteamOSConfigurator
             } catch { }
         }
 
+        // ── ARRANQUE HEREDADO DE RIVA TUNER (FIX DE INYECCIÓN DE TOKEN) ──
+        private void IniciarRivaTuner()
+        {
+            try
+            {
+                string directorioRTSS = @"C:\Program Files (x86)\RivaTuner Statistics Server";
+                string rutaRTSS = Path.Combine(directorioRTSS, "RTSS.exe");
+                
+                if (File.Exists(rutaRTSS))
+                {
+                    foreach (var proc in Process.GetProcessesByName("RTSS")) { try { proc.Kill(); } catch {} }
+                    foreach (var proc in Process.GetProcessesByName("rtss")) { try { proc.Kill(); } catch {} }
+                    
+                    Thread.Sleep(300); 
+
+                    // FIX RADICAL: UseShellExecute = false para forzar la herencia de token directa
+                    Process.Start(new ProcessStartInfo 
+                    { 
+                        FileName = rutaRTSS, 
+                        WorkingDirectory = directorioRTSS, 
+                        UseShellExecute = false, // Crea el proceso de forma directa, clonando los privilegios de nuestro Shell
+                        CreateNoWindow = true
+                    });
+                }
+            }
+            catch { }
+        }
+
         // ── ESCUDO 1: BLOQUEADOR DE TECLAS DEL SISTEMA ──
         private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
@@ -174,13 +201,12 @@ namespace SteamOSConfigurator
                 bool altPressed = (GetKeyState(0x12) & 0x8000) != 0; 
                 bool ctrlPressed = (GetKeyState(0x11) & 0x8000) != 0; 
 
-                // Bloqueamos Alt+Tab, Alt+Esc, Ctrl+Esc y las teclas Windows
                 if ((vkCode == 0x09 && altPressed) || 
                     (vkCode == 0x1B && altPressed) || 
                     (vkCode == 0x1B && ctrlPressed) || 
                     vkCode == 0x5B || vkCode == 0x5C) 
                 {
-                    return new IntPtr(1); // Nos comemos la tecla, Windows jamás la verá
+                    return new IntPtr(1); 
                 }
             }
             return CallNextHookEx(_keyboardHook, nCode, wParam, lParam);
@@ -199,21 +225,17 @@ namespace SteamOSConfigurator
                 var proc = Process.GetProcessById((int)pid);
                 string pName = proc.ProcessName.ToLower();
 
-                // Si Steam intenta robar foco o hacerse visible mientras hay un juego...
                 if (pName == "steam" || pName == "steamwebhelper")
                 {
-                    // 1. Lo ocultamos instantáneamente en las sombras
                     ShowWindow(hwnd, SW_HIDE);
                     if (!_ventanasSteamOcultas.Contains(hwnd)) _ventanasSteamOcultas.Add(hwnd);
-                    
-                    // 2. Le regresamos el foco al juego de un golpe
                     SetForegroundWindow(_juegoActivoHwnd);
                 }
             }
             catch { }
         }
 
-        // ── MONITOR LENTO DE VISIBILIDAD (Solo para saber si el juego cerró) ──
+        // ── MONITOR LENTO DE VISIBILIDAD ──
         private async Task MonitorDeJuegosAsync()
         {
             Process? juegoActivo = null;
@@ -249,8 +271,8 @@ namespace SteamOSConfigurator
                             if (pName != "steam" && pName != "steamwebhelper" && pName != "gameoverlayui" && pName != "windowslikesteamos" && pName != "explorer")
                             {
                                 juegoActivo = proc;
-                                _juegoActivoHwnd = fgHwnd; // Memorizamos al Rey actual
-                                CambiarVisibilidadSteam(true); // Mandamos a Steam a dormir
+                                _juegoActivoHwnd = fgHwnd; 
+                                CambiarVisibilidadSteam(true); 
                             }
                         }
                         catch { }
@@ -311,6 +333,12 @@ namespace SteamOSConfigurator
                 AislarPantallaYAudio();
 
                 if (config.EmuladorActivado) _ = TraductorMando.IniciarAsync();
+
+                // ── ARRANCAMOS RIVATUNER CON HERENCIA DIRECTA DE TOKEN ──
+                IniciarRivaTuner();
+                
+                // LE DAMOS 4 SEGUNDOS PARA QUE EL ARMA DE INYECCIÓN DX SE INSTALE EN MEMORIA
+                await Task.Delay(4000); 
 
                 // ── INSTALAMOS LOS ESCUDOS KIOSK ──
                 _winEventDelegate = new WinEventDelegate(WinEventCallback);
