@@ -32,12 +32,31 @@ namespace SteamOSConfigurator
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
         [DllImport("user32.dll")] static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref RECT pvParam, uint fWinIni);
+        [DllImport("user32.dll", EntryPoint = "SystemParametersInfo")] static extern bool SystemParametersInfoTimeout(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
         
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 
         const uint SPI_SETWORKAREA = 0x002F;
+        const uint SPI_SETFOREGROUNDLOCKTIMEOUT = 0x2001; 
         const uint SPIF_SENDCHANGE = 0x0002;
+        const uint SPIF_UPDATEINIFILE = 0x0001;
+
+        // ── API PARA HOOKS (TECLADO Y EVENTOS DEL NÚCLEO) ──────────────────────────
+        delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+        [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+        [DllImport("user32.dll")] static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
+        delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll")] static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+        [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hhk);
+        [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)] static extern IntPtr GetModuleHandle(string lpModuleName);
+        [DllImport("user32.dll")] static extern short GetKeyState(int nVirtKey);
+
+        const int WH_KEYBOARD_LL = 13;
+        const uint EVENT_SYSTEM_FOREGROUND = 3;
+        const uint WINEVENT_OUTOFCONTEXT = 0;
 
         // ── ESTRUCTURA DEVMODE ANSI EXPLÍCITA (NVIDIA FIX) ──
         [StructLayout(LayoutKind.Explicit, CharSet = CharSet.Ansi)]
@@ -90,13 +109,20 @@ namespace SteamOSConfigurator
         private bool _aislamientoActivo = false;
         private IntPtr _hwndShell = IntPtr.Zero;
 
-        // ── LISTA PARA RECORDAR QUÉ VENTANAS OCULTAMOS ──
-        private List<IntPtr> _ventanasSteamOcultas = new List<IntPtr>();
-
-        // ── VARIABLES DEL MONITOR DE JUEGOS ──
+        // ── VARIABLES GLOBALES ─────────────────────────────────────
         private System.Threading.Timer? _debounceTimer;
         private int _suppressDisplayChange = 0;
         private readonly object _timerLock = new object();
+
+        // Variables de Memoria para Juegos y Hooks
+        private List<IntPtr> _ventanasSteamOcultas = new List<IntPtr>();
+        private IntPtr _juegoActivoHwnd = IntPtr.Zero; // Recordamos cuál es la ventana del juego
+        
+        private WinEventDelegate? _winEventDelegate;
+        private IntPtr _hWinEventHook = IntPtr.Zero;
+        
+        private LowLevelKeyboardProc? _keyboardDelegate;
+        private IntPtr _keyboardHook = IntPtr.Zero;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -108,6 +134,9 @@ namespace SteamOSConfigurator
                 try { Process.Start(new ProcessStartInfo { UseShellExecute = true, WorkingDirectory = Environment.CurrentDirectory, FileName = Environment.ProcessPath, Arguments = e.Args.Length > 0 ? string.Join(" ", e.Args) : "", Verb = "runas" }); } catch { }
                 Environment.Exit(0); return;
             }
+
+            // Desactivamos la seguridad de foco de Windows para tener poder absoluto
+            SystemParametersInfoTimeout(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, IntPtr.Zero, SPIF_SENDCHANGE | SPIF_UPDATEINIFILE);
 
             if (e.Args.Length > 0 && e.Args[0] == "-shell") { _ = EjecutarModoConsolaAsync(); } else { new MainWindow().Show(); }
         }
@@ -136,27 +165,75 @@ namespace SteamOSConfigurator
             } catch { }
         }
 
-        // ── LA IDEA MAESTRA DE LUIS: EL MONITOR DE VISIBILIDAD ──
+        // ── ESCUDO 1: BLOQUEADOR DE TECLAS DEL SISTEMA ──
+        private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 && _aislamientoActivo) 
+            {
+                int vkCode = Marshal.ReadInt32(lParam);
+                bool altPressed = (GetKeyState(0x12) & 0x8000) != 0; 
+                bool ctrlPressed = (GetKeyState(0x11) & 0x8000) != 0; 
+
+                // Bloqueamos Alt+Tab, Alt+Esc, Ctrl+Esc y las teclas Windows
+                if ((vkCode == 0x09 && altPressed) || 
+                    (vkCode == 0x1B && altPressed) || 
+                    (vkCode == 0x1B && ctrlPressed) || 
+                    vkCode == 0x5B || vkCode == 0x5C) 
+                {
+                    return new IntPtr(1); // Nos comemos la tecla, Windows jamás la verá
+                }
+            }
+            return CallNextHookEx(_keyboardHook, nCode, wParam, lParam);
+        }
+
+        // ── ESCUDO 2: EL MARTILLO INSTANTÁNEO ──
+        private void WinEventCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        {
+            if (hwnd == IntPtr.Zero || _modoEscritorio || _juegoActivoHwnd == IntPtr.Zero) return;
+
+            GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid == 0) return;
+
+            try
+            {
+                var proc = Process.GetProcessById((int)pid);
+                string pName = proc.ProcessName.ToLower();
+
+                // Si Steam intenta robar foco o hacerse visible mientras hay un juego...
+                if (pName == "steam" || pName == "steamwebhelper")
+                {
+                    // 1. Lo ocultamos instantáneamente en las sombras
+                    ShowWindow(hwnd, SW_HIDE);
+                    if (!_ventanasSteamOcultas.Contains(hwnd)) _ventanasSteamOcultas.Add(hwnd);
+                    
+                    // 2. Le regresamos el foco al juego de un golpe
+                    SetForegroundWindow(_juegoActivoHwnd);
+                }
+            }
+            catch { }
+        }
+
+        // ── MONITOR LENTO DE VISIBILIDAD (Solo para saber si el juego cerró) ──
         private async Task MonitorDeJuegosAsync()
         {
             Process? juegoActivo = null;
 
             while (!_modoEscritorio)
             {
-                await Task.Delay(1000); // Revisamos silenciosamente cada segundo
+                await Task.Delay(1000); 
 
                 if (juegoActivo != null)
                 {
                     try
                     {
-                        // Si el juego se cerró o crasheó
                         if (juegoActivo.HasExited)
                         {
-                            CambiarVisibilidadSteam(false); // Revivimos a Steam
+                            _juegoActivoHwnd = IntPtr.Zero;
+                            CambiarVisibilidadSteam(false); 
                             juegoActivo = null;
                         }
                     }
-                    catch { juegoActivo = null; CambiarVisibilidadSteam(false); }
+                    catch { juegoActivo = null; _juegoActivoHwnd = IntPtr.Zero; CambiarVisibilidadSteam(false); }
                 }
                 else
                 {
@@ -169,11 +246,11 @@ namespace SteamOSConfigurator
                             var proc = Process.GetProcessById((int)pid);
                             string pName = proc.ProcessName.ToLower();
 
-                            // Si NO es Steam, ni nuestro Shell, ni el Overlay, entonces ES UN JUEGO
                             if (pName != "steam" && pName != "steamwebhelper" && pName != "gameoverlayui" && pName != "windowslikesteamos" && pName != "explorer")
                             {
                                 juegoActivo = proc;
-                                CambiarVisibilidadSteam(true); // Ocultamos a Steam de la existencia
+                                _juegoActivoHwnd = fgHwnd; // Memorizamos al Rey actual
+                                CambiarVisibilidadSteam(true); // Mandamos a Steam a dormir
                             }
                         }
                         catch { }
@@ -186,9 +263,7 @@ namespace SteamOSConfigurator
         {
             if (ocultar)
             {
-                // Limpiamos la memoria antes de guardar
                 _ventanasSteamOcultas.Clear();
-
                 EnumWindows((hWnd, lParam) =>
                 {
                     GetWindowThreadProcessId(hWnd, out uint pid);
@@ -199,10 +274,8 @@ namespace SteamOSConfigurator
 
                         if (pName == "steam" || pName == "steamwebhelper")
                         {
-                            // 1. Tomamos una "foto" de las ventanas que ESTÁN VISIBLES ahora mismo
                             if (IsWindowVisible(hWnd))
                             {
-                                // 2. Las guardamos en nuestra lista y las ocultamos
                                 _ventanasSteamOcultas.Add(hWnd);
                                 ShowWindow(hWnd, SW_HIDE);
                             }
@@ -214,14 +287,11 @@ namespace SteamOSConfigurator
             }
             else
             {
-                // 3. Cuando el juego se cierra, restauramos ÚNICAMENTE las que nosotros escondimos
                 foreach (IntPtr hWnd in _ventanasSteamOcultas)
                 {
                     ShowWindow(hWnd, SW_SHOW);
                     SetForegroundWindow(hWnd);
                 }
-                
-                // Vaciamos la memoria
                 _ventanasSteamOcultas.Clear();
             }
         }
@@ -234,7 +304,6 @@ namespace SteamOSConfigurator
                 var config = CargarConfig();
                 if (config == null) { CerrarSesionRapido(); return; }
 
-                // Sincronizamos el WorkArea de Windows para que los menús de Mad Max se vean
                 var workArea = new RECT { Left = 0, Top = 0, Right = config.ResolucionWidth, Bottom = config.ResolucionHeight };
                 SystemParametersInfo(SPI_SETWORKAREA, 0, ref workArea, SPIF_SENDCHANGE);
                 
@@ -243,7 +312,17 @@ namespace SteamOSConfigurator
 
                 if (config.EmuladorActivado) _ = TraductorMando.IniciarAsync();
 
-                // ── ARRANCAMOS EL MONITOR INVISIBLE DE JUEGOS ──
+                // ── INSTALAMOS LOS ESCUDOS KIOSK ──
+                _winEventDelegate = new WinEventDelegate(WinEventCallback);
+                _hWinEventHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _winEventDelegate, 0, 0, WINEVENT_OUTOFCONTEXT);
+
+                _keyboardDelegate = KeyboardHookCallback;
+                using (Process curProcess = Process.GetCurrentProcess())
+                using (ProcessModule curModule = curProcess.MainModule!)
+                {
+                    _keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, _keyboardDelegate, GetModuleHandle(curModule.ModuleName), 0);
+                }
+
                 _ = Task.Run(() => MonitorDeJuegosAsync());
 
                 string rutaSteam = ObtenerRutaSteam();
@@ -267,6 +346,10 @@ namespace SteamOSConfigurator
                     RestaurarEntornoOriginal(); 
                     CerrarSesionRapido(); 
                 } 
+                
+                if (_hWinEventHook != IntPtr.Zero) { UnhookWinEvent(_hWinEventHook); _hWinEventHook = IntPtr.Zero; }
+                if (_keyboardHook != IntPtr.Zero) { UnhookWindowsHookEx(_keyboardHook); _keyboardHook = IntPtr.Zero; }
+                SystemParametersInfoTimeout(SPI_SETFOREGROUNDLOCKTIMEOUT, 200000, IntPtr.Zero, SPIF_SENDCHANGE | SPIF_UPDATEINIFILE);
             }
         }
 
@@ -289,7 +372,7 @@ namespace SteamOSConfigurator
                 foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); } catch { } }
                 Process.Start("explorer.exe"); handled = true;
             }
-            else if (msg == 0x007E && _aislamientoActivo) // WM_DISPLAYCHANGE
+            else if (msg == 0x007E && _aislamientoActivo) 
             {
                 if (Interlocked.CompareExchange(ref _suppressDisplayChange, 0, 0) == 0)
                 {
@@ -306,10 +389,7 @@ namespace SteamOSConfigurator
         private void ReaplicarEscaladoCallback(object? state)
         {
             Interlocked.Increment(ref _suppressDisplayChange);
-            try
-            {
-                NvidiaScaler.ForzarEscaladoCompleto((NvidiaScaler.NvScaling)2); 
-            }
+            try { NvidiaScaler.ForzarEscaladoCompleto((NvidiaScaler.NvScaling)2); }
             finally
             {
                 Thread.Sleep(60); 
