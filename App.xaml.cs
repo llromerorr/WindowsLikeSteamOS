@@ -26,60 +26,74 @@ namespace SteamOSConfigurator
 
     public partial class App : System.Windows.Application
     {
-        // ── P/INVOKES Y CONSTANTES CLAUDE ──────────────────────────────────────────
+        // ── P/INVOKES CLÁSICOS ──────────────────────────────────────────
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr dpiFlag);
         static readonly IntPtr DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = new IntPtr(-4);
-        
-        [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int dwProcessId);
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
-        
+        [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
         [DllImport("user32.dll")] static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref RECT pvParam, uint fWinIni);
-        [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern bool SendNotifyMessage(IntPtr hWnd, uint Msg, UIntPtr wParam, IntPtr lParam);
-
+        
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 
         const uint SPI_SETWORKAREA = 0x002F;
         const uint SPIF_SENDCHANGE = 0x0002;
-        static readonly IntPtr HWND_BROADCAST = new IntPtr(0xFFFF);
-        const uint WM_SETTINGCHANGE = 0x001A;
-        
-        const int DM_DISPLAYFIXEDOUTPUT = 0x20000000;
-        const int DMDFO_DEFAULT = 0; // FIX #1 CLAUDE: NO usar STRETCH aquí, dejar que NVAPI lo haga.
 
+        // ── ESTRUCTURA DEVMODE ANSI EXPLÍCITA (NVIDIA FIX) ──
+        [StructLayout(LayoutKind.Explicit, CharSet = CharSet.Ansi)]
+        public struct DEVMODE_ANSI
+        {
+            [FieldOffset(0)] [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
+            [FieldOffset(36)] public short dmSize;
+            [FieldOffset(40)] public int dmFields;
+            [FieldOffset(44)] public int dmPositionX;
+            [FieldOffset(48)] public int dmPositionY;
+            [FieldOffset(52)] public uint dmDisplayOrientation;
+            [FieldOffset(56)] public uint dmDisplayFixedOutput; 
+            [FieldOffset(104)] public uint dmBitsPerPel;
+            [FieldOffset(108)] public uint dmPelsWidth;
+            [FieldOffset(112)] public uint dmPelsHeight;
+            [FieldOffset(116)] public uint dmDisplayFlags;
+            [FieldOffset(120)] public uint dmDisplayFrequency;
+        }
+
+        [DllImport("user32.dll", CharSet = CharSet.Ansi)] static extern int ChangeDisplaySettingsExA(string? lpszDeviceName, ref DEVMODE_ANSI lpDevMode, IntPtr hwnd, uint dwflags, IntPtr lParam);
+        [DllImport("user32.dll", EntryPoint = "ChangeDisplaySettingsExA", CharSet = CharSet.Ansi)] static extern int ChangeDisplaySettingsExReset(string? lpszDeviceName, IntPtr lpDevMode, IntPtr hwnd, uint dwflags, IntPtr lParam);
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         public struct DISPLAY_DEVICE { public int cb; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString; public int StateFlags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceID; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey; }
         
-        [StructLayout(LayoutKind.Sequential)]
-        public struct DEVMODE { [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName; public short dmSpecVersion; public short dmDriverVersion; public short dmSize; public short dmDriverExtra; public int dmFields; public int dmPositionX; public int dmPositionY; public int dmDisplayOrientation; public int dmDisplayFixedOutput; public short dmColor; public short dmDuplex; public short dmYResolution; public short dmTTOption; public short dmCollate; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName; public short dmLogPixels; public int dmBitsPerPel; public int dmPelsWidth; public int dmPelsHeight; public int dmDisplayFlags; public int dmDisplayFrequency; public int dmICMMethod; public int dmICMIntent; public int dmMediaType; public int dmDitherType; public int dmReserved1; public int dmReserved2; public int dmPanningWidth; public int dmPanningHeight; }
-
         [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern bool EnumDisplayDevices(string? lpDevice, int iDevNum, ref DISPLAY_DEVICE lpDisplayDevice, int dwFlags);
-        [DllImport("user32.dll")] static extern int EnumDisplaySettings(string? deviceName, int modeNum, ref DEVMODE devMode);
-        [DllImport("user32.dll")] static extern int ChangeDisplaySettingsEx(string? lpszDeviceName, ref DEVMODE lpDevMode, IntPtr hwnd, int dwflags, IntPtr lParam);
-        [DllImport("user32.dll", EntryPoint = "ChangeDisplaySettingsEx")] static extern int ChangeDisplaySettingsExReset(string? lpszDeviceName, IntPtr lpDevMode, IntPtr hwnd, int dwflags, IntPtr lParam);
+        [DllImport("user32.dll", CharSet = CharSet.Ansi)] static extern int EnumDisplaySettingsA(string? deviceName, int modeNum, ref DEVMODE_ANSI devMode);
         [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
         [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam); delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-        [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
         [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hWnd);
         [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
         [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
         [DllImport("user32.dll", SetLastError = true)] static extern bool ExitWindowsEx(uint uFlags, uint dwReason);
 
-        const uint SWP_NOSIZE = 0x0001; const uint SWP_NOZORDER = 0x0004; const int SW_RESTORE = 9;
-        const int DM_POSITION = 0x00000020; const int DM_BITSPERPEL = 0x00040000; const int DM_PELSWIDTH = 0x00080000; const int DM_PELSHEIGHT = 0x00100000; const int DM_DISPLAYFREQUENCY = 0x00400000;
+        const uint SWP_NOSIZE = 0x0001; const uint SWP_NOZORDER = 0x0004; 
+        const int SW_HIDE = 0; const int SW_SHOW = 5; const int SW_RESTORE = 9;
         
-        const int CDS_UPDATEREGISTRY = 0x00000001; 
-        const int CDS_SET_PRIMARY = 0x00000010; 
-        const int CDS_NORESET = 0x10000000; 
-        const int CDS_GLOBAL = 0x00000008; // FIX #1 CLAUDE
+        const int DM_POSITION = 0x00000020; const int DM_BITSPERPEL = 0x00040000; const int DM_PELSWIDTH = 0x00080000; const int DM_PELSHEIGHT = 0x00100000; const int DM_DISPLAYFREQUENCY = 0x00400000;
+        const int DM_DISPLAYFIXEDOUTPUT = 0x20000000;
+        
+        const uint DMDFO_DEFAULT = 0; 
+        const uint CDS_UPDATEREGISTRY = 0x00000001; 
+        const uint CDS_SET_PRIMARY = 0x00000010; 
+        const uint CDS_NORESET = 0x10000000; 
+        const uint CDS_GLOBAL = 0x00000008; 
         const int ENUM_CURRENT_SETTINGS = -1;
 
-        private Dictionary<string, DEVMODE> _monitoresOriginales = new();
+        private Dictionary<string, DEVMODE_ANSI> _monitoresOriginales = new();
         private bool _modoEscritorio = false;
         private bool _aislamientoActivo = false;
         private IntPtr _hwndShell = IntPtr.Zero;
 
-        // ── VARIABLES GUARDIÁN DE ESCALADO ─────────────────────────────────────
+        // ── LISTA PARA RECORDAR QUÉ VENTANAS OCULTAMOS ──
+        private List<IntPtr> _ventanasSteamOcultas = new List<IntPtr>();
+
+        // ── VARIABLES DEL MONITOR DE JUEGOS ──
         private System.Threading.Timer? _debounceTimer;
         private int _suppressDisplayChange = 0;
         private readonly object _timerLock = new object();
@@ -91,30 +105,11 @@ namespace SteamOSConfigurator
             
             if (!EsAdministrador())
             {
-                try 
-                { 
-                    Process.Start(new ProcessStartInfo 
-                    { 
-                        UseShellExecute = true, 
-                        WorkingDirectory = Environment.CurrentDirectory, 
-                        FileName = Environment.ProcessPath, 
-                        Arguments = e.Args.Length > 0 ? string.Join(" ", e.Args) : "", 
-                        Verb = "runas" 
-                    }); 
-                } 
-                catch { }
-                Environment.Exit(0); 
-                return;
+                try { Process.Start(new ProcessStartInfo { UseShellExecute = true, WorkingDirectory = Environment.CurrentDirectory, FileName = Environment.ProcessPath, Arguments = e.Args.Length > 0 ? string.Join(" ", e.Args) : "", Verb = "runas" }); } catch { }
+                Environment.Exit(0); return;
             }
 
-            if (e.Args.Length > 0 && e.Args[0] == "-shell") 
-            {
-                _ = EjecutarModoConsolaAsync();
-            }
-            else 
-            {
-                new MainWindow().Show();
-            }
+            if (e.Args.Length > 0 && e.Args[0] == "-shell") { _ = EjecutarModoConsolaAsync(); } else { new MainWindow().Show(); }
         }
 
         private bool EsAdministrador()
@@ -126,8 +121,7 @@ namespace SteamOSConfigurator
         {
             try
             {
-                string baseKey = @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers\Configuration";
-                using (var config = Registry.LocalMachine.OpenSubKey(baseKey, true))
+                using (var config = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\GraphicsDrivers\Configuration", true))
                 {
                     if (config == null) return;
                     foreach (string sub in config.GetSubKeyNames())
@@ -139,8 +133,97 @@ namespace SteamOSConfigurator
                         }
                     }
                 }
+            } catch { }
+        }
+
+        // ── LA IDEA MAESTRA DE LUIS: EL MONITOR DE VISIBILIDAD ──
+        private async Task MonitorDeJuegosAsync()
+        {
+            Process? juegoActivo = null;
+
+            while (!_modoEscritorio)
+            {
+                await Task.Delay(1000); // Revisamos silenciosamente cada segundo
+
+                if (juegoActivo != null)
+                {
+                    try
+                    {
+                        // Si el juego se cerró o crasheó
+                        if (juegoActivo.HasExited)
+                        {
+                            CambiarVisibilidadSteam(false); // Revivimos a Steam
+                            juegoActivo = null;
+                        }
+                    }
+                    catch { juegoActivo = null; CambiarVisibilidadSteam(false); }
+                }
+                else
+                {
+                    IntPtr fgHwnd = GetForegroundWindow();
+                    if (fgHwnd != IntPtr.Zero)
+                    {
+                        GetWindowThreadProcessId(fgHwnd, out uint pid);
+                        try
+                        {
+                            var proc = Process.GetProcessById((int)pid);
+                            string pName = proc.ProcessName.ToLower();
+
+                            // Si NO es Steam, ni nuestro Shell, ni el Overlay, entonces ES UN JUEGO
+                            if (pName != "steam" && pName != "steamwebhelper" && pName != "gameoverlayui" && pName != "windowslikesteamos" && pName != "explorer")
+                            {
+                                juegoActivo = proc;
+                                CambiarVisibilidadSteam(true); // Ocultamos a Steam de la existencia
+                            }
+                        }
+                        catch { }
+                    }
+                }
             }
-            catch { }
+        }
+
+        private void CambiarVisibilidadSteam(bool ocultar)
+        {
+            if (ocultar)
+            {
+                // Limpiamos la memoria antes de guardar
+                _ventanasSteamOcultas.Clear();
+
+                EnumWindows((hWnd, lParam) =>
+                {
+                    GetWindowThreadProcessId(hWnd, out uint pid);
+                    try
+                    {
+                        var proc = Process.GetProcessById((int)pid);
+                        string pName = proc.ProcessName.ToLower();
+
+                        if (pName == "steam" || pName == "steamwebhelper")
+                        {
+                            // 1. Tomamos una "foto" de las ventanas que ESTÁN VISIBLES ahora mismo
+                            if (IsWindowVisible(hWnd))
+                            {
+                                // 2. Las guardamos en nuestra lista y las ocultamos
+                                _ventanasSteamOcultas.Add(hWnd);
+                                ShowWindow(hWnd, SW_HIDE);
+                            }
+                        }
+                    }
+                    catch { }
+                    return true;
+                }, IntPtr.Zero);
+            }
+            else
+            {
+                // 3. Cuando el juego se cierra, restauramos ÚNICAMENTE las que nosotros escondimos
+                foreach (IntPtr hWnd in _ventanasSteamOcultas)
+                {
+                    ShowWindow(hWnd, SW_SHOW);
+                    SetForegroundWindow(hWnd);
+                }
+                
+                // Vaciamos la memoria
+                _ventanasSteamOcultas.Clear();
+            }
         }
 
         private async Task EjecutarModoConsolaAsync()
@@ -148,20 +231,20 @@ namespace SteamOSConfigurator
             try
             {
                 RegistrarAtajoTecladoSilencioso(); 
-                
                 var config = CargarConfig();
                 if (config == null) { CerrarSesionRapido(); return; }
 
-                // ── FIX #3 CLAUDE: CORRECCIÓN DE COORDENADAS ──
-                // Sincronizamos el WorkArea de Windows para que los menús no desaparezcan
+                // Sincronizamos el WorkArea de Windows para que los menús de Mad Max se vean
                 var workArea = new RECT { Left = 0, Top = 0, Right = config.ResolucionWidth, Bottom = config.ResolucionHeight };
                 SystemParametersInfo(SPI_SETWORKAREA, 0, ref workArea, SPIF_SENDCHANGE);
                 
-                // Aplicamos el Display y NVAPI en el orden de Claude
+                ForzarRegistroEscaladoNVIDIA();
                 AislarPantallaYAudio();
-                ForzarRegistroEscaladoNVIDIA(); // Backup en registro
 
                 if (config.EmuladorActivado) _ = TraductorMando.IniciarAsync();
+
+                // ── ARRANCAMOS EL MONITOR INVISIBLE DE JUEGOS ──
+                _ = Task.Run(() => MonitorDeJuegosAsync());
 
                 string rutaSteam = ObtenerRutaSteam();
                 if (string.IsNullOrEmpty(rutaSteam)) { CerrarSesionRapido(); return; }
@@ -177,25 +260,23 @@ namespace SteamOSConfigurator
                 }
             }
             catch { }
-            finally
-            {
-                if (!_modoEscritorio) { RestaurarEntornoOriginal(); CerrarSesionRapido(); }
+            finally 
+            { 
+                if (!_modoEscritorio) 
+                { 
+                    RestaurarEntornoOriginal(); 
+                    CerrarSesionRapido(); 
+                } 
             }
         }
 
-        private void CerrarSesionRapido() 
-        { 
-            TraductorMando.Detener(); 
-            ExitWindowsEx(4, 0); 
-            Environment.Exit(0); 
-        }
+        private void CerrarSesionRapido() { TraductorMando.Detener(); ExitWindowsEx(4, 0); Environment.Exit(0); }
 
         private void RegistrarAtajoTecladoSilencioso()
         {
             Window ventanaOculta = new Window { Width = 0, Height = 0, WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = System.Windows.Media.Brushes.Transparent, ShowInTaskbar = false, Visibility = Visibility.Hidden };
             ventanaOculta.Show();
             _hwndShell = new WindowInteropHelper(ventanaOculta).Handle;
-            
             HwndSource.FromHwnd(_hwndShell).AddHook(ShellWindowHook);
             RegisterHotKey(_hwndShell, 1, 0x0007, 0x53); 
         }
@@ -208,17 +289,14 @@ namespace SteamOSConfigurator
                 foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); } catch { } }
                 Process.Start("explorer.exe"); handled = true;
             }
-            // ── FIX #2 CLAUDE: GUARDIÁN DE ESCALADO UNIVERSAL (WM_DISPLAYCHANGE) ──
-            else if (msg == 0x007E && _aislamientoActivo) 
+            else if (msg == 0x007E && _aislamientoActivo) // WM_DISPLAYCHANGE
             {
-                // Solo activamos el debounce si no somos nosotros mismos generando el mensaje
                 if (Interlocked.CompareExchange(ref _suppressDisplayChange, 0, 0) == 0)
                 {
                     lock (_timerLock)
                     {
                         _debounceTimer?.Dispose();
-                        // Esperamos 120ms a que el juego termine su transición FSE
-                        _debounceTimer = new System.Threading.Timer(ReaplicarEscaladoCallback, null, 120, Timeout.Infinite);
+                        _debounceTimer = new System.Threading.Timer(ReaplicarEscaladoCallback, null, 120, Timeout.Infinite); 
                     }
                 }
             }
@@ -227,25 +305,15 @@ namespace SteamOSConfigurator
 
         private void ReaplicarEscaladoCallback(object? state)
         {
-            // Incrementamos para que nuestro propio cambio sea ignorado por el Hook
             Interlocked.Increment(ref _suppressDisplayChange);
             try
             {
-                // Fuerza física a NVIDIA: Aplicamos el valor 2 (GpuScalingToNative)
-                NvidiaScaler.ForzarEscaladoCompleto((NvidiaScaler.NvScaling)2);
+                NvidiaScaler.ForzarEscaladoCompleto((NvidiaScaler.NvScaling)2); 
             }
             finally
             {
-                Thread.Sleep(60); // Tiempo para que el driver asimile
+                Thread.Sleep(60); 
                 Interlocked.Decrement(ref _suppressDisplayChange);
-
-                // Devolver el control/foco a Mad Max (o el juego que esté corriendo)
-                IntPtr fgWindow = GetForegroundWindow();
-                if (fgWindow != IntPtr.Zero)
-                {
-                    GetWindowThreadProcessId(fgWindow, out uint pid);
-                    AllowSetForegroundWindow((int)pid);
-                }
             }
         }
 
@@ -273,8 +341,8 @@ namespace SteamOSConfigurator
                         if (dd.DeviceName == config.MonitorDeviceName) monitorDeseadoConectado = true;
                         if (!_monitoresOriginales.ContainsKey(dd.DeviceName))
                         {
-                            DEVMODE modeOrig = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() }; 
-                            if (EnumDisplaySettings(dd.DeviceName, ENUM_CURRENT_SETTINGS, ref modeOrig) != 0) _monitoresOriginales[dd.DeviceName] = modeOrig; 
+                            DEVMODE_ANSI modeOrig = new DEVMODE_ANSI { dmSize = (short)Marshal.SizeOf<DEVMODE_ANSI>() }; 
+                            if (EnumDisplaySettingsA(dd.DeviceName, ENUM_CURRENT_SETTINGS, ref modeOrig) != 0) _monitoresOriginales[dd.DeviceName] = modeOrig; 
                         }
                     }
                     id++; dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() };
@@ -285,31 +353,28 @@ namespace SteamOSConfigurator
                 foreach (string deviceName in activos)
                 {
                     if (deviceName == config.MonitorDeviceName) { 
-                        DEVMODE mode = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() }; 
-                        EnumDisplaySettings(deviceName, ENUM_CURRENT_SETTINGS, ref mode); 
-                        mode.dmPelsWidth = config.ResolucionWidth; mode.dmPelsHeight = config.ResolucionHeight; mode.dmBitsPerPel = 32; mode.dmDisplayFrequency = config.RefreshRate; mode.dmPositionX = 0; mode.dmPositionY = 0; 
+                        DEVMODE_ANSI mode = new DEVMODE_ANSI { dmSize = (short)Marshal.SizeOf<DEVMODE_ANSI>() }; 
+                        EnumDisplaySettingsA(deviceName, ENUM_CURRENT_SETTINGS, ref mode); 
+                        mode.dmPelsWidth = (uint)config.ResolucionWidth; mode.dmPelsHeight = (uint)config.ResolucionHeight; mode.dmBitsPerPel = 32; mode.dmDisplayFrequency = (uint)config.RefreshRate; mode.dmPositionX = 0; mode.dmPositionY = 0; 
                         
-                        // FIX #1 CLAUDE: Dejamos el escalado de Windows en DEFAULT (0)
                         mode.dmDisplayFixedOutput = DMDFO_DEFAULT; 
                         mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY | DM_POSITION | DM_DISPLAYFIXEDOUTPUT; 
                         
-                        // Aplicamos CDS_GLOBAL
-                        ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, CDS_SET_PRIMARY | CDS_UPDATEREGISTRY | CDS_NORESET | CDS_GLOBAL, IntPtr.Zero); 
+                        ChangeDisplaySettingsExA(deviceName, ref mode, IntPtr.Zero, CDS_SET_PRIMARY | CDS_UPDATEREGISTRY | CDS_NORESET | CDS_GLOBAL, IntPtr.Zero); 
                     }
                     else { 
-                        DEVMODE modeDetach = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() }; 
+                        DEVMODE_ANSI modeDetach = new DEVMODE_ANSI { dmSize = (short)Marshal.SizeOf<DEVMODE_ANSI>() }; 
                         modeDetach.dmPelsWidth = 0; modeDetach.dmPelsHeight = 0; modeDetach.dmPositionX = 0; modeDetach.dmPositionY = 0; modeDetach.dmFields = DM_POSITION | DM_PELSWIDTH | DM_PELSHEIGHT; 
-                        ChangeDisplaySettingsEx(deviceName, ref modeDetach, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET | CDS_GLOBAL, IntPtr.Zero); 
+                        ChangeDisplaySettingsExA(deviceName, ref modeDetach, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET | CDS_GLOBAL, IntPtr.Zero); 
                     }
                 }
                 
                 ChangeDisplaySettingsExReset(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
                 _aislamientoActivo = true;
 
-                // Ahora sí, después de que Windows asimiló el DEFAULT, aplicamos NVIDIA de forma limpia
                 Task.Run(() => { 
-                    Thread.Sleep(300); // Esperamos a que Win32 termine
-                    NvidiaScaler.ForzarEscaladoCompleto((NvidiaScaler.NvScaling)2); // 2 = GpuScalingToNative
+                    Thread.Sleep(300); 
+                    NvidiaScaler.ForzarEscaladoCompleto((NvidiaScaler.NvScaling)2); 
                 });
             }
             catch { }
@@ -322,8 +387,8 @@ namespace SteamOSConfigurator
             {
                 if (_monitoresOriginales.Count > 0)
                 {
-                    foreach (var kvp in _monitoresOriginales) { DEVMODE mode = kvp.Value; if (mode.dmPositionX == 0 && mode.dmPositionY == 0) { mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY | DM_POSITION; ChangeDisplaySettingsEx(kvp.Key, ref mode, IntPtr.Zero, CDS_SET_PRIMARY | CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero); } }
-                    foreach (var kvp in _monitoresOriginales) { DEVMODE mode = kvp.Value; if (mode.dmPositionX == 0 && mode.dmPositionY == 0) continue; mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY | DM_POSITION; ChangeDisplaySettingsEx(kvp.Key, ref mode, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero); }
+                    foreach (var kvp in _monitoresOriginales) { DEVMODE_ANSI mode = kvp.Value; if (mode.dmPositionX == 0 && mode.dmPositionY == 0) { mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY | DM_POSITION; ChangeDisplaySettingsExA(kvp.Key, ref mode, IntPtr.Zero, CDS_SET_PRIMARY | CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero); } }
+                    foreach (var kvp in _monitoresOriginales) { DEVMODE_ANSI mode = kvp.Value; if (mode.dmPositionX == 0 && mode.dmPositionY == 0) continue; mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY | DM_POSITION; ChangeDisplaySettingsExA(kvp.Key, ref mode, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero); }
                 }
                 ChangeDisplaySettingsExReset(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
                 _aislamientoActivo = false;
@@ -349,11 +414,7 @@ namespace SteamOSConfigurator
                         return true; 
                     }, IntPtr.Zero); 
                     
-                    if (ventanas.Count > 0) 
-                    { 
-                        foreach (IntPtr hWnd in ventanas) { ShowWindow(hWnd, SW_RESTORE); SetWindowPos(hWnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOZORDER); } 
-                        break; 
-                    } 
+                    if (ventanas.Count > 0) { foreach (IntPtr hWnd in ventanas) { ShowWindow(hWnd, SW_RESTORE); SetWindowPos(hWnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOZORDER); } break; } 
                 } 
             });
         }
