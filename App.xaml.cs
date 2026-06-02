@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using AudioSwitcher.AudioApi.CoreAudio;
 using System.Windows.Interop;
 using System.Security.Principal;
+using System.Text;
 
 namespace SteamOSConfigurator
 {
@@ -26,7 +27,7 @@ namespace SteamOSConfigurator
 
     public partial class App : System.Windows.Application
     {
-        // ── P/INVOKES CLÁSICOS ──────────────────────────────────────────
+        // ── P/INVOKES CLÁSICOS Y CONTROL DE VENTANAS ──────────────────────────
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr dpiFlag);
         static readonly IntPtr DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = new IntPtr(-4);
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
@@ -34,6 +35,9 @@ namespace SteamOSConfigurator
         [DllImport("user32.dll")] static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref RECT pvParam, uint fWinIni);
         [DllImport("user32.dll", EntryPoint = "SystemParametersInfo")] static extern bool SystemParametersInfoTimeout(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
         
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr hWnd, StringBuilder strText, int maxCount);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowTextLength(IntPtr hWnd);
+
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 
@@ -78,6 +82,7 @@ namespace SteamOSConfigurator
 
         [DllImport("user32.dll", CharSet = CharSet.Ansi)] static extern int ChangeDisplaySettingsExA(string? lpszDeviceName, ref DEVMODE_ANSI lpDevMode, IntPtr hwnd, uint dwflags, IntPtr lParam);
         [DllImport("user32.dll", EntryPoint = "ChangeDisplaySettingsExA", CharSet = CharSet.Ansi)] static extern int ChangeDisplaySettingsExReset(string? lpszDeviceName, IntPtr lpDevMode, IntPtr hwnd, uint dwflags, IntPtr lParam);
+        
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         public struct DISPLAY_DEVICE { public int cb; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString; public int StateFlags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceID; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey; }
         
@@ -109,12 +114,12 @@ namespace SteamOSConfigurator
         private bool _aislamientoActivo = false;
         private IntPtr _hwndShell = IntPtr.Zero;
 
-        // ── VARIABLES GLOBALES ─────────────────────────────────────
+        // ── VARIABLES GLOBALES DE FLUJO ─────────────────────────────────────
         private System.Threading.Timer? _debounceTimer;
         private int _suppressDisplayChange = 0;
         private readonly object _timerLock = new object();
 
-        // Variables de Memoria para Juegos y Hooks
+        // Variables de Memoria para Juegos y Hooks (Identical a v3.1.0)
         private List<IntPtr> _ventanasSteamOcultas = new List<IntPtr>();
         private IntPtr _juegoActivoHwnd = IntPtr.Zero; 
         
@@ -164,7 +169,6 @@ namespace SteamOSConfigurator
             } catch { }
         }
 
-        // ── ARRANQUE HEREDADO DE RIVA TUNER (FIX DE INYECCIÓN DE TOKEN) ──
         private void IniciarRivaTuner()
         {
             try
@@ -179,12 +183,11 @@ namespace SteamOSConfigurator
                     
                     Thread.Sleep(300); 
 
-                    // FIX RADICAL: UseShellExecute = false para forzar la herencia de token directa
                     Process.Start(new ProcessStartInfo 
                     { 
                         FileName = rutaRTSS, 
                         WorkingDirectory = directorioRTSS, 
-                        UseShellExecute = false, // Crea el proceso de forma directa, clonando los privilegios de nuestro Shell
+                        UseShellExecute = false, 
                         CreateNoWindow = true
                     });
                 }
@@ -192,7 +195,7 @@ namespace SteamOSConfigurator
             catch { }
         }
 
-        // ── ESCUDO 1: BLOQUEADOR DE TECLAS DEL SISTEMA ──
+        // ── ESCUDO 1: BLOQUEADOR DE TECLAS DEL SISTEMA (v3.1.0) ──
         private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0 && _aislamientoActivo) 
@@ -212,7 +215,7 @@ namespace SteamOSConfigurator
             return CallNextHookEx(_keyboardHook, nCode, wParam, lParam);
         }
 
-        // ── ESCUDO 2: EL MARTILLO INSTANTÁNEO ──
+        // ── ESCUDO 2: EL MARTILLO INSTANTÁNEO DE FOCO (v3.1.0) ──
         private void WinEventCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
             if (hwnd == IntPtr.Zero || _modoEscritorio || _juegoActivoHwnd == IntPtr.Zero) return;
@@ -235,7 +238,48 @@ namespace SteamOSConfigurator
             catch { }
         }
 
-        // ── MONITOR LENTO DE VISIBILIDAD ──
+        // ── ESCUDO INTELIGENTE: DETECTAR LA VENTANA DE BIG PICTURE DE FORMA DETERMINISTA ──
+        private async Task EsperarBigPictureAsync()
+        {
+            bool detectado = false;
+            while (!_modoEscritorio && !detectado)
+            {
+                EnumWindows((hWnd, _) =>
+                {
+                    if (!IsWindowVisible(hWnd)) return true;
+
+                    int length = GetWindowTextLength(hWnd);
+                    if (length > 0)
+                    {
+                        StringBuilder sb = new StringBuilder(length + 1);
+                        GetWindowText(hWnd, sb, sb.Capacity);
+                        string titulo = sb.ToString().ToLower();
+
+                        if (titulo.Contains("big picture"))
+                        {
+                            GetWindowThreadProcessId(hWnd, out uint pid);
+                            try
+                            {
+                                var proc = Process.GetProcessById((int)pid);
+                                string pName = proc.ProcessName.ToLower();
+
+                                if (pName == "steam" || pName == "steamwebhelper")
+                                {
+                                    detectado = true;
+                                    return false; // Corta la enumeración
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                    return true;
+                }, IntPtr.Zero);
+
+                if (!detectado) await Task.Delay(1000);
+            }
+        }
+
+        // ── MONITOR LENTO DE VISIBILIDAD (v3.1.0 INTOCADO) ──
         private async Task MonitorDeJuegosAsync()
         {
             Process? juegoActivo = null;
@@ -318,6 +362,7 @@ namespace SteamOSConfigurator
             }
         }
 
+        // ── ORQUESTADOR DEL SHELL CON INYECCIÓN DE ESCUDOS SECUENCIAL Y WATCHDOG KERNEL ──
         private async Task EjecutarModoConsolaAsync()
         {
             try
@@ -334,24 +379,16 @@ namespace SteamOSConfigurator
 
                 if (config.EmuladorActivado) _ = TraductorMando.IniciarAsync();
 
-                // ── ARRANCAMOS RIVATUNER CON HERENCIA DIRECTA DE TOKEN ──
                 IniciarRivaTuner();
-                
-                // LE DAMOS 4 SEGUNDOS PARA QUE EL ARMA DE INYECCIÓN DX SE INSTALE EN MEMORIA
                 await Task.Delay(4000); 
 
-                // ── INSTALAMOS LOS ESCUDOS KIOSK ──
-                _winEventDelegate = new WinEventDelegate(WinEventCallback);
-                _hWinEventHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _winEventDelegate, 0, 0, WINEVENT_OUTOFCONTEXT);
-
+                // Fase 1: Bloquear teclado de inmediato para seguridad de entorno Kiosk
                 _keyboardDelegate = KeyboardHookCallback;
                 using (Process curProcess = Process.GetCurrentProcess())
                 using (ProcessModule curModule = curProcess.MainModule!)
                 {
                     _keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, _keyboardDelegate, GetModuleHandle(curModule.ModuleName), 0);
                 }
-
-                _ = Task.Run(() => MonitorDeJuegosAsync());
 
                 string rutaSteam = ObtenerRutaSteam();
                 if (string.IsNullOrEmpty(rutaSteam)) { CerrarSesionRapido(); return; }
@@ -360,10 +397,46 @@ namespace SteamOSConfigurator
                 Process? steam = Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true });
                 if (steam != null) MoverVentanaSteamAlMonitorPrincipal(steam.Id, 25);
 
+                // Fase 2: Esperar pasivamente a que cargue Big Picture (La ventana de actualización corre libre aquí)
+                await EsperarBigPictureAsync();
+
+                // Fase 3: Big Picture activo, inyectamos el Martillo de Foco y el Monitor de Juegos de la v3.1.0
+                if (!_modoEscritorio)
+                {
+                    // FIX: Obligamos a Windows a instalar este escudo en el hilo principal
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        _winEventDelegate = new WinEventDelegate(WinEventCallback);
+                        _hWinEventHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _winEventDelegate, 0, 0, WINEVENT_OUTOFCONTEXT);
+                    });
+                    
+                    _ = Task.Run(() => MonitorDeJuegosAsync());
+                }
+
+                // Fase 4: Watchdog profesional basado en eventos nativos del Kernel de Windows
                 while (!_modoEscritorio)
                 {
-                    if (Process.GetProcessesByName("steam").Length == 0) break;
-                    await Task.Delay(2000); 
+                    var procesosSteam = Process.GetProcessesByName("steam");
+
+                    if (procesosSteam.Length > 0)
+                    {
+                        Process steamPrincipal = procesosSteam[0];
+                        steamPrincipal.EnableRaisingEvents = true; 
+                        
+                        try 
+                        { 
+                            await steamPrincipal.WaitForExitAsync(); 
+                        } 
+                        catch { }
+                    }
+
+                    if (_modoEscritorio) break;
+
+                    await Task.Delay(3000); 
+                    if (Process.GetProcessesByName("steam").Length == 0)
+                    {
+                        break; 
+                    }
                 }
             }
             catch { }
