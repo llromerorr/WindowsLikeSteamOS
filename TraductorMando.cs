@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -21,19 +22,30 @@ namespace SteamOSConfigurator
         private static IXbox360Controller? _xboxVirtual;
         private static DirectInput? _directInput;
         private static Joystick? _joystick;
-        private static HidStream? _hidRumbleStream; // <-- LA TUBERÍA DE VIBRACIÓN RECUPERADA
+        private static HidStream? _hidRumbleStream; 
         private static readonly List<string> _rutasOcultadas = new();
-        private const int TIEMPO_CHORD_MS = 65; 
+        private static int _tiempoChordMs = 65; // Valor por defecto
 
         public static async Task IniciarAsync()
         {
             if (_ejecutando) return;
 
-            string rutaConfig = @"C:\ProgramData\SteamOS\mapeo_config.json";
-            if (!File.Exists(rutaConfig)) return; 
+            // ── NUEVO: LEER EL DELAY DINÁMICO DESDE EL JSON PRINCIPAL ──
+            string rutaConfigPrincipal = @"C:\ProgramData\SteamOS\config.json";
+            if (File.Exists(rutaConfigPrincipal))
+            {
+                try {
+                    var jsonNode = JsonNode.Parse(File.ReadAllText(rutaConfigPrincipal));
+                    if (jsonNode?["DelayBotonHome"] != null)
+                        _tiempoChordMs = jsonNode["DelayBotonHome"]!.GetValue<int>();
+                } catch { }
+            }
+
+            string rutaMapeo = @"C:\ProgramData\SteamOS\mapeo_config.json";
+            if (!File.Exists(rutaMapeo)) return; 
 
             MapeoControl? config;
-            try { config = JsonSerializer.Deserialize<MapeoControl>(File.ReadAllText(rutaConfig)); }
+            try { config = JsonSerializer.Deserialize<MapeoControl>(File.ReadAllText(rutaMapeo)); }
             catch { return; }
 
             if (config == null || config.Botones.Count == 0) return;
@@ -43,24 +55,19 @@ namespace SteamOSConfigurator
 
             await Task.Run(() =>
             {
-                // 1. Ocultar el mando físico y ABRIR TUBERÍA DE VIBRACIÓN
                 PrepararMandoFisico();
-
-                // 2. Conectar el mando físico
                 ConectarJoystick();
                 if (_joystick == null) { Detener(); return; }
 
-                // 3. Crear el mando virtual de Xbox y SUSCRIBIR LA VIBRACIÓN
                 try
                 {
                     _vigemClient = new ViGEmClient();
                     _xboxVirtual = _vigemClient.CreateXbox360Controller();
-                    _xboxVirtual.FeedbackReceived += (_, e) => EnviarRumble(e.LargeMotor, e.SmallMotor); // <-- EL MOTOR RECIBE LA SEÑAL
+                    _xboxVirtual.FeedbackReceived += (_, e) => EnviarRumble(e.LargeMotor, e.SmallMotor); 
                     _xboxVirtual.Connect();
                 }
                 catch { Detener(); return; }
 
-                // 4. Bucle principal de traducción
                 BucleTraduccion(config);
             });
         }
@@ -72,7 +79,7 @@ namespace SteamOSConfigurator
             try { _vigemClient?.Dispose(); } catch { }
             try { _joystick?.Unacquire(); _joystick?.Dispose(); } catch { }
             try { _directInput?.Dispose(); } catch { }
-            try { _hidRumbleStream?.Dispose(); _hidRumbleStream = null; } catch { } // <-- LIMPIAR TUBERÍA
+            try { _hidRumbleStream?.Dispose(); _hidRumbleStream = null; } catch { } 
             RevertirOcultamiento();
         }
 
@@ -104,7 +111,6 @@ namespace SteamOSConfigurator
                     _joystick.Poll();
                     var st = _joystick.GetCurrentState();
 
-                    // Mapeo directo de botones
                     _xboxVirtual.SetButtonState(Xbox360Button.A, st.Buttons[config.Botones["A"]]);
                     _xboxVirtual.SetButtonState(Xbox360Button.B, st.Buttons[config.Botones["B"]]);
                     _xboxVirtual.SetButtonState(Xbox360Button.X, st.Buttons[config.Botones["X"]]);
@@ -117,7 +123,7 @@ namespace SteamOSConfigurator
                     _xboxVirtual.SetSliderValue(Xbox360Slider.LeftTrigger, (byte)(st.Buttons[config.Botones["LT"]] ? 255 : 0));
                     _xboxVirtual.SetSliderValue(Xbox360Slider.RightTrigger, (byte)(st.Buttons[config.Botones["RT"]] ? 255 : 0));
 
-                    // LÓGICA DEL BOTÓN HOME (CHORD: SELECT + START)
+                    // ── APLICANDO EL DELAY DINÁMICO DE LA UI ──
                     bool btnSelect = st.Buttons[config.Botones["Select"]];
                     bool btnStart = st.Buttons[config.Botones["Start"]];
 
@@ -139,7 +145,7 @@ namespace SteamOSConfigurator
                             {
                                 if (tickSelectPresionado == 0) tickSelectPresionado = Environment.TickCount64;
 
-                                if (Environment.TickCount64 - tickSelectPresionado > TIEMPO_CHORD_MS)
+                                if (Environment.TickCount64 - tickSelectPresionado > _tiempoChordMs) // Usando la variable
                                 {
                                     _xboxVirtual.SetButtonState(Xbox360Button.Back, true);
                                 }
@@ -153,7 +159,6 @@ namespace SteamOSConfigurator
                         }
                     }
 
-                    // D-Pad
                     if (st.PointOfViewControllers.Length > 0)
                     {
                         int pov = st.PointOfViewControllers[0];
@@ -163,7 +168,6 @@ namespace SteamOSConfigurator
                         _xboxVirtual.SetButtonState(Xbox360Button.Left, pov == 22500 || pov == 27000 || pov == 31500);
                     }
 
-                    // Ejes analógicos
                     int lx = Deadzone(ObtenerValorEje(st, config.Ejes["LeftX"]) - 32768);
                     int ly = Deadzone(65535 - ObtenerValorEje(st, config.Ejes["LeftY"]) - 32768);
                     int rx = Deadzone(ObtenerValorEje(st, config.Ejes["RightX"]) - 32768);
@@ -204,14 +208,12 @@ namespace SteamOSConfigurator
                 if (!hidHide.ApplicationPaths.Contains(exePath, StringComparer.OrdinalIgnoreCase)) hidHide.AddApplicationPath(exePath);
                 hidHide.IsActive = true;
 
-                // Buscamos mandos genéricos
                 var devs = DeviceList.Local.GetHidDevices().Where(d => d.VendorID == 0x0583 && d.ProductID == 0xA009).ToList();
                 foreach (var dev in devs)
                 {
                     string devicePath = dev.DevicePath.Replace('#', '\\').ToUpperInvariant();
                     try { hidHide.AddBlockedInstanceId(devicePath); _rutasOcultadas.Add(devicePath); } catch { }
 
-                    // NUEVO: Abrimos el stream para la vibración ANTES de que el juego lo pida
                     if (_hidRumbleStream == null && dev.TryOpen(out var stream))
                     {
                         if (dev.GetMaxOutputReportLength() > 0) _hidRumbleStream = stream;
@@ -222,7 +224,6 @@ namespace SteamOSConfigurator
             catch { }
         }
 
-        // NUEVO: La función que envía los motores crudos al mando genérico
         private static void EnviarRumble(byte grande, byte pequeno)
         {
             if (_hidRumbleStream == null) return;
