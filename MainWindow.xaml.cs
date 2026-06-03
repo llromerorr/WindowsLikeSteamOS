@@ -14,10 +14,10 @@ using System.Security.Principal;
 
 namespace SteamOSConfigurator
 {
-    // AGREGAMOS LA VARIABLE EmuladorActivado AL MODELO DE DATOS
     public class ConfiguracionLocal
     {
         public string? MonitorDeviceName { get; set; }
+        public string? MonitorDeviceId { get; set; } // ── HUELLA DE HARDWARE ──
         public int ResolucionWidth { get; set; }
         public int ResolucionHeight { get; set; }
         public int RefreshRate { get; set; }
@@ -38,6 +38,9 @@ namespace SteamOSConfigurator
         [StructLayout(LayoutKind.Sequential)]
         public struct DEVMODE { [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName; public short dmSpecVersion; public short dmDriverVersion; public short dmSize; public short dmDriverExtra; public int dmFields; public int dmPositionX; public int dmPositionY; public int dmDisplayOrientation; public int dmDisplayFixedOutput; public short dmColor; public short dmDuplex; public short dmYResolution; public short dmTTOption; public short dmCollate; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName; public short dmLogPixels; public int dmBitsPerPel; public int dmPelsWidth; public int dmPelsHeight; public int dmDisplayFlags; public int dmDisplayFrequency; public int dmICMMethod; public int dmICMIntent; public int dmMediaType; public int dmDitherType; public int dmReserved1; public int dmReserved2; public int dmPanningWidth; public int dmPanningHeight; }
 
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        public struct DISPLAY_DEVICE { public int cb; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString; public int StateFlags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceID; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey; }
+
         [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)] public static extern bool LogonUser(string lpszUsername, string lpszDomain, string lpszPassword, int dwLogonType, int dwLogonProvider, out IntPtr phToken);
         [DllImport("userenv.dll", SetLastError = true, CharSet = CharSet.Auto)] public static extern bool LoadUserProfile(IntPtr hToken, ref PROFILEINFO lpProfileInfo);
         [DllImport("userenv.dll", SetLastError = true)] public static extern bool UnloadUserProfile(IntPtr hToken, IntPtr hProfile);
@@ -47,6 +50,7 @@ namespace SteamOSConfigurator
         [DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern int PrivateExtractIcons(string lpszFile, int nIconIndex, int cxIcon, int cyIcon, IntPtr[] phicon, int[] piconid, int nIcons, int flags);
         [DllImport("user32.dll", SetLastError = true)] public static extern bool DestroyIcon(IntPtr hIcon);
         [DllImport("user32.dll")] public static extern int ChangeDisplaySettingsEx(string? lpszDeviceName, ref DEVMODE lpDevMode, IntPtr hwnd, int dwflags, IntPtr lParam);
+        [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern bool EnumDisplayDevices(string? lpDevice, int iDevNum, ref DISPLAY_DEVICE lpDisplayDevice, int dwFlags);
         
         const int ENUM_CURRENT_SETTINGS = -1;
         const int DM_PELSWIDTH = 0x00080000;
@@ -56,6 +60,13 @@ namespace SteamOSConfigurator
         private List<DEVMODE> _resolucionesSoportadas = new List<DEVMODE>();
 
         public MainWindow() { InitializeComponent(); VerificarEstadoSistema(); CargarDatosIniciales(); }
+
+        private string ObtenerDeviceIdFisico(string deviceName)
+        {
+            DISPLAY_DEVICE dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() };
+            if (EnumDisplayDevices(deviceName, 0, ref dd, 0)) return dd.DeviceID;
+            return "";
+        }
 
         private void VerificarEstadoSistema()
         {
@@ -112,9 +123,22 @@ namespace SteamOSConfigurator
                     var config = JsonSerializer.Deserialize<ConfiguracionLocal>(File.ReadAllText(rutaConfig));
                     if (config != null)
                     {
-                        for (int i = 0; i < cmbMonitores.Items.Count; i++) if (cmbMonitores.Items[i].ToString()!.Contains(config.MonitorDeviceName!)) { cmbMonitores.SelectedIndex = i; break; }
+                        // Búsqueda inteligente por Huella Dactilar
+                        for (int i = 0; i < cmbMonitores.Items.Count; i++) 
+                        {
+                            string devName = Screen.AllScreens[i].DeviceName;
+                            string idFisico = ObtenerDeviceIdFisico(devName);
+                            
+                            if (!string.IsNullOrEmpty(config.MonitorDeviceId) && idFisico == config.MonitorDeviceId) 
+                            { 
+                                cmbMonitores.SelectedIndex = i; break; 
+                            }
+                            else if (!string.IsNullOrEmpty(config.MonitorDeviceName) && cmbMonitores.Items[i].ToString()!.Contains(config.MonitorDeviceName)) 
+                            { 
+                                cmbMonitores.SelectedIndex = i; break; 
+                            }
+                        }
                         
-                        // Setear resoluciones editables (incluso si no existen en la lista)
                         cmbResoluciones.Text = $"{config.ResolucionWidth} x {config.ResolucionHeight}";
                         cmbRefresco.Text = $"{config.RefreshRate} Hz";
                         
@@ -156,7 +180,7 @@ namespace SteamOSConfigurator
         {
             VentanaMapeo ventana = new VentanaMapeo { Owner = this };
             ventana.ShowDialog();
-            ActualizarNombreMando(); // Refresca el nombre tras cerrar la ventana
+            ActualizarNombreMando();
         }
 
         private void CmbMonitores_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -183,7 +207,6 @@ namespace SteamOSConfigurator
 
             try
             {
-                // Leemos lo que escribiste a mano en las cajas
                 string[] partesRes = cmbResoluciones.Text.Split('x');
                 int w = int.Parse(partesRes[0].Trim());
                 int h = int.Parse(partesRes[1].Trim());
@@ -197,13 +220,11 @@ namespace SteamOSConfigurator
                 mode.dmDisplayFrequency = hz;
                 mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
 
-                // FASE 1: El test de estrés a la tarjeta gráfica
                 int testResult = ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, CDS_TEST, IntPtr.Zero);
 
                 if (testResult == DISP_CHANGE_SUCCESSFUL)
                 {
-                    // FASE 2: Si lo acepta, lo inyectamos al registro a la fuerza
-                    int applyResult = ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, 0x00000001 /* CDS_UPDATEREGISTRY */, IntPtr.Zero);
+                    int applyResult = ChangeDisplaySettingsEx(deviceName, ref mode, IntPtr.Zero, 0x00000001, IntPtr.Zero);
                     
                     if (applyResult == DISP_CHANGE_SUCCESSFUL)
                     {
@@ -237,7 +258,7 @@ namespace SteamOSConfigurator
         private async void BtnInstalar_Click(object sender, RoutedEventArgs e)
         {
             int indiceMonitor = cmbMonitores.SelectedIndex; 
-            string resolucionTexto = cmbResoluciones.Text; // Lee el texto (aunque sea tipeado a mano)
+            string resolucionTexto = cmbResoluciones.Text; 
             string refrescoTexto = cmbRefresco.Text; 
             string audioTexto = cmbAudio.Text;
             bool emuladorActivado = chkEmulador.IsChecked ?? false;
@@ -306,7 +327,6 @@ namespace SteamOSConfigurator
 
         private void GuardarConfiguracionJson(int indiceMonitor, string resolucion, string refresco, string audioPreferido, bool emuActivado)
         {
-            // Protegemos el guardado si el usuario escribió mal
             int w = 1920, h = 1080, hz = 60;
             try
             {
@@ -315,7 +335,18 @@ namespace SteamOSConfigurator
                 hz = int.Parse(refresco.Replace("Hz", "").Trim());
             } catch { }
 
-            var config = new { MonitorDeviceName = Screen.AllScreens[indiceMonitor].DeviceName, ResolucionWidth = w, ResolucionHeight = h, RefreshRate = hz, AudioDispositivo = audioPreferido, EmuladorActivado = emuActivado };
+            string deviceName = Screen.AllScreens[indiceMonitor].DeviceName;
+            string deviceId = ObtenerDeviceIdFisico(deviceName);
+
+            var config = new { 
+                MonitorDeviceName = deviceName, 
+                MonitorDeviceId = deviceId, 
+                ResolucionWidth = w, 
+                ResolucionHeight = h, 
+                RefreshRate = hz, 
+                AudioDispositivo = audioPreferido, 
+                EmuladorActivado = emuActivado 
+            };
             string rutaConfig = Path.Combine(@"C:\ProgramData\SteamOS", "config.json");
             File.WriteAllText(rutaConfig, JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true }));
         }

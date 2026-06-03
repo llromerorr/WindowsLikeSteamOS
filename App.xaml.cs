@@ -18,6 +18,7 @@ namespace SteamOSConfigurator
     public class ConfiguracionSteamOS
     {
         public string? MonitorDeviceName { get; set; }
+        public string? MonitorDeviceId { get; set; } 
         public int ResolucionWidth { get; set; }
         public int ResolucionHeight { get; set; }
         public int RefreshRate { get; set; }
@@ -27,7 +28,7 @@ namespace SteamOSConfigurator
 
     public partial class App : System.Windows.Application
     {
-        // ── P/INVOKES CLÁSICOS Y CONTROL DE VENTANAS ──────────────────────────
+        // ── P/INVOKES Y CONSTANTES ──────────────────────────
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr dpiFlag);
         static readonly IntPtr DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = new IntPtr(-4);
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
@@ -46,7 +47,6 @@ namespace SteamOSConfigurator
         const uint SPIF_SENDCHANGE = 0x0002;
         const uint SPIF_UPDATEINIFILE = 0x0001;
 
-        // ── API PARA HOOKS (TECLADO Y EVENTOS DEL NÚCLEO) ──────────────────────────
         delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
         [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
         [DllImport("user32.dll")] static extern bool UnhookWinEvent(IntPtr hWinEventHook);
@@ -62,7 +62,6 @@ namespace SteamOSConfigurator
         const uint EVENT_SYSTEM_FOREGROUND = 3;
         const uint WINEVENT_OUTOFCONTEXT = 0;
 
-        // ── ESTRUCTURA DEVMODE ANSI EXPLÍCITA (NVIDIA FIX) ──
         [StructLayout(LayoutKind.Explicit, CharSet = CharSet.Ansi)]
         public struct DEVMODE_ANSI
         {
@@ -82,7 +81,6 @@ namespace SteamOSConfigurator
 
         [DllImport("user32.dll", CharSet = CharSet.Ansi)] static extern int ChangeDisplaySettingsExA(string? lpszDeviceName, ref DEVMODE_ANSI lpDevMode, IntPtr hwnd, uint dwflags, IntPtr lParam);
         [DllImport("user32.dll", EntryPoint = "ChangeDisplaySettingsExA", CharSet = CharSet.Ansi)] static extern int ChangeDisplaySettingsExReset(string? lpszDeviceName, IntPtr lpDevMode, IntPtr hwnd, uint dwflags, IntPtr lParam);
-        
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         public struct DISPLAY_DEVICE { public int cb; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString; public int StateFlags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceID; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey; }
         
@@ -114,13 +112,13 @@ namespace SteamOSConfigurator
         private bool _aislamientoActivo = false;
         private IntPtr _hwndShell = IntPtr.Zero;
 
-        // ── VARIABLES GLOBALES DE FLUJO ─────────────────────────────────────
         private System.Threading.Timer? _debounceTimer;
         private int _suppressDisplayChange = 0;
         private readonly object _timerLock = new object();
 
-        // Variables de Memoria para Juegos y Hooks (Identical a v3.1.0)
-        private List<IntPtr> _ventanasSteamOcultas = new List<IntPtr>();
+        private HashSet<IntPtr> _ventanasSteamOcultas = new HashSet<IntPtr>();
+        private readonly object _lockVentanas = new object();
+        
         private IntPtr _juegoActivoHwnd = IntPtr.Zero; 
         
         private WinEventDelegate? _winEventDelegate;
@@ -150,6 +148,13 @@ namespace SteamOSConfigurator
             using (WindowsIdentity identity = WindowsIdentity.GetCurrent()) return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
         }
 
+        private string ObtenerDeviceIdFisico(string deviceName)
+        {
+            DISPLAY_DEVICE dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() };
+            if (EnumDisplayDevices(deviceName, 0, ref dd, 0)) return dd.DeviceID;
+            return "";
+        }
+
         private void ForzarRegistroEscaladoNVIDIA()
         {
             try
@@ -169,33 +174,6 @@ namespace SteamOSConfigurator
             } catch { }
         }
 
-        private void IniciarRivaTuner()
-        {
-            try
-            {
-                string directorioRTSS = @"C:\Program Files (x86)\RivaTuner Statistics Server";
-                string rutaRTSS = Path.Combine(directorioRTSS, "RTSS.exe");
-                
-                if (File.Exists(rutaRTSS))
-                {
-                    foreach (var proc in Process.GetProcessesByName("RTSS")) { try { proc.Kill(); } catch {} }
-                    foreach (var proc in Process.GetProcessesByName("rtss")) { try { proc.Kill(); } catch {} }
-                    
-                    Thread.Sleep(300); 
-
-                    Process.Start(new ProcessStartInfo 
-                    { 
-                        FileName = rutaRTSS, 
-                        WorkingDirectory = directorioRTSS, 
-                        UseShellExecute = false, 
-                        CreateNoWindow = true
-                    });
-                }
-            }
-            catch { }
-        }
-
-        // ── ESCUDO 1: BLOQUEADOR DE TECLAS DEL SISTEMA (v3.1.0) ──
         private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0 && _aislamientoActivo) 
@@ -215,7 +193,6 @@ namespace SteamOSConfigurator
             return CallNextHookEx(_keyboardHook, nCode, wParam, lParam);
         }
 
-        // ── ESCUDO 2: EL MARTILLO INSTANTÁNEO DE FOCO (v3.1.0) ──
         private void WinEventCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
             if (hwnd == IntPtr.Zero || _modoEscritorio || _juegoActivoHwnd == IntPtr.Zero) return;
@@ -231,14 +208,16 @@ namespace SteamOSConfigurator
                 if (pName == "steam" || pName == "steamwebhelper")
                 {
                     ShowWindow(hwnd, SW_HIDE);
-                    if (!_ventanasSteamOcultas.Contains(hwnd)) _ventanasSteamOcultas.Add(hwnd);
+                    lock (_lockVentanas)
+                    {
+                        _ventanasSteamOcultas.Add(hwnd);
+                    }
                     SetForegroundWindow(_juegoActivoHwnd);
                 }
             }
             catch { }
         }
 
-        // ── ESCUDO INTELIGENTE: DETECTAR LA VENTANA DE BIG PICTURE DE FORMA DETERMINISTA ──
         private async Task EsperarBigPictureAsync()
         {
             bool detectado = false;
@@ -266,7 +245,7 @@ namespace SteamOSConfigurator
                                 if (pName == "steam" || pName == "steamwebhelper")
                                 {
                                     detectado = true;
-                                    return false; // Corta la enumeración
+                                    return false; 
                                 }
                             }
                             catch { }
@@ -279,7 +258,6 @@ namespace SteamOSConfigurator
             }
         }
 
-        // ── MONITOR LENTO DE VISIBILIDAD (v3.1.0 INTOCADO) ──
         private async Task MonitorDeJuegosAsync()
         {
             Process? juegoActivo = null;
@@ -329,7 +307,7 @@ namespace SteamOSConfigurator
         {
             if (ocultar)
             {
-                _ventanasSteamOcultas.Clear();
+                lock (_lockVentanas) { _ventanasSteamOcultas.Clear(); }
                 EnumWindows((hWnd, lParam) =>
                 {
                     GetWindowThreadProcessId(hWnd, out uint pid);
@@ -342,7 +320,7 @@ namespace SteamOSConfigurator
                         {
                             if (IsWindowVisible(hWnd))
                             {
-                                _ventanasSteamOcultas.Add(hWnd);
+                                lock (_lockVentanas) { _ventanasSteamOcultas.Add(hWnd); }
                                 ShowWindow(hWnd, SW_HIDE);
                             }
                         }
@@ -353,16 +331,18 @@ namespace SteamOSConfigurator
             }
             else
             {
-                foreach (IntPtr hWnd in _ventanasSteamOcultas)
+                lock (_lockVentanas)
                 {
-                    ShowWindow(hWnd, SW_SHOW);
-                    SetForegroundWindow(hWnd);
+                    foreach (IntPtr hWnd in _ventanasSteamOcultas)
+                    {
+                        ShowWindow(hWnd, SW_SHOW);
+                        SetForegroundWindow(hWnd);
+                    }
+                    _ventanasSteamOcultas.Clear();
                 }
-                _ventanasSteamOcultas.Clear();
             }
         }
 
-        // ── ORQUESTADOR DEL SHELL CON INYECCIÓN DE ESCUDOS SECUENCIAL Y WATCHDOG KERNEL ──
         private async Task EjecutarModoConsolaAsync()
         {
             try
@@ -371,18 +351,25 @@ namespace SteamOSConfigurator
                 var config = CargarConfig();
                 if (config == null) { CerrarSesionRapido(); return; }
 
+                // ── EXORCISMO DE ZOMBIES PRE-ARRANQUE ──
+                foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); } catch { } }
+                foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); } catch { } }
+                await Task.Delay(1000); 
+
                 var workArea = new RECT { Left = 0, Top = 0, Right = config.ResolucionWidth, Bottom = config.ResolucionHeight };
                 SystemParametersInfo(SPI_SETWORKAREA, 0, ref workArea, SPIF_SENDCHANGE);
                 
+                // ── LLAMADA MODULAR A TU CLASE NVIDIA ──
+                NvidiaOptimizer.ActivarModoConsola(30); 
+
                 ForzarRegistroEscaladoNVIDIA();
                 AislarPantallaYAudio();
 
                 if (config.EmuladorActivado) _ = TraductorMando.IniciarAsync();
 
-                IniciarRivaTuner();
+                // Damos tiempo a que asiente el entorno
                 await Task.Delay(4000); 
 
-                // Fase 1: Bloquear teclado de inmediato para seguridad de entorno Kiosk
                 _keyboardDelegate = KeyboardHookCallback;
                 using (Process curProcess = Process.GetCurrentProcess())
                 using (ProcessModule curModule = curProcess.MainModule!)
@@ -397,13 +384,10 @@ namespace SteamOSConfigurator
                 Process? steam = Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true });
                 if (steam != null) MoverVentanaSteamAlMonitorPrincipal(steam.Id, 25);
 
-                // Fase 2: Esperar pasivamente a que cargue Big Picture (La ventana de actualización corre libre aquí)
                 await EsperarBigPictureAsync();
 
-                // Fase 3: Big Picture activo, inyectamos el Martillo de Foco y el Monitor de Juegos de la v3.1.0
                 if (!_modoEscritorio)
                 {
-                    // FIX: Obligamos a Windows a instalar este escudo en el hilo principal
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
                     {
                         _winEventDelegate = new WinEventDelegate(WinEventCallback);
@@ -413,7 +397,6 @@ namespace SteamOSConfigurator
                     _ = Task.Run(() => MonitorDeJuegosAsync());
                 }
 
-                // Fase 4: Watchdog profesional basado en eventos nativos del Kernel de Windows
                 while (!_modoEscritorio)
                 {
                     var procesosSteam = Process.GetProcessesByName("steam");
@@ -423,20 +406,13 @@ namespace SteamOSConfigurator
                         Process steamPrincipal = procesosSteam[0];
                         steamPrincipal.EnableRaisingEvents = true; 
                         
-                        try 
-                        { 
-                            await steamPrincipal.WaitForExitAsync(); 
-                        } 
-                        catch { }
+                        try { await steamPrincipal.WaitForExitAsync(); } catch { }
                     }
 
                     if (_modoEscritorio) break;
 
                     await Task.Delay(3000); 
-                    if (Process.GetProcessesByName("steam").Length == 0)
-                    {
-                        break; 
-                    }
+                    if (Process.GetProcessesByName("steam").Length == 0) break; 
                 }
             }
             catch { }
@@ -447,6 +423,9 @@ namespace SteamOSConfigurator
                     RestaurarEntornoOriginal(); 
                     CerrarSesionRapido(); 
                 } 
+                
+                // ── LLAMADA MODULAR PARA RESTAURAR LA TARJETA AL SALIR ──
+                NvidiaOptimizer.RestaurarModoNormal();
                 
                 if (_hWinEventHook != IntPtr.Zero) { UnhookWinEvent(_hWinEventHook); _hWinEventHook = IntPtr.Zero; }
                 if (_keyboardHook != IntPtr.Zero) { UnhookWindowsHookEx(_keyboardHook); _keyboardHook = IntPtr.Zero; }
@@ -512,14 +491,15 @@ namespace SteamOSConfigurator
 
                 int id = 0; DISPLAY_DEVICE dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() }; 
                 List<string> activos = new();
-                bool monitorDeseadoConectado = false;
+                string? monitorPrincipalSistema = null;
 
                 while (EnumDisplayDevices(null, id, ref dd, 0))
                 {
                     if ((dd.StateFlags & 0x1) != 0) 
                     {
                         activos.Add(dd.DeviceName);
-                        if (dd.DeviceName == config.MonitorDeviceName) monitorDeseadoConectado = true;
+                        if ((dd.StateFlags & 0x4) != 0) monitorPrincipalSistema = dd.DeviceName;
+
                         if (!_monitoresOriginales.ContainsKey(dd.DeviceName))
                         {
                             DEVMODE_ANSI modeOrig = new DEVMODE_ANSI { dmSize = (short)Marshal.SizeOf<DEVMODE_ANSI>() }; 
@@ -529,11 +509,36 @@ namespace SteamOSConfigurator
                     id++; dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() };
                 }
 
-                if (!monitorDeseadoConectado) return;
+                if (activos.Count == 0) return;
+
+                string monitorObjetivo = "";
+                bool monitorEncontrado = false;
 
                 foreach (string deviceName in activos)
                 {
-                    if (deviceName == config.MonitorDeviceName) { 
+                    string idFisico = ObtenerDeviceIdFisico(deviceName);
+                    
+                    if (!string.IsNullOrEmpty(config.MonitorDeviceId) && idFisico == config.MonitorDeviceId)
+                    {
+                        monitorObjetivo = deviceName;
+                        monitorEncontrado = true;
+                        break;
+                    }
+                    else if (deviceName == config.MonitorDeviceName)
+                    {
+                        monitorObjetivo = deviceName;
+                        monitorEncontrado = true;
+                    }
+                }
+
+                if (!monitorEncontrado)
+                {
+                    monitorObjetivo = monitorPrincipalSistema ?? activos[0];
+                }
+
+                foreach (string deviceName in activos)
+                {
+                    if (deviceName == monitorObjetivo) { 
                         DEVMODE_ANSI mode = new DEVMODE_ANSI { dmSize = (short)Marshal.SizeOf<DEVMODE_ANSI>() }; 
                         EnumDisplaySettingsA(deviceName, ENUM_CURRENT_SETTINGS, ref mode); 
                         mode.dmPelsWidth = (uint)config.ResolucionWidth; mode.dmPelsHeight = (uint)config.ResolucionHeight; mode.dmBitsPerPel = 32; mode.dmDisplayFrequency = (uint)config.RefreshRate; mode.dmPositionX = 0; mode.dmPositionY = 0; 
