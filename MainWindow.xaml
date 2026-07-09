@@ -1,7 +1,7 @@
-﻿<Window x:Class="SteamOSConfigurator.MainWindow"
+<Window x:Class="SteamOSConfigurator.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="SteamOS Kiosk Configurator" Width="520" SizeToContent="Height"
+        Title="SteamOS Kiosk Configurator" Width="540" SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
         Background="#0D0E12" FontFamily="Segoe UI" ResizeMode="NoResize">
 
@@ -15,7 +15,7 @@
         </Style>
 
         <ControlTemplate x:Key="ComboBoxToggleButton" TargetType="ToggleButton">
-            <Border Background="#16181D" BorderBrush="#2D323F" BorderThickness="1" CornerRadius="2">
+            <Border Background="#16181D" BorderBrush="#2D323F" BorderThickness="1" CornerRadius="4">
                 <Path x:Name="Arrow" Fill="#8A95A5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" Data="M 0 0 L 4 4 L 8 0 Z"/>
             </Border>
         </ControlTemplate>
@@ -37,7 +37,7 @@
                             <TextBox x:Name="PART_EditableTextBox" Visibility="Hidden" IsReadOnly="{TemplateBinding IsReadOnly}" Margin="8,0,30,0" Padding="0" VerticalAlignment="Center" HorizontalAlignment="Stretch" Background="Transparent" Foreground="#10D275" BorderThickness="0" FontWeight="Bold" FontSize="12"/>
                             
                             <Popup Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
-                                <Border Name="DropDownBorder" Background="#12141A" BorderThickness="1" BorderBrush="#2D323F" MinWidth="{Binding ActualWidth, ElementName=ToggleButton}">
+                                <Border Name="DropDownBorder" Background="#12141A" BorderThickness="1" BorderBrush="#2D323F" MinWidth="{Binding ActualWidth, ElementName=ToggleButton}" CornerRadius="4">
                                     <ScrollViewer Margin="4,6,4,6" SnapsToDevicePixels="True">
                                         <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
                                     </ScrollViewer>
@@ -86,6 +86,15 @@
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Padding" Value="10,6"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="0" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="CheckBox">
@@ -103,7 +112,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="2">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -119,6 +128,11 @@
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="#0EB866"/>
                 </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#252A36"/>
+                    <Setter Property="Foreground" Value="#4C5366"/>
+                    <Setter Property="BorderBrush" Value="#252A36"/>
+                </Trigger>
             </Style.Triggers>
         </Style>
 
@@ -130,6 +144,10 @@
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="#2A1012"/>
                 </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="BorderBrush" Value="#252A36"/>
+                    <Setter Property="Foreground" Value="#4C5366"/>
+                </Trigger>
             </Style.Triggers>
         </Style>
     </Window.Resources>
@@ -138,7 +156,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
@@ -147,113 +164,193 @@
             <Border Height="1" Background="#2D323F" Margin="0,15,0,0"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="1">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="15"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="HARDWARE VISUAL" FontSize="11" FontWeight="Heavy" Foreground="#FFFFFF" Margin="0,0,0,10"/>
-                    
-                    <Label Content="PANTALLA OBJETIVO"/>
-                    <ComboBox x:Name="cmbMonitores" SelectionChanged="CmbMonitores_SelectionChanged"/>
-
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.8*"/>
-                            <ColumnDefinition Width="10"/>
-                            <ColumnDefinition Width="1*"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <Label Content="RESOLUCIÓN"/>
-                            <ComboBox x:Name="cmbResoluciones" IsEditable="True" SelectionChanged="CmbResoluciones_SelectionChanged"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <Label Content="HERCIOS"/>
-                            <ComboBox x:Name="cmbRefresco" IsEditable="True"/>
-                        </StackPanel>
-                    </Grid>
-
-                    <TextBlock Text="OVERCLOCK &amp; RENDIMIENTO" FontSize="11" FontWeight="Heavy" Foreground="#FFFFFF" Margin="0,15,0,10"/>
-                    
-                    <Label Content="LÍMITE DE FPS (RIVA TUNER)"/>
-                    <ComboBox x:Name="cmbFPS" IsEditable="True">
-                        <ComboBoxItem Content="30"/>
-                        <ComboBoxItem Content="40"/>
-                        <ComboBoxItem Content="45"/>
-                        <ComboBoxItem Content="60"/>
-                        <ComboBoxItem Content="120"/>
-                        <ComboBoxItem Content="0"/>
-                    </ComboBox>
-
-                    <CheckBox x:Name="chkFastSync" Content="Forzar NVIDIA Fast Sync (0 Latencia)"/>
-                </StackPanel>
-
-                <StackPanel Grid.Column="2">
-                    <TextBlock Text="AUDIO &amp; CONTROLADORES" FontSize="11" FontWeight="Heavy" Foreground="#FFFFFF" Margin="0,0,0,10"/>
-                    
-                    <Label Content="ENRUTAMIENTO DE AUDIO"/>
-                    <ComboBox x:Name="cmbAudio"/>
-
-                    <Label Content="DELAY BOTÓN HOME (SELECT+START)"/>
-                    <Grid Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+        <!-- CONTENEDOR DE VISTAS -->
+        <Grid Grid.Row="1">
+            
+            <!-- VISTA SIMPLE -->
+            <StackPanel x:Name="viewSimple" Visibility="Visible">
+                <Border Background="#12141A" CornerRadius="8" Padding="20" BorderBrush="#1C1F26" BorderThickness="1" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Text="ESTADO DEL SISTEMA" FontSize="11" FontWeight="Bold" Foreground="#4C5366" Margin="0,0,0,15"/>
                         
-                        <TextBox x:Name="txtDelayHome" Text="65" MaxLength="4" Style="{StaticResource CajaTextoOscura}"/>
+                        <!-- Steam -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Ellipse x:Name="dotSteam" Width="10" Height="10" Fill="#FF4A4A" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock x:Name="lblSimpleSteam" Grid.Column="1" Text="Steam: Cargando..." Foreground="#E0E6ED" FontSize="13" FontWeight="SemiBold"/>
+                        </Grid>
                         
-                        <TextBlock Grid.Column="1" Text="ms" Foreground="#8A95A5" VerticalAlignment="Center" Margin="8,0,0,0" FontWeight="Bold"/>
-                    </Grid>
+                        <!-- Drivers -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Ellipse x:Name="dotDrivers" Width="10" Height="10" Fill="#FF4A4A" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock x:Name="lblSimpleDrivers" Grid.Column="1" Text="Controladores Mando: Cargando..." Foreground="#E0E6ED" FontSize="13" FontWeight="SemiBold"/>
+                        </Grid>
 
-                    <CheckBox x:Name="chkEmulador" Content="Activar Traductor de Mando" IsChecked="True"/>
-                    
-                    <Border Background="#16181D" BorderBrush="#2D323F" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,5,0,0">
-                        <StackPanel>
-                            <TextBlock x:Name="lblNombreMando" Text="Ningún mando mapeado" FontWeight="SemiBold" Foreground="#8A95A5" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
-                            <Button x:Name="btnConfigurarMando" Content="MAPEAR MANDO" Style="{StaticResource BaseButton}" Background="#252A36" Foreground="#E0E6ED" BorderThickness="0" Height="30" FontSize="11" Click="BtnConfigurarMando_Click"/>
-                        </StackPanel>
-                    </Border>
+                        <!-- Mando -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Ellipse x:Name="dotMando" Width="10" Height="10" Fill="#FF4A4A" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock x:Name="lblSimpleMando" Grid.Column="1" Text="Mando Virtual / Mapeo: Cargando..." Foreground="#E0E6ED" FontSize="13" FontWeight="SemiBold"/>
+                        </Grid>
+
+                        <!-- RTSS -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Ellipse x:Name="dotRTSS" Width="10" Height="10" Fill="#FF4A4A" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock x:Name="lblSimpleRTSS" Grid.Column="1" Text="RivaTuner (RTSS): Cargando..." Foreground="#E0E6ED" FontSize="13" FontWeight="SemiBold"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Panel de Progreso -->
+                <StackPanel x:Name="panelProgreso" Visibility="Collapsed" Margin="0,0,0,18">
+                    <TextBlock x:Name="lblProgreso" Text="Preparando descarga..." Foreground="#E0E6ED" FontSize="12" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                    <ProgressBar x:Name="progresoBar" Height="10" IsIndeterminate="True" Foreground="#1068E5" Background="#16181D" BorderThickness="0"/>
                 </StackPanel>
-            </Grid>
 
-            <Border Background="#12141A" CornerRadius="4" Padding="15" Margin="0,20,0,0" BorderBrush="#1C1F26" BorderThickness="1">
-                <StackPanel>
-                    <TextBlock Text="D I A G N Ó S T I C O   D E L   N Ú C L E O" FontSize="10" FontWeight="Black" Foreground="#4C5366" Margin="0,0,0,10"/>
-                    
-                    <Grid Margin="0,0,0,6">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <TextBlock Text="Steam Shell:" Foreground="#8A95A5" FontSize="11" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="lblEstadoSteam" Grid.Column="1" Text="..." FontSize="11" FontWeight="Bold" HorizontalAlignment="Right"/>
-                    </Grid>
-                    
-                    <Grid Margin="0,0,0,6">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <TextBlock Text="ViGEm + HidHide:" Foreground="#8A95A5" FontSize="11" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="lblEstadoDrivers" Grid.Column="1" Text="..." FontSize="11" FontWeight="Bold" HorizontalAlignment="Right"/>
-                    </Grid>
+                <Button x:Name="btnAccionPrincipal" Content="INSTALAR STEAMKIOSK" Style="{StaticResource PrimaryButton}" Height="50" FontSize="14" Click="BtnAccionPrincipal_Click"/>
+                
+                <Button x:Name="btnDesinstalarSimple" Content="DESINSTALAR" Style="{StaticResource SecondaryButton}" Height="30" FontSize="11" Margin="0,10,0,0" Width="120" HorizontalAlignment="Center" Click="BtnDesinstalarSimple_Click"/>
 
-                    <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <TextBlock Text="RivaTuner (RTSS):" Foreground="#8A95A5" FontSize="11" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="lblEstadoRTSS" Grid.Column="1" Text="..." FontSize="11" FontWeight="Bold" HorizontalAlignment="Right"/>
-                    </Grid>
-                </StackPanel>
-            </Border>
-        </StackPanel>
+                <Button x:Name="btnVerAvanzado" Background="Transparent" BorderThickness="0" Margin="0,20,0,0" Click="BtnVerAvanzado_Click" HorizontalAlignment="Center" Cursor="Hand">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="⚙️" FontSize="14" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBlock Text="Opciones Avanzadas" FontSize="12" Foreground="#8A95A5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
 
-        <Grid Grid.Row="2" Margin="0,20,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="15"/>
-                <ColumnDefinition Width="1.5*"/>
-            </Grid.ColumnDefinitions>
-            <Button x:Name="btnDesinstalar" Grid.Column="0" Content="PURGAR" Style="{StaticResource SecondaryButton}" Click="BtnDesinstalar_Click"/>
-            <Button x:Name="btnInstalar" Grid.Column="2" Content="APLICAR Y DEPLOYAR" Style="{StaticResource PrimaryButton}" Click="BtnInstalar_Click"/>
+            <!-- VISTA AVANZADA -->
+            <StackPanel x:Name="viewAvanzada" Visibility="Collapsed">
+                <Button x:Name="btnVolverSimple" Background="Transparent" BorderThickness="0" Margin="0,0,0,15" Click="BtnVolverSimple_Click" HorizontalAlignment="Left" Cursor="Hand">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="←" FontSize="16" FontWeight="Bold" Foreground="#10D275" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBlock Text="Volver" FontSize="12" Foreground="#8A95A5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="15"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="HARDWARE VISUAL" FontSize="11" FontWeight="Heavy" Foreground="#FFFFFF" Margin="0,0,0,10"/>
+                        
+                        <Label Content="PANTALLA OBJETIVO"/>
+                        <ComboBox x:Name="cmbMonitores" SelectionChanged="CmbMonitores_SelectionChanged"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.8*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="1*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <Label Content="RESOLUCIÓN"/>
+                                <ComboBox x:Name="cmbResoluciones" IsEditable="True" SelectionChanged="CmbResoluciones_SelectionChanged"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <Label Content="HERCIOS"/>
+                                <ComboBox x:Name="cmbRefresco" IsEditable="True"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="OVERCLOCK &amp; RENDIMIENTO" FontSize="11" FontWeight="Heavy" Foreground="#FFFFFF" Margin="0,15,0,10"/>
+                        
+                        <Label Content="LÍMITE DE FPS (RIVA TUNER)"/>
+                        <ComboBox x:Name="cmbFPS" IsEditable="True">
+                            <ComboBoxItem Content="30"/>
+                            <ComboBoxItem Content="40"/>
+                            <ComboBoxItem Content="45"/>
+                            <ComboBoxItem Content="60"/>
+                            <ComboBoxItem Content="120"/>
+                            <ComboBoxItem Content="0"/>
+                        </ComboBox>
+
+                        <CheckBox x:Name="chkFastSync" Content="Forzar NVIDIA Fast Sync (0 Latencia)"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="AUDIO &amp; CONTROLADORES" FontSize="11" FontWeight="Heavy" Foreground="#FFFFFF" Margin="0,0,0,10"/>
+                        
+                        <Label Content="ENRUTAMIENTO DE AUDIO"/>
+                        <ComboBox x:Name="cmbAudio"/>
+
+                        <Label Content="DELAY BOTÓN HOME (SELECT+START)"/>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBox x:Name="txtDelayHome" Text="65" MaxLength="4" Style="{StaticResource CajaTextoOscura}"/>
+                            
+                            <TextBlock Grid.Column="1" Text="ms" Foreground="#8A95A5" VerticalAlignment="Center" Margin="8,0,0,0" FontWeight="Bold"/>
+                        </Grid>
+
+                        <CheckBox x:Name="chkEmulador" Content="Activar Traductor de Mando" IsChecked="True"/>
+                        
+                        <Border Background="#16181D" BorderBrush="#2D323F" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,5,0,0">
+                            <StackPanel>
+                                <TextBlock x:Name="lblNombreMando" Text="Ningún mando mapeado" FontWeight="SemiBold" Foreground="#8A95A5" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
+                                <Button x:Name="btnConfigurarMando" Content="MAPEAR MANDO" Style="{StaticResource BaseButton}" Background="#252A36" Foreground="#E0E6ED" BorderThickness="0" Height="30" FontSize="11" Click="BtnConfigurarMando_Click"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Border Background="#12141A" CornerRadius="8" Padding="15" Margin="0,20,0,0" BorderBrush="#1C1F26" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="D I A G N Ó S T I C O   D E L   N Ú C L E O" FontSize="10" FontWeight="Black" Foreground="#4C5366" Margin="0,0,0,10"/>
+                        
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <TextBlock Text="Steam Shell:" Foreground="#8A95A5" FontSize="11" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="lblEstadoSteam" Grid.Column="1" Text="..." FontSize="11" FontWeight="Bold" HorizontalAlignment="Right"/>
+                        </Grid>
+                        
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <TextBlock Text="ViGEm + HidHide:" Foreground="#8A95A5" FontSize="11" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="lblEstadoDrivers" Grid.Column="1" Text="..." FontSize="11" FontWeight="Bold" HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <TextBlock Text="RivaTuner (RTSS):" Foreground="#8A95A5" FontSize="11" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="lblEstadoRTSS" Grid.Column="1" Text="..." FontSize="11" FontWeight="Bold" HorizontalAlignment="Right"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Botones avanzados de Deploy/Desinstalar -->
+                <Grid Margin="0,20,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="15"/>
+                        <ColumnDefinition Width="1.5*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="btnDesinstalar" Grid.Column="0" Content="PURGAR" Style="{StaticResource SecondaryButton}" Click="BtnDesinstalar_Click"/>
+                    <Button x:Name="btnInstalar" Grid.Column="2" Content="APLICAR Y DEPLOYAR" Style="{StaticResource PrimaryButton}" Click="BtnInstalar_Click"/>
+                </Grid>
+            </StackPanel>
+            
         </Grid>
     </Grid>
 </Window>

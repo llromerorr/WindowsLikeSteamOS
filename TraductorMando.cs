@@ -12,12 +12,13 @@ using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 using Nefarius.Drivers.HidHide;
 using HidSharp;
+using SteamOSConfigurator.Helpers;
 
 namespace SteamOSConfigurator
 {
     public static class TraductorMando
     {
-        private static bool _ejecutando = false;
+        private static CancellationTokenSource? _cts;
         private static ViGEmClient? _vigemClient;
         private static IXbox360Controller? _xboxVirtual;
         private static DirectInput? _directInput;
@@ -28,20 +29,20 @@ namespace SteamOSConfigurator
 
         public static async Task IniciarAsync()
         {
-            if (_ejecutando) return;
+            if (_cts != null) return;
 
             // ── NUEVO: LEER EL DELAY DINÁMICO DESDE EL JSON PRINCIPAL ──
-            string rutaConfigPrincipal = @"C:\ProgramData\SteamOS\config.json";
+            string rutaConfigPrincipal = AppPaths.Config;
             if (File.Exists(rutaConfigPrincipal))
             {
                 try {
                     var jsonNode = JsonNode.Parse(File.ReadAllText(rutaConfigPrincipal));
                     if (jsonNode?["DelayBotonHome"] != null)
                         _tiempoChordMs = jsonNode["DelayBotonHome"]!.GetValue<int>();
-                } catch { }
+                } catch (Exception ex) { Logger.Log($"Error al leer DelayBotonHome: {ex.Message}"); }
             }
 
-            string rutaMapeo = @"C:\ProgramData\SteamOS\mapeo_config.json";
+            string rutaMapeo = AppPaths.MapeoConfig;
             if (!File.Exists(rutaMapeo)) return; 
 
             MapeoControl? config;
@@ -50,13 +51,14 @@ namespace SteamOSConfigurator
 
             if (config == null || config.Botones.Count == 0) return;
 
-            _ejecutando = true;
+            _cts = new CancellationTokenSource();
+            CancellationToken token = _cts.Token;
             _directInput = new DirectInput();
 
             await Task.Run(() =>
             {
-                PrepararMandoFisico();
-                ConectarJoystick();
+                PrepararMandoFisico(config);
+                ConectarJoystick(token);
                 if (_joystick == null) { Detener(); return; }
 
                 try
@@ -68,24 +70,26 @@ namespace SteamOSConfigurator
                 }
                 catch { Detener(); return; }
 
-                BucleTraduccion(config);
+                BucleTraduccion(config, token);
             });
         }
 
         public static void Detener()
         {
-            _ejecutando = false;
-            try { _xboxVirtual?.Disconnect(); } catch { }
-            try { _vigemClient?.Dispose(); } catch { }
-            try { _joystick?.Unacquire(); _joystick?.Dispose(); } catch { }
-            try { _directInput?.Dispose(); } catch { }
-            try { _hidRumbleStream?.Dispose(); _hidRumbleStream = null; } catch { } 
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+            try { _xboxVirtual?.Disconnect(); } catch (Exception ex) { Logger.Log($"Error disconnecting Xbox controller: {ex.Message}"); }
+            try { _vigemClient?.Dispose(); } catch (Exception ex) { Logger.Log($"Error disposing ViGEmClient: {ex.Message}"); }
+            try { _joystick?.Unacquire(); _joystick?.Dispose(); } catch (Exception ex) { Logger.Log($"Error disposing Joystick: {ex.Message}"); }
+            try { _directInput?.Dispose(); } catch (Exception ex) { Logger.Log($"Error disposing DirectInput: {ex.Message}"); }
+            try { _hidRumbleStream?.Dispose(); _hidRumbleStream = null; } catch (Exception ex) { Logger.Log($"Error disposing RumbleStream: {ex.Message}"); } 
             RevertirOcultamiento();
         }
 
-        private static void ConectarJoystick()
+        private static void ConectarJoystick(CancellationToken token)
         {
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 5 && !token.IsCancellationRequested; i++)
             {
                 var dispositivos = _directInput!.GetDevices(DeviceClass.GameControl, DeviceEnumerationFlags.AttachedOnly);
                 if (dispositivos.Count > 0)
@@ -99,12 +103,12 @@ namespace SteamOSConfigurator
             }
         }
 
-        private static void BucleTraduccion(MapeoControl config)
+        private static void BucleTraduccion(MapeoControl config, CancellationToken token)
         {
             long tickSelectPresionado = 0;
             bool selectBloqueadoPorChord = false;
 
-            while (_ejecutando && _joystick != null && _xboxVirtual != null)
+            while (!token.IsCancellationRequested && _joystick != null && _xboxVirtual != null)
             {
                 try
                 {
@@ -120,8 +124,16 @@ namespace SteamOSConfigurator
                     _xboxVirtual.SetButtonState(Xbox360Button.LeftThumb, st.Buttons[config.Botones["L3"]]);
                     _xboxVirtual.SetButtonState(Xbox360Button.RightThumb, st.Buttons[config.Botones["R3"]]);
 
-                    _xboxVirtual.SetSliderValue(Xbox360Slider.LeftTrigger, (byte)(st.Buttons[config.Botones["LT"]] ? 255 : 0));
-                    _xboxVirtual.SetSliderValue(Xbox360Slider.RightTrigger, (byte)(st.Buttons[config.Botones["RT"]] ? 255 : 0));
+                    byte ltValue = 0;
+                    if (config.Botones.ContainsKey("LT")) ltValue = (byte)(st.Buttons[config.Botones["LT"]] ? 255 : 0);
+                    else if (config.Ejes.ContainsKey("LT")) ltValue = (byte)Math.Clamp((JoystickHelper.ObtenerValorEje(st, config.Ejes["LT"]) * 255) / 65535, 0, 255);
+
+                    byte rtValue = 0;
+                    if (config.Botones.ContainsKey("RT")) rtValue = (byte)(st.Buttons[config.Botones["RT"]] ? 255 : 0);
+                    else if (config.Ejes.ContainsKey("RT")) rtValue = (byte)Math.Clamp((JoystickHelper.ObtenerValorEje(st, config.Ejes["RT"]) * 255) / 65535, 0, 255);
+
+                    _xboxVirtual.SetSliderValue(Xbox360Slider.LeftTrigger, ltValue);
+                    _xboxVirtual.SetSliderValue(Xbox360Slider.RightTrigger, rtValue);
 
                     // ── APLICANDO EL DELAY DINÁMICO DE LA UI ──
                     bool btnSelect = st.Buttons[config.Botones["Select"]];
@@ -168,10 +180,10 @@ namespace SteamOSConfigurator
                         _xboxVirtual.SetButtonState(Xbox360Button.Left, pov == 22500 || pov == 27000 || pov == 31500);
                     }
 
-                    int lx = Deadzone(ObtenerValorEje(st, config.Ejes["LeftX"]) - 32768);
-                    int ly = Deadzone(65535 - ObtenerValorEje(st, config.Ejes["LeftY"]) - 32768);
-                    int rx = Deadzone(ObtenerValorEje(st, config.Ejes["RightX"]) - 32768);
-                    int ry = Deadzone(65535 - ObtenerValorEje(st, config.Ejes["RightY"]) - 32768);
+                    int lx = Deadzone(JoystickHelper.ObtenerValorEje(st, config.Ejes["LeftX"]) - 32768);
+                    int ly = Deadzone(65535 - JoystickHelper.ObtenerValorEje(st, config.Ejes["LeftY"]) - 32768);
+                    int rx = Deadzone(JoystickHelper.ObtenerValorEje(st, config.Ejes["RightX"]) - 32768);
+                    int ry = Deadzone(65535 - JoystickHelper.ObtenerValorEje(st, config.Ejes["RightY"]) - 32768);
 
                     _xboxVirtual.SetAxisValue(Xbox360Axis.LeftThumbX, (short)Math.Clamp(lx, -32768, 32767));
                     _xboxVirtual.SetAxisValue(Xbox360Axis.LeftThumbY, (short)Math.Clamp(ly, -32768, 32767));
@@ -180,26 +192,18 @@ namespace SteamOSConfigurator
 
                     Thread.Sleep(10);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Logger.Log($"Error en BucleTraduccion: {ex.Message}");
                     Thread.Sleep(2000);
-                    ConectarJoystick();
+                    ConectarJoystick(token);
                 }
             }
         }
 
         private static int Deadzone(int v, int zona = 4000) => Math.Abs(v) < zona ? 0 : v;
 
-        private static int ObtenerValorEje(JoystickState st, string eje) => eje switch
-        {
-            "X" => st.X, "Y" => st.Y, "Z" => st.Z,
-            "RotationX" => st.RotationX, "RotationY" => st.RotationY, "RotationZ" => st.RotationZ,
-            "Slider0" => st.Sliders.Length > 0 ? st.Sliders[0] : 32767,
-            "Slider1" => st.Sliders.Length > 1 ? st.Sliders[1] : 32767,
-            _ => 32767
-        };
-
-        private static void PrepararMandoFisico()
+        private static void PrepararMandoFisico(MapeoControl config)
         {
             try
             {
@@ -208,11 +212,14 @@ namespace SteamOSConfigurator
                 if (!hidHide.ApplicationPaths.Contains(exePath, StringComparer.OrdinalIgnoreCase)) hidHide.AddApplicationPath(exePath);
                 hidHide.IsActive = true;
 
-                var devs = DeviceList.Local.GetHidDevices().Where(d => d.VendorID == 0x0583 && d.ProductID == 0xA009).ToList();
+                int vendorId = config.VendorID != 0 ? config.VendorID : 0x0583;
+                int productId = config.ProductID != 0 ? config.ProductID : 0xA009;
+
+                var devs = DeviceList.Local.GetHidDevices().Where(d => d.VendorID == vendorId && d.ProductID == productId).ToList();
                 foreach (var dev in devs)
                 {
                     string devicePath = dev.DevicePath.Replace('#', '\\').ToUpperInvariant();
-                    try { hidHide.AddBlockedInstanceId(devicePath); _rutasOcultadas.Add(devicePath); } catch { }
+                    try { hidHide.AddBlockedInstanceId(devicePath); _rutasOcultadas.Add(devicePath); } catch (Exception ex) { Logger.Log($"Error ocultando dispositivo {devicePath}: {ex.Message}"); }
 
                     if (_hidRumbleStream == null && dev.TryOpen(out var stream))
                     {
@@ -221,14 +228,14 @@ namespace SteamOSConfigurator
                     }
                 }
             }
-            catch { }
+            catch (Exception ex) { Logger.Log($"Error al preparar mando físico: {ex.Message}"); }
         }
 
         private static void EnviarRumble(byte grande, byte pequeno)
         {
             if (_hidRumbleStream == null) return;
             try { _hidRumbleStream.Write(new byte[] { 0x00, grande, pequeno, 0x00 }); }
-            catch { }
+            catch (Exception ex) { Logger.Log($"Error al enviar Rumble: {ex.Message}"); }
         }
 
         private static void RevertirOcultamiento()
@@ -237,10 +244,10 @@ namespace SteamOSConfigurator
             try
             {
                 var hidHide = new HidHideControlService();
-                foreach (var ruta in _rutasOcultadas) try { hidHide.RemoveBlockedInstanceId(ruta); } catch { }
+                foreach (var ruta in _rutasOcultadas) try { hidHide.RemoveBlockedInstanceId(ruta); } catch (Exception ex) { Logger.Log($"Error revirtiendo ocultamiento para {ruta}: {ex.Message}"); }
                 _rutasOcultadas.Clear();
             }
-            catch { }
+            catch (Exception ex) { Logger.Log($"Error revirtiendo ocultamiento general: {ex.Message}"); }
         }
     }
 }

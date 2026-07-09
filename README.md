@@ -39,9 +39,23 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 El ejecutable final se generará en la ruta:  
 `\bin\Release\net8.0-windows\win-x64\publish\WindowsLikeSteamOS.exe`
 
+> ⚠️ **Nota sobre el instalador de RTSS:** El archivo `Dependencias/RTSSSetup.exe` pesa más de 18MB. Se recomienda utilizar **Git LFS** (Large File Storage) para versionar este archivo y evitar inflar el tamaño del repositorio.
+
+---
+
+## 🎮 Traducción de Mandos (Emulador)
+
+La aplicación incluye un traductor nativo de mandos DirectInput a Xbox 360 usando `ViGEmBus` y `HidHide`. Esto permite:
+* Soporte nativo para Steam Input de cualquier mando genérico.
+* **Mapeo personalizado** mediante una interfaz interactiva de la aplicación.
+* **Gatillos analógicos o digitales** soportados automáticamente.
+* **Atajo Guide:** Presionar `Select + Start` se traduce en el botón Xbox Guide, permitiendo abrir el menú de Steam en juegos sin necesidad de teclado.
+
 ---
 
 ## 💻 Guía de Uso
+
+
 
 1. Toma el `WindowsLikeSteamOS.exe` compilado y hazle **Clic derecho -> Ejecutar como Administrador**.
 2. Selecciona tu pantalla gaming principal, la resolución deseada, los Hz y el dispositivo de salida de audio.

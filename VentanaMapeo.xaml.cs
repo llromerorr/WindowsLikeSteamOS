@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using SharpDX.DirectInput;
+using SteamOSConfigurator.Helpers;
 
 namespace SteamOSConfigurator
 {
@@ -14,6 +15,8 @@ namespace SteamOSConfigurator
     public class MapeoControl
     {
         public string NombreControl { get; set; } = string.Empty;
+        public int VendorID { get; set; }
+        public int ProductID { get; set; }
         public Dictionary<string, int> Botones { get; set; } = new Dictionary<string, int>();
         public Dictionary<string, string> Ejes { get; set; } = new Dictionary<string, string>();
     }
@@ -62,6 +65,8 @@ namespace SteamOSConfigurator
             }
 
             _configActual.NombreControl = _joystick.Information.ProductName;
+            _configActual.VendorID = _joystick.Properties.VendorId;
+            _configActual.ProductID = _joystick.Properties.ProductId;
             lblSubtitulo.Text = $"MANDO DETECTADO: {_configActual.NombreControl.ToUpper()}";
 
             await Task.Delay(1000);
@@ -75,8 +80,6 @@ namespace SteamOSConfigurator
                 ("Y", "Botón Y (Arriba)", "🟡"),
                 ("LB", "Gatillo superior Izquierdo (LB/L1)", "🔲"),
                 ("RB", "Gatillo superior Derecho (RB/R1)", "🔲"),
-                ("LT", "Gatillo inferior Izquierdo (LT/L2)", "🔽"),
-                ("RT", "Gatillo inferior Derecho (RT/R2)", "🔽"),
                 ("Select", "Botón SELECT / BACK", "◀️"),
                 ("Start", "Botón START / MENU", "▶️"),
                 ("L3", "Clic en palanca Izquierda", "🕹️"),
@@ -142,6 +145,44 @@ namespace SteamOSConfigurator
                 lblInstruccion.Text = "¡Registrado!";
                 lblDetalle.Text = "Suelta la palanca...";
                 await EsperarSoltarEjeAsync(ejeDetectado);
+                await Task.Delay(400);
+            }
+
+            // 3.5. Mapear Gatillos Inferiores (LT/RT - Soporte analógico y digital)
+            var gatillos = new (string clave, string instruccion)[]
+            {
+                ("LT", "Presiona a fondo el Gatillo IZQUIERDO (LT/L2)"),
+                ("RT", "Presiona a fondo el Gatillo DERECHO (RT/R2)")
+            };
+
+            foreach (var (clave, instruccion) in gatillos)
+            {
+                if (!_mapeando) return;
+
+                lblEmoji.Text = "🔽";
+                lblInstruccion.Text = instruccion;
+                lblDetalle.Text = "Presiona a fondo y suelta (analógico o botón)";
+
+                var (esBoton, botonID, ejeDetectado) = await EsperarBotonOEjeAsync();
+                if (!esBoton && ejeDetectado == null)
+                {
+                    if (!_mapeando) return;
+                    lblInstruccion.Text = "Tiempo agotado";
+                    lblDetalle.Text = "Cancelando mapeo...";
+                    await Task.Delay(2000);
+                    Close();
+                    return;
+                }
+
+                if (esBoton) 
+                    _configActual.Botones[clave] = botonID;
+                else 
+                    _configActual.Ejes[clave] = ejeDetectado!;
+
+                lblInstruccion.Text = "¡Registrado!";
+                lblDetalle.Text = "Suelta el gatillo...";
+                
+                if (!esBoton) await EsperarSoltarEjeAsync(ejeDetectado!);
                 await Task.Delay(400);
             }
 
@@ -245,6 +286,48 @@ namespace SteamOSConfigurator
             });
         }
 
+        private async Task<(bool EsBoton, int BotonID, string? Eje)> EsperarBotonOEjeAsync()
+        {
+            return await Task.Run(() =>
+            {
+                if (_joystick == null) return (false, -1, null);
+                _joystick.Poll();
+                var inicial = _joystick.GetCurrentState();
+                int limiteEje = 12000;
+                int transcurrido = 0;
+
+                while (transcurrido < 10000 && _mapeando)
+                {
+                    _joystick.Poll();
+                    var st = _joystick.GetCurrentState();
+
+                    // Check axes
+                    if (Math.Abs(st.X - inicial.X) > limiteEje) return (false, -1, "X");
+                    if (Math.Abs(st.Y - inicial.Y) > limiteEje) return (false, -1, "Y");
+                    if (Math.Abs(st.Z - inicial.Z) > limiteEje) return (false, -1, "Z");
+                    if (Math.Abs(st.RotationX - inicial.RotationX) > limiteEje) return (false, -1, "RotationX");
+                    if (Math.Abs(st.RotationY - inicial.RotationY) > limiteEje) return (false, -1, "RotationY");
+                    if (Math.Abs(st.RotationZ - inicial.RotationZ) > limiteEje) return (false, -1, "RotationZ");
+                    if (st.Sliders.Length > 0 && Math.Abs(st.Sliders[0] - inicial.Sliders[0]) > limiteEje) return (false, -1, "Slider0");
+                    if (st.Sliders.Length > 1 && Math.Abs(st.Sliders[1] - inicial.Sliders[1]) > limiteEje) return (false, -1, "Slider1");
+
+                    // Check buttons
+                    for (int i = 0; i < st.Buttons.Length; i++)
+                    {
+                        if (st.Buttons[i])
+                        {
+                            while (_joystick.GetCurrentState().Buttons[i] && _mapeando) { _joystick.Poll(); Thread.Sleep(10); }
+                            return (true, i, null);
+                        }
+                    }
+
+                    Thread.Sleep(16);
+                    transcurrido += 16;
+                }
+                return (false, -1, null);
+            });
+        }
+
         private async Task EsperarSoltarEjeAsync(string eje)
         {
             await Task.Run(() =>
@@ -256,31 +339,20 @@ namespace SteamOSConfigurator
                 {
                     _joystick.Poll();
                     var st = _joystick.GetCurrentState();
-                    if (Math.Abs(ObtenerValorEje(st, eje) - ObtenerValorEje(inicial, eje)) < 5000) break;
+                    if (Math.Abs(JoystickHelper.ObtenerValorEje(st, eje) - JoystickHelper.ObtenerValorEje(inicial, eje)) < 5000) break;
                     Thread.Sleep(16);
                 }
             });
         }
 
-        private int ObtenerValorEje(JoystickState st, string eje) => eje switch
-        {
-            "X" => st.X, "Y" => st.Y, "Z" => st.Z,
-            "RotationX" => st.RotationX, "RotationY" => st.RotationY, "RotationZ" => st.RotationZ,
-            "Slider0" => st.Sliders.Length > 0 ? st.Sliders[0] : 32767,
-            "Slider1" => st.Sliders.Length > 1 ? st.Sliders[1] : 32767,
-            _ => 32767
-        };
-
         private void GuardarConfiguracion()
         {
             try
             {
-                string carpeta = @"C:\ProgramData\SteamOS";
-                if (!Directory.Exists(carpeta)) Directory.CreateDirectory(carpeta);
-                string ruta = Path.Combine(carpeta, "mapeo_config.json");
-                File.WriteAllText(ruta, JsonSerializer.Serialize(_configActual, new JsonSerializerOptions { WriteIndented = true }));
+                if (!Directory.Exists(AppPaths.RaizDatos)) Directory.CreateDirectory(AppPaths.RaizDatos);
+                File.WriteAllText(AppPaths.MapeoConfig, JsonSerializer.Serialize(_configActual, new JsonSerializerOptions { WriteIndented = true }));
             }
-            catch { }
+            catch (Exception ex) { Logger.Log($"Error al guardar configuración de mapeo: {ex.Message}"); }
         }
     }
 }
