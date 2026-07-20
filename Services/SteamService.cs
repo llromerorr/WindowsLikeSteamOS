@@ -12,7 +12,7 @@ namespace SteamOSConfigurator.Services
 {
     public interface ISteamService
     {
-        Task EsperarSteamListoAsync(Func<bool> modoEscritorioFunc);
+        Task<bool> EsperarSteamListoAsync(Func<bool> modoEscritorioFunc);
         Task MonitorDeJuegosAsync(Func<bool> modoEscritorioFunc, IKeyboardHookService keyboardHookService);
         void CambiarVisibilidadSteam(bool ocultar);
         string ObtenerRutaSteam();
@@ -68,43 +68,45 @@ namespace SteamOSConfigurator.Services
                     GetWindowThreadProcessId(hWnd, out uint pid);
                     try
                     {
-                        var proc = Process.GetProcessById((int)pid);
-                        string pName = proc.ProcessName.ToLower();
-                        if (pName == "steam" || pName == "steamwebhelper")
+                        using (var proc = Process.GetProcessById((int)pid))
                         {
-                            if (titulo.Contains("updating steam") ||
-                                titulo.Contains("actualizando steam") ||
-                                titulo.Contains("steam update") ||
-                                titulo.Contains("bootstrapper") ||
-                                titulo.Contains("steam updater") ||
-                                titulo.Contains("steam - actualización") ||
-                                titulo.Contains("steam - update"))
+                            string pName = proc.ProcessName.ToLower();
+                            if (pName == "steam" || pName == "steamwebhelper")
                             {
-                                resultado = "updating";
-                                return false; // Detener enumeración
-                            }
+                                if (titulo.Contains("updating steam") ||
+                                    titulo.Contains("actualizando steam") ||
+                                    titulo.Contains("steam update") ||
+                                    titulo.Contains("bootstrapper") ||
+                                    titulo.Contains("steam updater") ||
+                                    titulo.Contains("steam - actualización") ||
+                                    titulo.Contains("steam - update"))
+                                {
+                                    resultado = "updating";
+                                    return false; // Detener enumeración
+                                }
 
-                            if (titulo.Contains("steam login") ||
-                                titulo.Contains("iniciar sesión en steam") ||
-                                titulo.Contains("iniciar sesión") ||
-                                titulo.Contains("iniciar sesion") ||
-                                titulo.Contains("connecting steam") ||
-                                titulo.Contains("conectando a steam") ||
-                                titulo.Contains("connecting to steam") ||
-                                titulo.Contains("conectando a la red de steam"))
-                            {
-                                resultado = "login";
-                                return false; // Detener enumeración
-                            }
+                                if (titulo.Contains("steam login") ||
+                                    titulo.Contains("iniciar sesión en steam") ||
+                                    titulo.Contains("iniciar sesión") ||
+                                    titulo.Contains("iniciar sesion") ||
+                                    titulo.Contains("connecting steam") ||
+                                    titulo.Contains("conectando a steam") ||
+                                    titulo.Contains("connecting to steam") ||
+                                    titulo.Contains("conectando a la red de steam"))
+                                {
+                                    resultado = "login";
+                                    return false; // Detener enumeración
+                                }
 
-                            if (titulo.Contains("big picture") || titulo == "steam")
-                            {
-                                resultado = "bigpicture";
-                                return false; // Detener enumeración
-                            }
+                                if (titulo.Contains("big picture") || titulo == "steam")
+                                {
+                                    resultado = "bigpicture";
+                                    return false; // Detener enumeración
+                                }
 
-                            // Loguear ventana ignorada para diagnóstico
-                            Logger.Log($"[DetectarVentanaSteam] Ignorada visible: PID={pid}, Proc={pName}, Title=\"{titulo}\"");
+                                // Loguear ventana ignorada para diagnóstico
+                                Logger.Log($"[DetectarVentanaSteam] Ignorada visible: PID={pid}, Proc={pName}, Title=\"{titulo}\"");
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -126,7 +128,9 @@ namespace SteamOSConfigurator.Services
             while (!modoEscritorioFunc() && intentos < 30)
             {
                 var proc = Process.GetProcessesByName("steam");
-                if (proc.Length == 0) break;
+                bool tieneProcesos = proc.Length > 0;
+                foreach (var p in proc) p.Dispose();
+                if (!tieneProcesos) break;
                 await Task.Delay(500);
                 intentos++;
             }
@@ -140,6 +144,7 @@ namespace SteamOSConfigurator.Services
                 if (proc.Length > 0)
                 {
                     nuevoSteam = proc[0];
+                    for (int j = 1; j < proc.Length; j++) proc[j].Dispose();
                     break;
                 }
                 await Task.Delay(500);
@@ -153,7 +158,9 @@ namespace SteamOSConfigurator.Services
                 while (!modoEscritorioFunc() && intentos < 60)
                 {
                     var procHelper = Process.GetProcessesByName("steamwebhelper");
-                    if (procHelper.Length > 0)
+                    bool helperActivo = procHelper.Length > 0;
+                    foreach (var p in procHelper) p.Dispose();
+                    if (helperActivo)
                     {
                         Logger.Log("steamwebhelper detectado, reinicio completado.");
                         break;
@@ -178,6 +185,7 @@ namespace SteamOSConfigurator.Services
                 }
 
                 MoverVentanaSteamAlMonitorPrincipal(nuevoSteam.Id, 15);
+                nuevoSteam.Dispose();
             }
             else
             {
@@ -185,7 +193,7 @@ namespace SteamOSConfigurator.Services
             }
         }
 
-        public async Task EsperarSteamListoAsync(Func<bool> modoEscritorioFunc)
+        public async Task<bool> EsperarSteamListoAsync(Func<bool> modoEscritorioFunc)
         {
             bool seEstaActualizando = false;
             int ticksSinProceso = 0;
@@ -197,20 +205,26 @@ namespace SteamOSConfigurator.Services
                 var procesosSteam = Process.GetProcessesByName("steam");
                 var procesosHelper = Process.GetProcessesByName("steamwebhelper");
 
-                if (procesosSteam.Length == 0 && procesosHelper.Length == 0)
+                int steamCount = procesosSteam.Length;
+                int helperCount = procesosHelper.Length;
+
+                foreach (var p in procesosSteam) p.Dispose();
+                foreach (var p in procesosHelper) p.Dispose();
+
+                if (steamCount == 0 && helperCount == 0)
                 {
                     ticksSinProceso++;
                     int limiteTicks = seEstaActualizando ? 120 : 20;
                     if (ticksSinProceso >= limiteTicks)
                     {
                         Logger.Log($"[EsperarSteamListoAsync] No se detectaron procesos de Steam por {limiteTicks * 0.5} segundos. Cancelando espera.");
-                        return;
+                        return false;
                     }
                 }
                 else
                 {
                     if (ticksSinProceso > 0)
-                        Logger.Log($"[EsperarSteamListoAsync] Procesos detectados. Reseteando ticks sin proceso. (Procesos steam: {procesosSteam.Length}, helper: {procesosHelper.Length})");
+                        Logger.Log($"[EsperarSteamListoAsync] Procesos detectados. Reseteando ticks sin proceso. (Procesos steam: {steamCount}, helper: {helperCount})");
                     ticksSinProceso = 0;
                 }
 
@@ -219,7 +233,7 @@ namespace SteamOSConfigurator.Services
                 if (ventanaDetectada == "bigpicture")
                 {
                     Logger.Log("[EsperarSteamListoAsync] Big Picture detectado.");
-                    return;
+                    return true;
                 }
 
                 if (ventanaDetectada == "updating")
@@ -245,6 +259,7 @@ namespace SteamOSConfigurator.Services
                 await Task.Delay(500);
             }
             Logger.Log("[EsperarSteamListoAsync] Saliendo del bucle por activación de modo Escritorio.");
+            return false;
         }
 
         public async Task MonitorDeJuegosAsync(Func<bool> modoEscritorioFunc, IKeyboardHookService keyboardHookService)
@@ -265,6 +280,7 @@ namespace SteamOSConfigurator.Services
                             Logger.Log($"[MonitorDeJuegosAsync] Juego finalizado: PID={juegoActivo.Id}. Reactivando hook de teclado y restaurando visibilidad de Steam.");
                             CambiarVisibilidadSteam(false);
                             keyboardHookService.Suspendido = false;
+                            juegoActivo.Dispose();
                             juegoActivo = null;
                         }
                     }
@@ -274,6 +290,7 @@ namespace SteamOSConfigurator.Services
                         _juegoActivoHwnd = IntPtr.Zero;
                         CambiarVisibilidadSteam(false);
                         keyboardHookService.Suspendido = false;
+                        juegoActivo?.Dispose();
                         juegoActivo = null;
                     }
                 }
@@ -312,12 +329,21 @@ namespace SteamOSConfigurator.Services
                                     Logger.Log($"[MonitorDeJuegosAsync] Juego detectado en primer plano: '{pName}' (PID={pid}, Title=\"{titulo}\"). Ocultando Steam y suspendiendo hook de teclado.");
                                     CambiarVisibilidadSteam(true);
                                 }
+                                else
+                                {
+                                    proc.Dispose();
+                                }
+                            }
+                            else
+                            {
+                                proc.Dispose();
                             }
                         }
                         catch { }
                     }
                 }
             }
+            juegoActivo?.Dispose();
             Logger.Log("[MonitorDeJuegosAsync] Monitor de juegos finalizado.");
         }
 
@@ -332,23 +358,25 @@ namespace SteamOSConfigurator.Services
                     GetWindowThreadProcessId(hWnd, out uint pid);
                     try
                     {
-                        var proc = Process.GetProcessById((int)pid);
-                        string pName = proc.ProcessName.ToLower();
-                        if (pName == "steam" || pName == "steamwebhelper")
+                        using (var proc = Process.GetProcessById((int)pid))
                         {
-                            if (IsWindowVisible(hWnd))
+                            string pName = proc.ProcessName.ToLower();
+                            if (pName == "steam" || pName == "steamwebhelper")
                             {
-                                int length = GetWindowTextLength(hWnd);
-                                string titulo = "";
-                                if (length > 0)
+                                if (IsWindowVisible(hWnd))
                                 {
-                                    StringBuilder sb = new StringBuilder(length + 1);
-                                    GetWindowText(hWnd, sb, sb.Capacity);
-                                    titulo = sb.ToString();
+                                    int length = GetWindowTextLength(hWnd);
+                                    string titulo = "";
+                                    if (length > 0)
+                                    {
+                                        StringBuilder sb = new StringBuilder(length + 1);
+                                        GetWindowText(hWnd, sb, sb.Capacity);
+                                        titulo = sb.ToString();
+                                    }
+                                    Logger.Log($"[CambiarVisibilidadSteam] Ocultando HWND={hWnd.ToInt64():X}, Title=\"{titulo}\" (Proceso={pName})");
+                                    lock (_lockVentanas) { _ventanasSteamOcultas.Add(hWnd); }
+                                    ShowWindow(hWnd, SW_HIDE);
                                 }
-                                Logger.Log($"[CambiarVisibilidadSteam] Ocultando HWND={hWnd.ToInt64():X}, Title=\"{titulo}\" (Proceso={pName})");
-                                lock (_lockVentanas) { _ventanasSteamOcultas.Add(hWnd); }
-                                ShowWindow(hWnd, SW_HIDE);
                             }
                         }
                     }
@@ -424,11 +452,13 @@ namespace SteamOSConfigurator.Services
                             GetWindowThreadProcessId(hWnd, out uint pid);
                             try
                             {
-                                var proc = Process.GetProcessById((int)pid);
-                                string pName = proc.ProcessName.ToLower();
-                                if (pName == "steam" || pName == "steamwebhelper")
+                                using (var proc = Process.GetProcessById((int)pid))
                                 {
-                                    ventanas.Add(hWnd);
+                                    string pName = proc.ProcessName.ToLower();
+                                    if (pName == "steam" || pName == "steamwebhelper")
+                                    {
+                                        ventanas.Add(hWnd);
+                                    }
                                 }
                             }
                             catch { }

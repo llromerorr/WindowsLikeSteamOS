@@ -40,7 +40,10 @@ namespace SteamOSConfigurator.Services
                     CreateNoWindow = true,
                     UseShellExecute = false
                 };
-                Process.Start(psi)?.WaitForExit();
+                using (var proc = Process.Start(psi))
+                {
+                    proc?.WaitForExit();
+                }
                 Logger.Log("Plan de energía 'Alto Rendimiento' activado.");
             }
             catch (Exception ex)
@@ -60,7 +63,10 @@ namespace SteamOSConfigurator.Services
                     CreateNoWindow = true,
                     UseShellExecute = false
                 };
-                Process.Start(psi)?.WaitForExit();
+                using (var proc = Process.Start(psi))
+                {
+                    proc?.WaitForExit();
+                }
                 Logger.Log($"Plan de energía restaurado a: {_planOriginalGuid}");
             }
             catch (Exception ex)
@@ -92,18 +98,18 @@ namespace SteamOSConfigurator.Services
                     UseShellExecute = false,
                     RedirectStandardOutput = true
                 };
-                var proc = Process.Start(psi);
-                if (proc == null) return null;
-                string output = proc.StandardOutput.ReadToEnd();
-                proc.WaitForExit();
-
-                // Output format: "Power Scheme GUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  (Name)"
-                int guidStart = output.IndexOf(':');
-                if (guidStart < 0) return null;
-                string afterColon = output.Substring(guidStart + 1).Trim();
-                int guidEnd = afterColon.IndexOf(' ');
-                if (guidEnd < 0) guidEnd = afterColon.Length;
-                return afterColon.Substring(0, guidEnd).Trim();
+                using (var proc = Process.Start(psi))
+                {
+                    if (proc == null) return null;
+                    string output = proc.StandardOutput.ReadToEnd();
+                    proc.WaitForExit();
+                    int guidStart = output.IndexOf(':');
+                    if (guidStart < 0) return null;
+                    string afterColon = output.Substring(guidStart + 1).Trim();
+                    int guidEnd = afterColon.IndexOf(' ');
+                    if (guidEnd < 0) guidEnd = afterColon.Length;
+                    return afterColon.Substring(0, guidEnd).Trim();
+                }
             }
             catch (Exception ex)
             {

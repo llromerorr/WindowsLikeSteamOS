@@ -281,20 +281,42 @@ namespace SteamOSConfigurator
             viewSimple.Visibility = Visibility.Visible;
         }
 
+        private void DeshabilitarControlesInteraccion(string mensajeProgreso)
+        {
+            btnAccionPrincipal.IsEnabled = false;
+            btnDesinstalarSimple.IsEnabled = false;
+            btnVerAvanzado.IsEnabled = false;
+            btnVolverSimple.IsEnabled = false;
+            btnInstalar.IsEnabled = false;
+            btnDesinstalar.IsEnabled = false;
+            btnConfigurarMando.IsEnabled = false;
+
+            panelProgreso.Visibility = Visibility.Visible;
+            lblProgreso.Text = mensajeProgreso;
+        }
+
+        private void HabilitarControlesInteraccion()
+        {
+            panelProgreso.Visibility = Visibility.Collapsed;
+            btnAccionPrincipal.IsEnabled = true;
+            btnDesinstalarSimple.IsEnabled = true;
+            btnVerAvanzado.IsEnabled = true;
+            btnVolverSimple.IsEnabled = true;
+            btnInstalar.IsEnabled = true;
+            btnDesinstalar.IsEnabled = true;
+            btnConfigurarMando.IsEnabled = true;
+            VerificarEstadoSistema();
+        }
+
         private async void BtnAccionPrincipal_Click(object sender, RoutedEventArgs e)
         {
             var depService = new Services.DependencyService();
-            
-            btnAccionPrincipal.IsEnabled = false;
-            btnVerAvanzado.IsEnabled = false;
-            btnDesinstalarSimple.IsEnabled = false;
+            DeshabilitarControlesInteraccion("Comprobando e instalando componentes...");
             
             try
             {
                 if (!depService.SteamInstalado || !depService.RtssInstalado)
                 {
-                    panelProgreso.Visibility = Visibility.Visible;
-                    
                     if (!depService.SteamInstalado)
                     {
                         bool ok = await depService.InstalarSteamAsync(msg => 
@@ -321,7 +343,6 @@ namespace SteamOSConfigurator
                     }
                 }
                 
-                panelProgreso.Visibility = Visibility.Collapsed;
                 await EjecutarInstalacionConfiguracion();
             }
             catch (Exception ex)
@@ -330,11 +351,7 @@ namespace SteamOSConfigurator
             }
             finally
             {
-                panelProgreso.Visibility = Visibility.Collapsed;
-                btnAccionPrincipal.IsEnabled = true;
-                btnVerAvanzado.IsEnabled = true;
-                btnDesinstalarSimple.IsEnabled = true;
-                VerificarEstadoSistema();
+                HabilitarControlesInteraccion();
             }
         }
 
@@ -407,7 +424,7 @@ namespace SteamOSConfigurator
 
         private async void BtnInstalar_Click(object sender, RoutedEventArgs e)
         {
-            btnInstalar.IsEnabled = false; btnDesinstalar.IsEnabled = false; btnInstalar.Content = "PROCESANDO...";
+            DeshabilitarControlesInteraccion("Instalando o aplicando configuración...");
             try
             {
                 await EjecutarInstalacionConfiguracion();
@@ -415,21 +432,19 @@ namespace SteamOSConfigurator
             catch { }
             finally
             {
-                VerificarEstadoSistema();
-                btnInstalar.IsEnabled = true;
-                btnDesinstalar.IsEnabled = true;
+                HabilitarControlesInteraccion();
             }
         }
 
         private async void BtnDesinstalar_Click(object sender, RoutedEventArgs e)
         {
-            if (System.Windows.MessageBox.Show("¿Eliminar el entorno de consola y purgar la cuenta?", "Desinstalar", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            if (System.Windows.MessageBox.Show("¿Eliminar el entorno de consola y purgar la cuenta SteamOS?", "Desinstalar", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
             {
-                btnDesinstalar.IsEnabled = false; btnDesinstalar.Content = "BORRANDO..."; btnInstalar.IsEnabled = false;
+                DeshabilitarControlesInteraccion("Eliminando cuenta SteamOS y desinstalando entorno... Por favor espera.");
                 try 
                 { 
                     await Task.Run(() => { EliminarUsuarioSteamOS(); }); 
-                    System.Windows.MessageBox.Show("Entorno desinstalado del núcleo del sistema.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information); 
+                    System.Windows.MessageBox.Show("Entorno desinstalado con éxito del sistema.", "Desinstalación Completada", MessageBoxButton.OK, MessageBoxImage.Information); 
                 }
                 catch (Exception ex) 
                 { 
@@ -437,10 +452,7 @@ namespace SteamOSConfigurator
                 }
                 finally 
                 { 
-                    btnDesinstalar.IsEnabled = true; 
-                    btnDesinstalar.Content = "PURGAR"; 
-                    VerificarEstadoSistema(); 
-                    btnInstalar.IsEnabled = true; 
+                    HabilitarControlesInteraccion(); 
                 }
             }
         }

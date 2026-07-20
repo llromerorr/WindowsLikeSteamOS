@@ -73,8 +73,10 @@ namespace SteamOSConfigurator.Services
                     CreateNoWindow = true,
                     UseShellExecute = false
                 };
-                var proc = Process.Start(psi);
-                if (proc != null) await proc.WaitForExitAsync();
+                using (var proc = Process.Start(psi))
+                {
+                    if (proc != null) await proc.WaitForExitAsync();
+                }
 
                 // Limpiar instalador temporal
                 try { File.Delete(rutaTemp); } catch { }
@@ -125,13 +127,14 @@ namespace SteamOSConfigurator.Services
                     RedirectStandardError = true
                 };
 
-                var proc = Process.Start(psi);
-                if (proc == null) return false;
-
-                await proc.WaitForExitAsync();
-                bool exito = proc.ExitCode == 0;
-                Logger.Log(exito ? $"{packageId} instalado via winget." : $"winget devolvió código {proc.ExitCode} para {packageId}.");
-                return exito;
+                using (var proc = Process.Start(psi))
+                {
+                    if (proc == null) return false;
+                    await proc.WaitForExitAsync();
+                    bool exito = proc.ExitCode == 0;
+                    Logger.Log(exito ? $"{packageId} instalado via winget." : $"winget devolvió código {proc.ExitCode} para {packageId}.");
+                    return exito;
+                }
             }
             catch (Exception ex)
             {
@@ -151,12 +154,14 @@ namespace SteamOSConfigurator.Services
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                var proc = Process.Start(psi);
-                if (proc == null) return null;
-                string output = proc.StandardOutput.ReadToEnd().Trim();
-                proc.WaitForExit();
-                if (proc.ExitCode == 0 && !string.IsNullOrEmpty(output))
-                    return output.Split('\n')[0].Trim();
+                using (var proc = Process.Start(psi))
+                {
+                    if (proc == null) return null;
+                    string output = proc.StandardOutput.ReadToEnd().Trim();
+                    proc.WaitForExit();
+                    if (proc.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                        return output.Split('\n')[0].Trim();
+                }
             }
             catch { }
 

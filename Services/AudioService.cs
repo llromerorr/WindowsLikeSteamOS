@@ -17,14 +17,16 @@ namespace SteamOSConfigurator.Services
 
             try 
             { 
-                CoreAudioController ctrl = new CoreAudioController(); 
-                foreach (var dev in ctrl.GetPlaybackDevices()) 
+                using (CoreAudioController ctrl = new CoreAudioController())
                 {
-                    if (dev.FullName == nombreDispositivo) 
-                    { 
-                        dev.SetAsDefault(); 
-                        break; 
-                    } 
+                    foreach (var dev in ctrl.GetPlaybackDevices()) 
+                    {
+                        if (dev.FullName == nombreDispositivo) 
+                        { 
+                            dev.SetAsDefault(); 
+                            break; 
+                        } 
+                    }
                 }
             }
             catch (Exception ex)

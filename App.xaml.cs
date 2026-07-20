@@ -129,22 +129,24 @@ namespace SteamOSConfigurator
             if (File.Exists(RutaExe)) 
             { 
                 var procesos = Process.GetProcessesByName("RTSS"); 
-                if (procesos.Length == 0) 
+                bool tieneProcesos = procesos.Length > 0;
+                foreach (var p in procesos) p.Dispose();
+                if (!tieneProcesos)
                 {
-                    Process.Start(new ProcessStartInfo 
+                    using (var pStart = Process.Start(new ProcessStartInfo 
                     { 
                         FileName = RutaExe, 
                         UseShellExecute = false, 
                         CreateNoWindow = true 
-                    }); 
+                    })) {}
                 }
             } 
         }
 
         public static void ApagarFantasma() 
         { 
-            foreach (var proc in Process.GetProcessesByName("RTSS")) { try { proc.Kill(); } catch { } } 
-            foreach (var proc in Process.GetProcessesByName("rtss")) { try { proc.Kill(); } catch { } } 
+            foreach (var proc in Process.GetProcessesByName("RTSS")) { try { proc.Kill(); proc.Dispose(); } catch { } } 
+            foreach (var proc in Process.GetProcessesByName("rtss")) { try { proc.Kill(); proc.Dispose(); } catch { } } 
         }
     }
 
@@ -171,6 +173,7 @@ namespace SteamOSConfigurator
         [DllImport("user32.dll")] static extern bool UnhookWinEvent(IntPtr hWinEventHook);
         
         [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+        [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr hWnd, int id);
         [DllImport("user32.dll", SetLastError = true)] static extern bool ExitWindowsEx(uint uFlags, uint dwReason);
         [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hWnd, int nCmdShow); 
         [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -196,6 +199,8 @@ namespace SteamOSConfigurator
 
         // ── VARIABLES DE CONTROL DE ESTADO ──
         private volatile bool _modoEscritorio = false; 
+        private volatile bool _cerrandoSesion = false;
+        private HwndSource? _hwndSourceShell = null;
         private IntPtr _hwndShell = IntPtr.Zero;
         private System.Threading.Timer? _debounceTimer; 
         private int _suppressDisplayChange = 0; 
@@ -206,6 +211,10 @@ namespace SteamOSConfigurator
         // ── ARRANQUE Y PRIVILEGIOS ──
         protected override void OnStartup(StartupEventArgs e)
         {
+            // Evitar que WPF cierre automáticamente la aplicación cuando no hay ventanas abiertas
+            // (necesario porque operamos como proceso de fondo en gran parte del tiempo)
+            Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
             try { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); } catch { }
             base.OnStartup(e);
             
@@ -213,14 +222,14 @@ namespace SteamOSConfigurator
             { 
                 try 
                 { 
-                    Process.Start(new ProcessStartInfo 
+                    using (var pStart = Process.Start(new ProcessStartInfo 
                     { 
                         UseShellExecute = true, 
                         WorkingDirectory = Environment.CurrentDirectory, 
                         FileName = Environment.ProcessPath, 
                         Arguments = e.Args.Length > 0 ? string.Join(" ", e.Args) : "", 
                         Verb = "runas" 
-                    }); 
+                    })) {} 
                 } 
                 catch { } 
                 Environment.Exit(0); 
@@ -229,6 +238,8 @@ namespace SteamOSConfigurator
             
             SystemParametersInfoTimeout(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, IntPtr.Zero, SPIF_SENDCHANGE | SPIF_UPDATEINIFILE);
             
+            TraductorMando.OnRecoveryRequested = AbrirVentanaRecuperacionUI;
+
             if (e.Args.Length > 0 && e.Args[0] == "-shell") 
             { 
                 _ = EjecutarModoConsolaAsync(); 
@@ -289,22 +300,24 @@ namespace SteamOSConfigurator
             
             try 
             { 
-                var proc = Process.GetProcessById((int)pid); 
-                string pName = proc.ProcessName.ToLower(); 
-                if (pName == "steam" || pName == "steamwebhelper") 
-                { 
-                    int length = GetWindowTextLength(hwnd);
-                    string titulo = "";
-                    if (length > 0)
-                    {
-                        StringBuilder sb = new StringBuilder(length + 1);
-                        GetWindowText(hwnd, sb, sb.Capacity);
-                        titulo = sb.ToString();
-                    }
-                    Logger.Log($"[WinEventCallback] Ocultando ventana de Steam en segundo plano durante juego: HWND={hwnd.ToInt64():X}, Title=\"{titulo}\", PID={pid}");
-                    ShowWindow(hwnd, SW_HIDE); 
-                    _steamService.AddVentanaSteamOculta(hwnd); 
-                    SetForegroundWindow(_steamService.JuegoActivoHwnd); 
+                using (var proc = Process.GetProcessById((int)pid))
+                {
+                    string pName = proc.ProcessName.ToLower(); 
+                    if (pName == "steam" || pName == "steamwebhelper") 
+                    { 
+                        int length = GetWindowTextLength(hwnd);
+                        string titulo = "";
+                        if (length > 0)
+                        {
+                            StringBuilder sb = new StringBuilder(length + 1);
+                            GetWindowText(hwnd, sb, sb.Capacity);
+                            titulo = sb.ToString();
+                        }
+                        Logger.Log($"[WinEventCallback] Ocultando ventana de Steam en segundo plano durante juego: HWND={hwnd.ToInt64():X}, Title=\"{titulo}\", PID={pid}");
+                        ShowWindow(hwnd, SW_HIDE); 
+                        _steamService.AddVentanaSteamOculta(hwnd); 
+                        SetForegroundWindow(_steamService.JuegoActivoHwnd); 
+                    } 
                 } 
             } 
             catch (Exception ex)
@@ -321,6 +334,8 @@ namespace SteamOSConfigurator
                 Logger.Log("[EjecutarModoConsolaAsync] Iniciando modo consola (Shell)...");
                 RegistrarAtajoTecladoSilencioso(); 
                 Logger.Log("[EjecutarModoConsolaAsync] Atajo de teclado silencioso registrado.");
+
+                GameBarHelper.DesactivarGameBarEnUsuarioActual();
                 
                 var config = CargarConfig();
                 if (config == null) 
@@ -338,8 +353,8 @@ namespace SteamOSConfigurator
 
                 // Exorcismo previo
                 Logger.Log("[EjecutarModoConsolaAsync] Limpiando procesos de Steam previos...");
-                foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); Logger.Log($"[EjecutarModoConsolaAsync] Proceso 'steam' (PID {p.Id}) terminado."); } catch (Exception ex) { Logger.Log($"[EjecutarModoConsolaAsync] Error al matar 'steam': {ex.Message}"); } }
-                foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); Logger.Log($"[EjecutarModoConsolaAsync] Proceso 'steamwebhelper' (PID {p.Id}) terminado."); } catch (Exception ex) { Logger.Log($"[EjecutarModoConsolaAsync] Error al matar 'steamwebhelper': {ex.Message}"); } }
+                foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); Logger.Log($"[EjecutarModoConsolaAsync] Proceso 'steam' (PID {p.Id}) terminado."); } catch (Exception ex) { Logger.Log($"[EjecutarModoConsolaAsync] Error al matar 'steam': {ex.Message}"); } }
+                foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); Logger.Log($"[EjecutarModoConsolaAsync] Proceso 'steamwebhelper' (PID {p.Id}) terminado."); } catch (Exception ex) { Logger.Log($"[EjecutarModoConsolaAsync] Error al matar 'steamwebhelper': {ex.Message}"); } }
                 await Task.Delay(1000); 
 
                 Logger.Log("[EjecutarModoConsolaAsync] Configurando área de trabajo (SPI_SETWORKAREA)...");
@@ -405,19 +420,29 @@ namespace SteamOSConfigurator
                 _steamService.LimpiarPosicionVentanaSteam();
 
                 Logger.Log("[EjecutarModoConsolaAsync] Iniciando proceso de Steam con '-gamepadui'...");
-                Process? steam = Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true });
-                if (steam != null) 
+                using (Process? steam = Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true }))
                 {
-                    Logger.Log($"[EjecutarModoConsolaAsync] Proceso de Steam iniciado (PID={steam.Id}).");
-                    _steamService.MoverVentanaSteamAlMonitorPrincipal(steam.Id, 25);
-                }
-                else
-                {
-                    Logger.Log("[EjecutarModoConsolaAsync] ADVERTENCIA: Process.Start de Steam retornó nulo.");
+                    if (steam != null) 
+                    {
+                        Logger.Log($"[EjecutarModoConsolaAsync] Proceso de Steam iniciado (PID={steam.Id}).");
+                        _steamService.MoverVentanaSteamAlMonitorPrincipal(steam.Id, 25);
+                    }
+                    else
+                    {
+                        Logger.Log("[EjecutarModoConsolaAsync] ADVERTENCIA: Process.Start de Steam retornó nulo.");
+                    }
                 }
  
                 Logger.Log("[EjecutarModoConsolaAsync] Esperando a que Steam esté listo...");
-                await _steamService.EsperarSteamListoAsync(() => _modoEscritorio);
+                bool steamListo = await _steamService.EsperarSteamListoAsync(() => _modoEscritorio);
+                
+                if (!steamListo && !_modoEscritorio)
+                {
+                    Logger.Log("[EjecutarModoConsolaAsync] Steam no se inició correctamente (Timeout). Abriendo Modo de Recuperación...");
+                    AbrirVentanaRecuperacionUI();
+                    if (_modoEscritorio) return;
+                }
+                
                 Logger.Log("[EjecutarModoConsolaAsync] Steam reportado como Listo. Iniciando bucle principal.");
 
                 if (!_modoEscritorio) 
@@ -453,39 +478,56 @@ namespace SteamOSConfigurator
                     
                     Process steamPrincipal = procesosSteam[0]; 
                     steamPrincipal.EnableRaisingEvents = true; 
+                    for (int j = 1; j < procesosSteam.Length; j++) procesosSteam[j].Dispose();
                     try { await steamPrincipal.WaitForExitAsync(); } catch { } 
+                    steamPrincipal.Dispose(); 
                 }
             } 
             catch (Exception ex) { Logger.Log($"Error en EjecutarModoConsolaAsync: {ex.Message}"); }
             finally 
             { 
                 Logger.Log("[EjecutarModoConsolaAsync] Iniciando restauración y limpieza final...");
-                if (!_modoEscritorio) 
+                if (!_modoEscritorio && !_cerrandoSesion) 
                 { 
-                    _displayService.RestaurarEntornoOriginal(_gpuScalingService); 
+                    try { _displayService.RestaurarEntornoOriginal(_gpuScalingService); } catch (Exception ex) { Logger.Log($"[Finally] Error restaurando entorno: {ex.Message}"); }
+                    _cerrandoSesion = true;
                     CerrarSesionRapido(); 
                 } 
                 
-                _powerService.RestaurarPlanEnergia();
-                _powerService.PermitirSuspension();
-
-                RivaTunerCore.ApagarFantasma(); 
-                NvidiaFastSync.Restaurar();
+                try { _powerService.RestaurarPlanEnergia(); } catch { }
+                try { _powerService.PermitirSuspension(); } catch { }
+                try { RivaTunerCore.ApagarFantasma(); } catch { }
+                try { NvidiaFastSync.Restaurar(); } catch { }
                 
-                if (_hWinEventHook != IntPtr.Zero) { UnhookWinEvent(_hWinEventHook); _hWinEventHook = IntPtr.Zero; }
-                _keyboardHookService.DetenerHook();
-                SystemParametersInfoTimeout(SPI_SETFOREGROUNDLOCKTIMEOUT, 200000, IntPtr.Zero, SPIF_SENDCHANGE | SPIF_UPDATEINIFILE);
+                try { if (_hWinEventHook != IntPtr.Zero) { UnhookWinEvent(_hWinEventHook); _hWinEventHook = IntPtr.Zero; } } catch { }
+                try { _keyboardHookService.DetenerHook(); } catch { }
+                try { LimpiarVentanaOculta(); } catch { }
+                try { SystemParametersInfoTimeout(SPI_SETFOREGROUNDLOCKTIMEOUT, 200000, IntPtr.Zero, SPIF_SENDCHANGE | SPIF_UPDATEINIFILE); } catch { }
                 Logger.Log("[EjecutarModoConsolaAsync] Entorno restaurado.");
+            }
+
+            // Si salimos al escritorio, cerrar la app WPF limpiamente
+            if (_modoEscritorio)
+            {
+                Logger.Log("[EjecutarModoConsolaAsync] Cerrando aplicación WPF limpiamente tras salir al escritorio...");
+                try { Dispatcher.Invoke(() => Shutdown()); } catch { }
+            }
+            // Si cerramos sesión, no hacemos nada más. Dejamos que Windows mate el proceso como parte del logoff.
+            else if (_cerrandoSesion)
+            {
+                Logger.Log("[EjecutarModoConsolaAsync] Modo cierre de sesión. Dejando que Windows termine el proceso de forma natural.");
             }
         }
 
         private async Task<bool> EsperarPosibleReinicio(int timeoutMs)
         {
             int transcurrido = 0;
-            while (transcurrido < timeoutMs && !_modoEscritorio)
+            while (transcurrido < timeoutMs && !_modoEscritorio && !_cerrandoSesion)
             {
                 var procesos = Process.GetProcessesByName("steam");
-                if (procesos.Length > 0)
+                bool tieneProcesos = procesos.Length > 0;
+                foreach (var p in procesos) p.Dispose();
+                if (tieneProcesos)
                 {
                     // Encontró algún proceso "steam". 
                     // Esperamos para ver si es transitorio (ej. sincronización de nube al cerrar) o permanente.
@@ -494,14 +536,18 @@ namespace SteamOSConfigurator
                     transcurrido += 1500;
 
                     var procesosNuevos = Process.GetProcessesByName("steam");
-                    if (procesosNuevos.Length > 0)
+                    bool tieneProcesosNuevos = procesosNuevos.Length > 0;
+                    foreach (var p in procesosNuevos) p.Dispose();
+                    if (tieneProcesosNuevos)
                     {
                         // Esperamos otro momento para estar 100% seguros
                         await Task.Delay(1500);
                         transcurrido += 1500;
 
                         var procesosConfirmacion = Process.GetProcessesByName("steam");
-                        if (procesosConfirmacion.Length > 0)
+                        bool tieneConfirmacion = procesosConfirmacion.Length > 0;
+                        foreach (var p in procesosConfirmacion) p.Dispose();
+                        if (tieneConfirmacion)
                         {
                             Logger.Log("[EsperarPosibleReinicio] Proceso 'steam' confirmado como persistente (Reinicio detectado).");
                             return true;
@@ -516,35 +562,89 @@ namespace SteamOSConfigurator
         }
 
         // ── FUNCIONES DE LIMPIEZA Y RESTAURACIÓN ──
+        private void LimpiarVentanaOculta()
+        {
+            if (_hwndShell != IntPtr.Zero)
+            {
+                try { UnregisterHotKey(_hwndShell, 1); } catch { }
+                try { UnregisterHotKey(_hwndShell, 2); } catch { }
+                try 
+                { 
+                    if (_hwndSourceShell != null)
+                    {
+                        _hwndSourceShell.RemoveHook(ShellWindowHook);
+                        _hwndSourceShell.Dispose();
+                        _hwndSourceShell = null;
+                    }
+                } catch { }
+                _hwndShell = IntPtr.Zero;
+                Logger.Log("[LimpiarVentanaOculta] Ventana oculta y hotkeys eliminados.");
+            }
+        }
+
         private void CerrarSesionRapido() 
         { 
-            TraductorMando.Detener(); 
+            Logger.Log("[CerrarSesionRapido] Iniciando cierre de sesión de Windows...");
+            
             // Matar todo residuo de Steam
-            foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); } catch { } }
-            foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); } catch { } }
-            // EWX_LOGOFF | EWX_FORCEIFHUNG | EWX_FORCE = 0x14
-            ExitWindowsEx(0x14, 0); 
-            Environment.Exit(0); 
+            foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
+            foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
+
+            // Usar shutdown.exe /l para cerrar sesión
+            try
+            {
+                Logger.Log("[CerrarSesionRapido] Ejecutando shutdown.exe /l...");
+                using var p = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "shutdown.exe",
+                    Arguments = "/l",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[CerrarSesionRapido] Error con shutdown /l: {ex.Message}");
+            }
+
+            // IMPORTANTE: NO llamamos a Shutdown() ni Environment.Exit(). 
+            // Como somos el shell, matarnos a nosotros mismos antes de que Windows termine 
+            // de procesar el logoff causa un black screen inmediato y posibles crashes.
+            // Simplemente retornamos y dejamos que el SO envíe WM_CLOSE/WM_ENDSESSION para cerrarnos limpiamente.
+            Logger.Log("[CerrarSesionRapido] Solicitud de cierre enviada. Esperando a Windows...");
         }
         
         private void RegistrarAtajoTecladoSilencioso() 
         { 
-            Window ventanaOculta = new Window { Width = 0, Height = 0, WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = System.Windows.Media.Brushes.Transparent, ShowInTaskbar = false, Visibility = Visibility.Hidden }; 
-            ventanaOculta.Show(); 
-            _hwndShell = new WindowInteropHelper(ventanaOculta).Handle; 
-            HwndSource.FromHwnd(_hwndShell).AddHook(ShellWindowHook); 
-            RegisterHotKey(_hwndShell, 1, 0x0007, 0x53); 
+            var parameters = new HwndSourceParameters("HiddenHotkeyWindow")
+            {
+                Width = 0,
+                Height = 0,
+                WindowStyle = 0
+            };
+            _hwndSourceShell = new HwndSource(parameters);
+            _hwndShell = _hwndSourceShell.Handle;
+            _hwndSourceShell.AddHook(ShellWindowHook); 
+            RegisterHotKey(_hwndShell, 1, 0x0007, 0x53); // Ctrl + Shift + Alt + S (Escritorio)
+            RegisterHotKey(_hwndShell, 2, 0x0007, 0x52); // Ctrl + Shift + Alt + R (Modo Recuperación)
         }
         
         private IntPtr ShellWindowHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled) 
         { 
             if (msg == 0x0312 && wParam.ToInt32() == 1) 
             { 
+                Logger.Log("[ShellWindowHook] Atajo de escritorio presionado (Ctrl+Shift+Alt+S).");
                 _modoEscritorio = true; 
-                _displayService.RestaurarEntornoOriginal(_gpuScalingService); 
-                foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); } catch { } } 
-                Process.Start("explorer.exe"); 
+                try { _displayService.RestaurarEntornoOriginal(_gpuScalingService); } catch { }
+                foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } } 
+                try { using (Process.Start("explorer.exe")) {} } catch { }
                 handled = true; 
+            } 
+            else if (msg == 0x0312 && wParam.ToInt32() == 2)
+            {
+                Logger.Log("[ShellWindowHook] Atajo de recuperación presionado (Ctrl+Shift+Alt+R).");
+                AbrirVentanaRecuperacionUI();
+                handled = true;
             } 
             else if (msg == 0x007E && _displayService.AislamientoActivo) 
             { 
@@ -581,6 +681,73 @@ namespace SteamOSConfigurator
                 }
             }
             return IntPtr.Zero; 
+        }
+
+        private bool _ventanaRecuperacionAbierta = false;
+
+        private void AbrirVentanaRecuperacionUI()
+        {
+            System.Windows.Application.Current.Dispatcher.Invoke(async () =>
+            {
+                if (_ventanaRecuperacionAbierta) return;
+                _ventanaRecuperacionAbierta = true;
+
+                Logger.Log("[AbrirVentanaRecuperacionUI] Abriendo ventana de recuperación...");
+                _keyboardHookService.DetenerHook();
+                TraductorMando.Detener();
+
+                var win = new VentanaRecuperacion();
+                win.ShowDialog();
+
+                _ventanaRecuperacionAbierta = false;
+
+                if (win.AccionResultante == AccionRecuperacion.ReintentarSteam)
+                {
+                    Logger.Log("[AbrirVentanaRecuperacionUI] Reintentando lanzamiento de Steam...");
+                    foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
+                    foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
+                    await Task.Delay(1000);
+
+                    _keyboardHookService.IniciarHook(() => _displayService.AislamientoActivo);
+                    _ = TraductorMando.IniciarAsync();
+
+                    string rutaSteam = _steamService.ObtenerRutaSteam();
+                    if (!string.IsNullOrEmpty(rutaSteam))
+                    {
+                        _steamService.LimpiarPosicionVentanaSteam();
+                        using (Process? steam = Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true }))
+                        {
+                            if (steam != null) _steamService.MoverVentanaSteamAlMonitorPrincipal(steam.Id, 25);
+                        }
+                        await _steamService.EsperarSteamListoAsync(() => _modoEscritorio);
+                    }
+                }
+                else if (win.AccionResultante == AccionRecuperacion.CerrarSesionWindows)
+                {
+                    Logger.Log("[AbrirVentanaRecuperacionUI] Usuario eligió cerrar sesión de Windows. Destruyendo Steam y cerrando sesión...");
+                    _cerrandoSesion = true;
+                    try { _displayService.RestaurarEntornoOriginal(_gpuScalingService); } catch (Exception ex) { Logger.Log($"[CerrarSesionWindows] Error restaurando pantalla: {ex.Message}"); }
+                    foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
+                    foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
+                    CerrarSesionRapido();
+                }
+                else if (win.AccionResultante == AccionRecuperacion.ModoEscritorio)
+                {
+                    Logger.Log("[AbrirVentanaRecuperacionUI] Usuario eligió salir al escritorio. Destruyendo Steam y restaurando entorno...");
+                    _modoEscritorio = true;
+                    try { _displayService.RestaurarEntornoOriginal(_gpuScalingService); } catch (Exception ex) { Logger.Log($"[ModoEscritorio] Error restaurando pantalla: {ex.Message}"); }
+                    foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
+                    foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
+                    try { using (Process.Start("explorer.exe")) {} } catch { }
+                }
+                else
+                {
+                    if (!_modoEscritorio)
+                    {
+                        _keyboardHookService.IniciarHook(() => _displayService.AislamientoActivo);
+                    }
+                }
+            });
         }
         
         private void ReaplicarEscaladoCallback(object? state) 

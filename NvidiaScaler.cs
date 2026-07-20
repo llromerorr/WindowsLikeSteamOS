@@ -276,6 +276,8 @@ namespace SteamOSConfigurator
 
                 // Alocamos memoria nativa para el array de PATH_INFO
                 IntPtr pathInfoArray = Marshal.AllocHGlobal(pathInfoSize * (int)pathCount);
+                byte[] zeroBuffer = new byte[pathInfoSize * (int)pathCount];
+                Marshal.Copy(zeroBuffer, 0, pathInfoArray, zeroBuffer.Length);
 
                 try
                 {
@@ -486,6 +488,8 @@ namespace SteamOSConfigurator
                 int sourceModeSize = Marshal.SizeOf<NV_DISPLAYCONFIG_SOURCE_MODE_INFO>();
 
                 IntPtr pathInfoArray = Marshal.AllocHGlobal(pathInfoSize * (int)pathCount);
+                byte[] zeroBuffer = new byte[pathInfoSize * (int)pathCount];
+                Marshal.Copy(zeroBuffer, 0, pathInfoArray, zeroBuffer.Length);
 
                 try
                 {
@@ -540,19 +544,35 @@ namespace SteamOSConfigurator
                             {
                                 var adv    = Marshal.PtrToStructure<NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO>(targetInfo.pDetails);
                                 scalingStr = adv.scaling.ToString();
-                                Marshal.FreeHGlobal(targetInfo.pDetails);
                             }
 
                             Console.WriteLine($"    Target {t}: DisplayID=0x{targetInfo.displayId:X8} | Scaling={scalingStr}");
-                            Marshal.FreeHGlobal(tPtr);
+                        }
+                    }
+                }
+                finally
+                {
+                    for (int i = 0; i < pathCount; i++)
+                    {
+                        IntPtr pathPtr = IntPtr.Add(pathInfoArray, i * pathInfoSize);
+                        var pathInfo = Marshal.PtrToStructure<NV_DISPLAYCONFIG_PATH_INFO>(pathPtr);
+
+                        if (pathInfo.pTargetInfo != IntPtr.Zero)
+                        {
+                            uint tCount = pathInfo.targetInfoCount;
+                            for (int t = 0; t < tCount; t++)
+                            {
+                                IntPtr targetPtr = IntPtr.Add(pathInfo.pTargetInfo, t * targetInfoSize);
+                                var targetInfo   = Marshal.PtrToStructure<NV_DISPLAYCONFIG_PATH_TARGET_INFO>(targetPtr);
+                                if (targetInfo.pDetails != IntPtr.Zero)
+                                    Marshal.FreeHGlobal(targetInfo.pDetails);
+                            }
+                            Marshal.FreeHGlobal(pathInfo.pTargetInfo);
                         }
 
                         if (pathInfo.pSourceModeInfo != IntPtr.Zero)
                             Marshal.FreeHGlobal(pathInfo.pSourceModeInfo);
                     }
-                }
-                finally
-                {
                     Marshal.FreeHGlobal(pathInfoArray);
                 }
             }

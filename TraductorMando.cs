@@ -18,6 +18,8 @@ namespace SteamOSConfigurator
 {
     public static class TraductorMando
     {
+        public static Action? OnRecoveryRequested;
+
         private static CancellationTokenSource? _cts;
         private static ViGEmClient? _vigemClient;
         private static IXbox360Controller? _xboxVirtual;
@@ -25,20 +27,20 @@ namespace SteamOSConfigurator
         private static Joystick? _joystick;
         private static HidStream? _hidRumbleStream; 
         private static readonly List<string> _rutasOcultadas = new();
-        private static int _tiempoChordMs = 65; // Valor por defecto
+        private static int _tiempoChordMs = 80; // Respetando la GUI
 
         public static async Task IniciarAsync()
         {
             if (_cts != null) return;
 
-            // ── NUEVO: LEER EL DELAY DINÁMICO DESDE EL JSON PRINCIPAL ──
+            // ── LEER EL DELAY CONFIGURADO EN LA GUI ──
             string rutaConfigPrincipal = AppPaths.Config;
             if (File.Exists(rutaConfigPrincipal))
             {
                 try {
                     var jsonNode = JsonNode.Parse(File.ReadAllText(rutaConfigPrincipal));
                     if (jsonNode?["DelayBotonHome"] != null)
-                        _tiempoChordMs = jsonNode["DelayBotonHome"]!.GetValue<int>();
+                        _tiempoChordMs = Math.Max(10, jsonNode["DelayBotonHome"]!.GetValue<int>());
                 } catch (Exception ex) { Logger.Log($"Error al leer DelayBotonHome: {ex.Message}"); }
             }
 
@@ -49,14 +51,14 @@ namespace SteamOSConfigurator
             try { config = JsonSerializer.Deserialize<MapeoControl>(File.ReadAllText(rutaMapeo)); }
             catch { return; }
 
-            if (config == null || config.Botones.Count == 0) return;
+            if (config == null || string.IsNullOrEmpty(config.NombreControl)) return;
 
             _cts = new CancellationTokenSource();
-            CancellationToken token = _cts.Token;
-            _directInput = new DirectInput();
+            var token = _cts.Token;
 
             await Task.Run(() =>
             {
+                _directInput = new DirectInput();
                 PrepararMandoFisico(config);
                 ConectarJoystick(token);
                 if (_joystick == null) { Detener(); return; }
@@ -106,7 +108,12 @@ namespace SteamOSConfigurator
         private static void BucleTraduccion(MapeoControl config, CancellationToken token)
         {
             long tickSelectPresionado = 0;
-            bool selectBloqueadoPorChord = false;
+            long tickStartPresionado = 0;
+            long tickRecoveryChord = 0;
+            long lastGuideTick = 0;
+
+            bool esChordActivo = false;
+            bool recoveryDisparado = false;
 
             while (!token.IsCancellationRequested && _joystick != null && _xboxVirtual != null)
             {
@@ -115,6 +122,7 @@ namespace SteamOSConfigurator
                     _joystick.Poll();
                     var st = _joystick.GetCurrentState();
 
+                    // ── GAMEPLAY / TRADUCCIÓN NORMAL PARA STEAM Y JUEGOS ──
                     _xboxVirtual.SetButtonState(Xbox360Button.A, st.Buttons[config.Botones["A"]]);
                     _xboxVirtual.SetButtonState(Xbox360Button.B, st.Buttons[config.Botones["B"]]);
                     _xboxVirtual.SetButtonState(Xbox360Button.X, st.Buttons[config.Botones["X"]]);
@@ -135,39 +143,92 @@ namespace SteamOSConfigurator
                     _xboxVirtual.SetSliderValue(Xbox360Slider.LeftTrigger, ltValue);
                     _xboxVirtual.SetSliderValue(Xbox360Slider.RightTrigger, rtValue);
 
-                    // ── APLICANDO EL DELAY DINÁMICO DE LA UI ──
                     bool btnSelect = st.Buttons[config.Botones["Select"]];
                     bool btnStart = st.Buttons[config.Botones["Start"]];
+                    bool btnLB = st.Buttons[config.Botones["LB"]];
+                    bool btnRB = st.Buttons[config.Botones["RB"]];
 
+                    // Detección de Combinación de Modo Recuperación (LB + RB + Select + Start sostenidos por 1s)
+                    if (btnLB && btnRB && btnSelect && btnStart)
+                    {
+                        if (tickRecoveryChord == 0) tickRecoveryChord = Environment.TickCount64;
+                        else if (Environment.TickCount64 - tickRecoveryChord > 1000 && !recoveryDisparado)
+                        {
+                            recoveryDisparado = true;
+                            Logger.Log("[TraductorMando] Combinación de Recuperación detectada (LB+RB+Select+Start). Disparando evento.");
+                            OnRecoveryRequested?.Invoke();
+                        }
+                    }
+                    else
+                    {
+                        tickRecoveryChord = 0;
+                        recoveryDisparado = false;
+                    }
+
+                    // Detección del Botón Home/Guide (Select + Start) con Latch para Atajos de Steam (Guide + Y / Guide + A)
                     if (btnSelect && btnStart)
                     {
+                        lastGuideTick = Environment.TickCount64;
                         _xboxVirtual.SetButtonState(Xbox360Button.Guide, true);
                         _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
                         _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
-                        selectBloqueadoPorChord = true;
+                        esChordActivo = true;
+                    }
+                    else if (esChordActivo)
+                    {
+                        long now = Environment.TickCount64;
+                        bool cualquierOtroBoton = st.Buttons[config.Botones["Y"]] || st.Buttons[config.Botones["X"]] ||
+                                                  st.Buttons[config.Botones["A"]] || st.Buttons[config.Botones["B"]] ||
+                                                  st.Buttons[config.Botones["LB"]] || st.Buttons[config.Botones["RB"]];
+
+                        // Mantener Guide activado si se presiona Y/A/X/B o durante la ventana de gracia de 350ms
+                        if (cualquierOtroBoton || (now - lastGuideTick < 350))
+                        {
+                            _xboxVirtual.SetButtonState(Xbox360Button.Guide, true);
+                        }
+                        else
+                        {
+                            _xboxVirtual.SetButtonState(Xbox360Button.Guide, false);
+                        }
+
+                        _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
+                        _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
+
+                        if (!btnSelect && !btnStart && !cualquierOtroBoton && (now - lastGuideTick >= 350))
+                        {
+                            esChordActivo = false;
+                            tickSelectPresionado = 0;
+                            tickStartPresionado = 0;
+                        }
                     }
                     else
                     {
                         _xboxVirtual.SetButtonState(Xbox360Button.Guide, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Start, btnStart);
+
+                        long now = Environment.TickCount64;
 
                         if (btnSelect)
                         {
-                            if (!selectBloqueadoPorChord)
-                            {
-                                if (tickSelectPresionado == 0) tickSelectPresionado = Environment.TickCount64;
-
-                                if (Environment.TickCount64 - tickSelectPresionado > _tiempoChordMs) // Usando la variable
-                                {
-                                    _xboxVirtual.SetButtonState(Xbox360Button.Back, true);
-                                }
-                            }
+                            if (tickSelectPresionado == 0) tickSelectPresionado = now;
+                            bool enviarBack = (now - tickSelectPresionado > _tiempoChordMs);
+                            _xboxVirtual.SetButtonState(Xbox360Button.Back, enviarBack);
                         }
                         else
                         {
                             _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
                             tickSelectPresionado = 0;
-                            selectBloqueadoPorChord = false;
+                        }
+
+                        if (btnStart)
+                        {
+                            if (tickStartPresionado == 0) tickStartPresionado = now;
+                            bool enviarStart = (now - tickStartPresionado > _tiempoChordMs);
+                            _xboxVirtual.SetButtonState(Xbox360Button.Start, enviarStart);
+                        }
+                        else
+                        {
+                            _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
+                            tickStartPresionado = 0;
                         }
                     }
 
@@ -180,36 +241,51 @@ namespace SteamOSConfigurator
                         _xboxVirtual.SetButtonState(Xbox360Button.Left, pov == 22500 || pov == 27000 || pov == 31500);
                     }
 
-                    int lx = Deadzone(JoystickHelper.ObtenerValorEje(st, config.Ejes["LeftX"]) - 32768);
-                    int ly = Deadzone(65535 - JoystickHelper.ObtenerValorEje(st, config.Ejes["LeftY"]) - 32768);
-                    int rx = Deadzone(JoystickHelper.ObtenerValorEje(st, config.Ejes["RightX"]) - 32768);
-                    int ry = Deadzone(65535 - JoystickHelper.ObtenerValorEje(st, config.Ejes["RightY"]) - 32768);
-
-                    _xboxVirtual.SetAxisValue(Xbox360Axis.LeftThumbX, (short)Math.Clamp(lx, -32768, 32767));
-                    _xboxVirtual.SetAxisValue(Xbox360Axis.LeftThumbY, (short)Math.Clamp(ly, -32768, 32767));
-                    _xboxVirtual.SetAxisValue(Xbox360Axis.RightThumbX, (short)Math.Clamp(rx, -32768, 32767));
-                    _xboxVirtual.SetAxisValue(Xbox360Axis.RightThumbY, (short)Math.Clamp(ry, -32768, 32767));
-
-                    Thread.Sleep(10);
+                    if (config.Ejes.ContainsKey("LeftX")) _xboxVirtual.SetAxisValue(Xbox360Axis.LeftThumbX, (short)(JoystickHelper.ObtenerValorEje(st, config.Ejes["LeftX"]) - 32768));
+                    if (config.Ejes.ContainsKey("LeftY")) _xboxVirtual.SetAxisValue(Xbox360Axis.LeftThumbY, (short)(32767 - JoystickHelper.ObtenerValorEje(st, config.Ejes["LeftY"])));
+                    if (config.Ejes.ContainsKey("RightX")) _xboxVirtual.SetAxisValue(Xbox360Axis.RightThumbX, (short)(JoystickHelper.ObtenerValorEje(st, config.Ejes["RightX"]) - 32768));
+                    if (config.Ejes.ContainsKey("RightY")) _xboxVirtual.SetAxisValue(Xbox360Axis.RightThumbY, (short)(32767 - JoystickHelper.ObtenerValorEje(st, config.Ejes["RightY"])));
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"Error en BucleTraduccion: {ex.Message}");
-                    Thread.Sleep(2000);
-                    ConectarJoystick(token);
+                    if (!token.IsCancellationRequested)
+                    {
+                        Logger.Log($"Error en BucleTraduccion: {ex.Message}");
+                        Thread.Sleep(2000);
+                        ConectarJoystick(token);
+                    }
                 }
+
+                Thread.Sleep(16);
             }
         }
 
-        private static int Deadzone(int v, int zona = 4000) => Math.Abs(v) < zona ? 0 : v;
+        private static void EnviarRumble(byte largeMotor, byte smallMotor)
+        {
+            if (_hidRumbleStream == null) return;
+            try
+            {
+                byte[] report = new byte[8];
+                report[0] = 0x00; 
+                report[1] = 0x08; 
+                report[2] = 0x00;
+                report[3] = smallMotor; 
+                report[4] = largeMotor; 
+                _hidRumbleStream.Write(report, 0, report.Length);
+            }
+            catch { }
+        }
 
         private static void PrepararMandoFisico(MapeoControl config)
         {
             try
             {
                 var hidHide = new HidHideControlService();
-                string exePath = Environment.ProcessPath ?? "";
-                if (!hidHide.ApplicationPaths.Contains(exePath, StringComparer.OrdinalIgnoreCase)) hidHide.AddApplicationPath(exePath);
+                string exePath = Environment.ProcessPath ?? string.Empty;
+                if (!string.IsNullOrEmpty(exePath) && !hidHide.ApplicationPaths.Contains(exePath, StringComparer.OrdinalIgnoreCase))
+                {
+                    hidHide.AddApplicationPath(exePath);
+                }
                 hidHide.IsActive = true;
 
                 int vendorId = config.VendorID != 0 ? config.VendorID : 0x0583;
@@ -219,35 +295,35 @@ namespace SteamOSConfigurator
                 foreach (var dev in devs)
                 {
                     string devicePath = dev.DevicePath.Replace('#', '\\').ToUpperInvariant();
-                    try { hidHide.AddBlockedInstanceId(devicePath); _rutasOcultadas.Add(devicePath); } catch (Exception ex) { Logger.Log($"Error ocultando dispositivo {devicePath}: {ex.Message}"); }
+                    try
+                    {
+                        hidHide.AddBlockedInstanceId(devicePath);
+                        _rutasOcultadas.Add(devicePath);
+                    }
+                    catch (Exception ex) { Logger.Log($"Error ocultando dispositivo {devicePath}: {ex.Message}"); }
 
                     if (_hidRumbleStream == null && dev.TryOpen(out var stream))
                     {
-                        if (dev.GetMaxOutputReportLength() > 0) _hidRumbleStream = stream;
-                        else stream.Dispose();
+                        _hidRumbleStream = stream;
                     }
                 }
             }
-            catch (Exception ex) { Logger.Log($"Error al preparar mando físico: {ex.Message}"); }
-        }
-
-        private static void EnviarRumble(byte grande, byte pequeno)
-        {
-            if (_hidRumbleStream == null) return;
-            try { _hidRumbleStream.Write(new byte[] { 0x00, grande, pequeno, 0x00 }); }
-            catch (Exception ex) { Logger.Log($"Error al enviar Rumble: {ex.Message}"); }
+            catch (Exception ex) { Logger.Log($"Error configurando HidHide: {ex.Message}"); }
         }
 
         private static void RevertirOcultamiento()
         {
-            if (_rutasOcultadas.Count == 0) return;
             try
             {
+                if (_rutasOcultadas.Count == 0) return;
                 var hidHide = new HidHideControlService();
-                foreach (var ruta in _rutasOcultadas) try { hidHide.RemoveBlockedInstanceId(ruta); } catch (Exception ex) { Logger.Log($"Error revirtiendo ocultamiento para {ruta}: {ex.Message}"); }
+                foreach (var path in _rutasOcultadas)
+                {
+                    try { hidHide.RemoveBlockedInstanceId(path); } catch { }
+                }
                 _rutasOcultadas.Clear();
             }
-            catch (Exception ex) { Logger.Log($"Error revirtiendo ocultamiento general: {ex.Message}"); }
+            catch (Exception ex) { Logger.Log($"Error revirtiendo HidHide: {ex.Message}"); }
         }
     }
 }
