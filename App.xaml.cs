@@ -111,17 +111,145 @@ namespace SteamOSConfigurator
             } 
         }
 
+        public static int LimiteFPSActual { get; private set; } = 60;
+        public static int NivelOSDActual { get; private set; } = 0;
+
         public static void ForzarModoConsola(int limiteFPS) 
+        { 
+            AplicarConfiguracion(limiteFPS, NivelOSDActual);
+        }
+
+        private static System.Threading.Timer? _osdTimer;
+
+        public static void IniciarOSDBackground()
+        {
+            if (_osdTimer == null)
+            {
+                _osdTimer = new System.Threading.Timer(_ => 
+                {
+                    int nivel = NivelOSDActual;
+                    if (nivel <= 0)
+                    {
+                        RTSSSharedMemory.UpdateOSD("");
+                        return;
+                    }
+
+                    double cpu = SysInfo.GetCpuUsage();
+                    float cpuTemp = SysInfo.GetCpuTemp();
+                    double ram = SysInfo.GetRamUsage();
+                    float gpuLoad = SysInfo.GetGpuLoad();
+                    float gpuTemp = SysInfo.GetGpuTemp();
+                    float diskLoad = (float)Math.Clamp(SysInfo.GetDiskReadWriteMBps(), 0, 100);
+
+                    string text = "";
+                    if (nivel == 1) // FPS
+                    {
+                        // RTSS handles FPS natively via profile
+                        text = "";
+                    }
+                    else if (nivel == 2) // GPU/CPU
+                    {
+                        string cTempStr = cpuTemp > 0 ? $" {cpuTemp:0}°C" : "";
+                        string gTempStr = gpuTemp > 0 ? $" {gpuTemp:0}°C" : "";
+                        text = $"<s=80><c=00FF88>CPU:</c> {cpu:0}%{cTempStr}  |  <c=00C8FF>GPU:</c> {gpuLoad:0}%{gTempStr}</s=";
+                    }
+                    else if (nivel == 3) // Frametime / Main stats
+                    {
+                        text = $"<s=80><c=00FF88>CPU:</c> {cpu:0}%  |  <c=00C8FF>GPU:</c> {gpuLoad:0}%  |  <c=FFC800>RAM:</c> {ram:0}%</s=";
+                    }
+                    else if (nivel >= 4) // Full
+                    {
+                        string cTempStr = cpuTemp > 0 ? $" {cpuTemp:0}°C" : "";
+                        string gTempStr = gpuTemp > 0 ? $" {gpuTemp:0}°C" : "";
+                        text = $"<s=80><c=00FF88>CPU:</c> {cpu:0}%{cTempStr}\n<c=00C8FF>GPU:</c> {gpuLoad:0}%{gTempStr}\n<c=FFC800>RAM:</c> {ram:0}%\n<c=FF5050>DISK:</c> {diskLoad:0.0}MB/s</s=";
+                    }
+
+                    RTSSSharedMemory.UpdateOSD(text);
+                }, null, 0, 1000);
+            }
+        }
+
+        public static void AplicarConfiguracion(int limiteFPS, int nivelOSD) 
         { 
             try 
             { 
+                LimiteFPSActual = limiteFPS;
+                NivelOSDActual = nivelOSD;
+                IniciarOSDBackground();
+
                 string dirPerfiles = Path.GetDirectoryName(RutaPerfilGlobal)!; 
                 if (!Directory.Exists(dirPerfiles)) Directory.CreateDirectory(dirPerfiles); 
                 
-                string configuracion = $"[Framerate]\nLimit={limiteFPS}\nLimitDenominator=1\n"; 
+                int enableOSD = nivelOSD > 0 ? 1 : 0;
+                int showFramerate = nivelOSD >= 1 ? 1 : 0;
+                int showFrametime = nivelOSD >= 3 ? 1 : 0;
+
+                string configuracion = 
+                    "[Settings]\nName=Global\n\n" +
+                    "[Hooking]\nEnableHooking=1\n\n" +
+                    $"[Framerate]\nLimit={limiteFPS}\nLimitDenominator=1\n\n" +
+                    $"[OSD]\nEnableOSD={enableOSD}\nShowStat={enableOSD}\nShowFramerate={showFramerate}\nShowFrametime={showFrametime}\nPlacementX=15\nPlacementY=15\nPositionX=1\nPositionY=1\nZoomRatio=1\n"; 
+                
                 File.WriteAllText(RutaPerfilGlobal, configuracion); 
+                
+                // Forzar ShowOSD maestro en Config
+                try
+                {
+                    string rutaConfig = Path.Combine(dirPerfiles, "Config");
+                    if (File.Exists(rutaConfig))
+                    {
+                        var lineas = File.ReadAllLines(rutaConfig).ToList();
+                        bool found = false;
+                        for (int i = 0; i < lineas.Count; i++)
+                        {
+                            if (lineas[i].StartsWith("ShowOSD="))
+                            {
+                                lineas[i] = $"ShowOSD={enableOSD}";
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) lineas.Add($"ShowOSD={enableOSD}");
+                        File.WriteAllLines(rutaConfig, lineas);
+                    }
+                }
+                catch { }
+
+                Logger.Log($"[RTSS] Perfil actualizado: FPS={limiteFPS}, Nivel OSD={nivelOSD}");
+
+                // Llamar a UpdateProfiles de RTSS para que recargue el archivo Global sin tener que reiniciar
+                try
+                {
+                    string dllPath = Path.Combine(Path.GetDirectoryName(RutaExe)!, "RTSSHooks64.dll");
+                    if (Environment.Is64BitProcess && File.Exists(dllPath))
+                    {
+                        var dllHandle = App.LoadLibrary(dllPath);
+                        if (dllHandle != IntPtr.Zero)
+                        {
+                            var procAddress = App.GetProcAddress(dllHandle, "UpdateProfiles");
+                            if (procAddress != IntPtr.Zero)
+                            {
+                                var updateProfiles = Marshal.GetDelegateForFunctionPointer<App.UpdateProfilesDelegate>(procAddress);
+                                updateProfiles();
+                                Logger.Log("[RTSS] UpdateProfiles ejecutado exitosamente.");
+                            }
+                            App.FreeLibrary(dllHandle);
+                        }
+                    }
+                    else
+                    {
+                        Logger.Log("[RTSS] No se pudo encontrar RTSSHooks64.dll o no es proceso 64-bit.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[RTSS] Error llamando a UpdateProfiles: {ex.Message}");
+                }
+
+                // Aseguramos que RTSS esté corriendo, pero NO lo reiniciamos para no perder el hook en el juego
+                DespertarFantasma();
             } 
-            catch (Exception ex) { Logger.Log($"Error al forzar modo consola RTSS: {ex.Message}"); } 
+            catch (Exception ex) { Logger.Log($"Error al actualizar RTSS: {ex.Message}"); } 
         }
 
         public static void DespertarFantasma() 
@@ -136,8 +264,8 @@ namespace SteamOSConfigurator
                     using (var pStart = Process.Start(new ProcessStartInfo 
                     { 
                         FileName = RutaExe, 
-                        UseShellExecute = false, 
-                        CreateNoWindow = true 
+                        WorkingDirectory = Path.GetDirectoryName(RutaExe),
+                        UseShellExecute = true
                     })) {}
                 }
             } 
@@ -180,6 +308,11 @@ namespace SteamOSConfigurator
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr hWnd, StringBuilder strText, int maxCount);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowTextLength(IntPtr hWnd);
         
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)] public static extern IntPtr LoadLibrary(string lpFileName);
+        [DllImport("kernel32.dll", SetLastError = true)] public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+        [DllImport("kernel32.dll", SetLastError = true)] public static extern bool FreeLibrary(IntPtr hModule);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] public delegate void UpdateProfilesDelegate();
+        
         const int SW_HIDE = 0; 
         const uint EVENT_SYSTEM_FOREGROUND = 3; 
         const uint WINEVENT_OUTOFCONTEXT = 0;
@@ -208,12 +341,21 @@ namespace SteamOSConfigurator
         private WinEventDelegate? _winEventDelegate; 
         private IntPtr _hWinEventHook = IntPtr.Zero;
 
+        public static volatile bool ReinstalandoOReinicioSteam = false;
+
         // ── ARRANQUE Y PRIVILEGIOS ──
         protected override void OnStartup(StartupEventArgs e)
         {
-            // Evitar que WPF cierre automáticamente la aplicación cuando no hay ventanas abiertas
-            // (necesario porque operamos como proceso de fondo en gran parte del tiempo)
-            Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            AppDomain.CurrentDomain.UnhandledException += (s, ev) => 
+            {
+                System.IO.File.WriteAllText(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "CrashLog.txt"), ev.ExceptionObject.ToString());
+            };
+            
+            this.DispatcherUnhandledException += (s, ev) => 
+            {
+                System.IO.File.WriteAllText(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "CrashLogWPF.txt"), ev.Exception.ToString());
+                ev.Handled = true;
+            };
 
             try { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); } catch { }
             base.OnStartup(e);
@@ -231,22 +373,44 @@ namespace SteamOSConfigurator
                         Verb = "runas" 
                     })) {} 
                 } 
-                catch { } 
-                Environment.Exit(0); 
+                catch (Exception ex)
+                {
+                    System.IO.File.WriteAllText(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "UAC_Error.txt"), ex.ToString());
+                } 
+                Environment.Exit(0);  
                 return; 
             }
-            
+
             SystemParametersInfoTimeout(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, IntPtr.Zero, SPIF_SENDCHANGE | SPIF_UPDATEINIFILE);
-            
-            TraductorMando.OnRecoveryRequested = AbrirVentanaRecuperacionUI;
 
             if (e.Args.Length > 0 && e.Args[0] == "-shell") 
             { 
+                // En modo Shell (-shell), operamos como servicio de fondo persistente
+                Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                TraductorMando.OnRecoveryRequested = AbrirVentanaRecuperacionUI;
+
+                // Pre-calentar SysInfo y VentanaRecuperacion en segundo plano para abrir al instante (0ms)
+                Task.Run(() => 
+                {
+                    try { SysInfo.GetCpuUsage(); } catch { }
+                    Dispatcher.Invoke(() => 
+                    {
+                        CrearVentanaRecuperacionSiEsNecesario();
+                    });
+                });
+
                 _ = EjecutarModoConsolaAsync(); 
             } 
             else 
             { 
-                new MainWindow().Show(); 
+                // En modo Configuración Normal (sin -shell), se cierra limpiamente al cerrar MainWindow
+                Application.Current.ShutdownMode = ShutdownMode.OnLastWindowClose;
+                MainWindow main = new MainWindow();
+                main.Closed += (s, ev) => 
+                {
+                    Application.Current.Shutdown();
+                };
+                main.Show(); 
             }
         }
 
@@ -405,7 +569,7 @@ namespace SteamOSConfigurator
                 Logger.Log("[EjecutarModoConsolaAsync] Fin de retraso de seguridad.");
 
                 Logger.Log("[EjecutarModoConsolaAsync] Activando hook de teclado...");
-                _keyboardHookService.IniciarHook(() => _displayService.AislamientoActivo);
+                _keyboardHookService.IniciarHook(() => !_modoEscritorio);
                 Logger.Log("[EjecutarModoConsolaAsync] Hook de teclado activado.");
 
                 string rutaSteam = _steamService.ObtenerRutaSteam(); 
@@ -460,13 +624,21 @@ namespace SteamOSConfigurator
                     var procesosSteam = Process.GetProcessesByName("steam"); 
                     if (procesosSteam.Length == 0) 
                     { 
+                        if (ReinstalandoOReinicioSteam)
+                        {
+                            Logger.Log("[EjecutarModoConsolaAsync] Steam está en proceso de reinstalación/reinicio. Esperando...");
+                            await Task.Delay(3000);
+                            continue;
+                        }
+
                         Logger.Log("[EjecutarModoConsolaAsync] Steam cerrado. Verificando si es reinicio...");
                         bool seReinicio = await EsperarPosibleReinicio(4000); // 4 segundos de gracia
                         
-                        if (seReinicio)
+                        if (seReinicio || ReinstalandoOReinicioSteam)
                         {
-                            Logger.Log("[EjecutarModoConsolaAsync] Steam se reinició (actualización/cambio). Reconectando...");
+                            Logger.Log("[EjecutarModoConsolaAsync] Steam se reinició (actualización/cambio/reinstalación). Reconectando...");
                             await _steamService.EsperarSteamListoAsync(() => _modoEscritorio);
+                            ReinstalandoOReinicioSteam = false;
                             continue;
                         }
                         else
@@ -669,83 +841,131 @@ namespace SteamOSConfigurator
                 else if (wp == PBT_APMRESUMESUSPEND)
                 {
                     Logger.Log("Sistema reanudado. Restaurando entorno...");
-                    var config = CargarConfig();
-                    if (config != null)
+                    _ = Task.Run(async () => 
                     {
-                        _displayService.AislarPantalla(config, _gpuScalingService);
-                        if (config.AudioDispositivo != null)
-                            _audioService.EstablecerDispositivoPorDefecto(config.AudioDispositivo);
-                        if (config.EmuladorActivado) _ = TraductorMando.IniciarAsync();
-                    }
-                    _keyboardHookService.IniciarHook(() => _displayService.AislamientoActivo);
+                        await Task.Delay(500);
+                        var config = CargarConfig();
+                        if (config != null)
+                        {
+                            _displayService.AislarPantalla(config, _gpuScalingService);
+                            if (config.AudioDispositivo != null)
+                                _audioService.EstablecerDispositivoPorDefecto(config.AudioDispositivo);
+                            if (config.EmuladorActivado) _ = TraductorMando.IniciarAsync();
+                        }
+                        _keyboardHookService.IniciarHook(() => !_modoEscritorio);
+
+                        try
+                        {
+                            if (_ventanaRecuperacion != null)
+                            {
+                                _ventanaRecuperacion.Dispatcher.Invoke(() => _ventanaRecuperacion.AjustarTamanioPantalla());
+                            }
+
+                            var procs = Process.GetProcessesByName("steam");
+                            if (procs.Length > 0)
+                            {
+                                _steamService.MoverVentanaSteamAlMonitorPrincipal(procs[0].Id, 1);
+                            }
+                        }
+                        catch { }
+                    });
                 }
             }
             return IntPtr.Zero; 
         }
 
-        private bool _ventanaRecuperacionAbierta = false;
+        public static bool VentanaRecuperacionAbierta = false;
+
+        private VentanaRecuperacion? _ventanaRecuperacion;
+
+        private void CrearVentanaRecuperacionSiEsNecesario()
+        {
+            if (_ventanaRecuperacion == null)
+            {
+                _ventanaRecuperacion = new VentanaRecuperacion();
+                _ventanaRecuperacion.Show();
+                
+                _ventanaRecuperacion.PanelOcultado += (s, e) =>
+                {
+                    // ── LIMPIEZA POST-DIÁLOGO (siempre se ejecuta al cerrar) ──
+                    TraductorMando.IsQAMOpen = false;
+                    Logger.Log("[AbrirVentanaRecuperacionUI] QAM cerrado. IsQAMOpen = false");
+
+                    if (_ventanaRecuperacion.AccionResultante == AccionRecuperacion.ReintentarSteam)
+                    {
+                        _ventanaRecuperacion.AccionResultante = AccionRecuperacion.Ninguno;
+                        Logger.Log("[AbrirVentanaRecuperacionUI] Reintentando lanzamiento de Steam...");
+                        ReinstalandoOReinicioSteam = true;
+                        foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
+                        foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
+                        
+                        _ = System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+                        {
+                            await Task.Delay(1500);
+                            _keyboardHookService.IniciarHook(() => !_modoEscritorio);
+                            _ = TraductorMando.IniciarAsync();
+
+                            string rutaSteam = _steamService.ObtenerRutaSteam();
+                            if (!string.IsNullOrEmpty(rutaSteam))
+                            {
+                                Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true });
+                            }
+                            await Task.Delay(4000);
+                            ReinstalandoOReinicioSteam = false;
+                        });
+                    }
+                    else if (_ventanaRecuperacion.AccionResultante == AccionRecuperacion.CerrarSesionWindows)
+                    {
+                        _ventanaRecuperacion.AccionResultante = AccionRecuperacion.Ninguno;
+                        Logger.Log("[AbrirVentanaRecuperacionUI] Usuario eligió cerrar sesión de Windows. Destruyendo Steam y cerrando sesión...");
+                        _cerrandoSesion = true;
+                        try { _displayService.RestaurarEntornoOriginal(_gpuScalingService); } catch (Exception ex) { Logger.Log($"[CerrarSesionWindows] Error restaurando pantalla: {ex.Message}"); }
+                        foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
+                        foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
+                        CerrarSesionRapido();
+                    }
+                    else if (_ventanaRecuperacion.AccionResultante == AccionRecuperacion.ModoEscritorio)
+                    {
+                        _ventanaRecuperacion.AccionResultante = AccionRecuperacion.Ninguno;
+                        Logger.Log("[AbrirVentanaRecuperacionUI] Usuario eligió salir al escritorio. Destruyendo Steam y restaurando entorno...");
+                        _modoEscritorio = true;
+                        try { _displayService.RestaurarEntornoOriginal(_gpuScalingService); } catch (Exception ex) { Logger.Log($"[ModoEscritorio] Error restaurando pantalla: {ex.Message}"); }
+                        foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
+                        foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
+                        try { using (Process.Start("explorer.exe")) {} } catch { }
+                    }
+                    else
+                    {
+                        if (!_modoEscritorio)
+                        {
+                            _keyboardHookService.IniciarHook(() => !_modoEscritorio);
+                        }
+                    }
+                };
+            }
+        }
 
         private void AbrirVentanaRecuperacionUI()
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(async () =>
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
             {
-                if (_ventanaRecuperacionAbierta) return;
-                _ventanaRecuperacionAbierta = true;
-
-                Logger.Log("[AbrirVentanaRecuperacionUI] Abriendo ventana de recuperación...");
-                _keyboardHookService.DetenerHook();
-                TraductorMando.Detener();
-
-                var win = new VentanaRecuperacion();
-                win.ShowDialog();
-
-                _ventanaRecuperacionAbierta = false;
-
-                if (win.AccionResultante == AccionRecuperacion.ReintentarSteam)
+                CrearVentanaRecuperacionSiEsNecesario();
+                if (_ventanaRecuperacion != null)
                 {
-                    Logger.Log("[AbrirVentanaRecuperacionUI] Reintentando lanzamiento de Steam...");
-                    foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
-                    foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
-                    await Task.Delay(1000);
-
-                    _keyboardHookService.IniciarHook(() => _displayService.AislamientoActivo);
-                    _ = TraductorMando.IniciarAsync();
-
-                    string rutaSteam = _steamService.ObtenerRutaSteam();
-                    if (!string.IsNullOrEmpty(rutaSteam))
+                    Logger.Log("[AbrirVentanaRecuperacionUI] Abriendo panel QAM...");
+                    App.VentanaRecuperacionAbierta = true;
+                    _keyboardHookService.DetenerHook();
+                    
+                    _ventanaRecuperacion.Focus();
+                    _ventanaRecuperacion.Activate();
+                    IntPtr hwnd = new WindowInteropHelper(_ventanaRecuperacion).Handle;
+                    if (hwnd != IntPtr.Zero)
                     {
-                        _steamService.LimpiarPosicionVentanaSteam();
-                        using (Process? steam = Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true }))
-                        {
-                            if (steam != null) _steamService.MoverVentanaSteamAlMonitorPrincipal(steam.Id, 25);
-                        }
-                        await _steamService.EsperarSteamListoAsync(() => _modoEscritorio);
+                        SetForegroundWindow(hwnd);
+                        ShowWindow(hwnd, 5); // SW_SHOW
                     }
-                }
-                else if (win.AccionResultante == AccionRecuperacion.CerrarSesionWindows)
-                {
-                    Logger.Log("[AbrirVentanaRecuperacionUI] Usuario eligió cerrar sesión de Windows. Destruyendo Steam y cerrando sesión...");
-                    _cerrandoSesion = true;
-                    try { _displayService.RestaurarEntornoOriginal(_gpuScalingService); } catch (Exception ex) { Logger.Log($"[CerrarSesionWindows] Error restaurando pantalla: {ex.Message}"); }
-                    foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
-                    foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
-                    CerrarSesionRapido();
-                }
-                else if (win.AccionResultante == AccionRecuperacion.ModoEscritorio)
-                {
-                    Logger.Log("[AbrirVentanaRecuperacionUI] Usuario eligió salir al escritorio. Destruyendo Steam y restaurando entorno...");
-                    _modoEscritorio = true;
-                    try { _displayService.RestaurarEntornoOriginal(_gpuScalingService); } catch (Exception ex) { Logger.Log($"[ModoEscritorio] Error restaurando pantalla: {ex.Message}"); }
-                    foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
-                    foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
-                    try { using (Process.Start("explorer.exe")) {} } catch { }
-                }
-                else
-                {
-                    if (!_modoEscritorio)
-                    {
-                        _keyboardHookService.IniciarHook(() => _displayService.AislamientoActivo);
-                    }
+                    _ventanaRecuperacion.MostrarPanel();
+                    TraductorMando.IsQAMOpen = true;
                 }
             });
         }

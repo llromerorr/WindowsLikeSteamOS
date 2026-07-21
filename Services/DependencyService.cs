@@ -49,16 +49,17 @@ namespace SteamOSConfigurator.Services
 
         public async Task<bool> InstalarSteamAsync(Action<string>? onProgreso = null)
         {
-            // Intentar winget primero
-            if (await IntentarWingetAsync(WINGET_STEAM_ID, onProgreso))
-                return true;
-
-            // Fallback: descargar desde CDN oficial
-            onProgreso?.Invoke("Descargando Steam desde el servidor oficial...");
-            Logger.Log("winget no disponible. Descargando Steam desde CDN...");
+            onProgreso?.Invoke("Cerrando Steam para reinstalación...");
+            Logger.Log("[InstalarSteamAsync] Cerrando procesos de Steam...");
+            foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
+            foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
+            await Task.Delay(1000);
 
             try
             {
+                onProgreso?.Invoke("Descargando instalador oficial de Steam...");
+                Logger.Log("Descargando Steam desde CDN...");
+
                 string rutaTemp = Path.Combine(Path.GetTempPath(), "SteamSetup.exe");
                 using (var http = new HttpClient())
                 {
@@ -66,7 +67,7 @@ namespace SteamOSConfigurator.Services
                     await File.WriteAllBytesAsync(rutaTemp, bytes);
                 }
 
-                onProgreso?.Invoke("Instalando Steam...");
+                onProgreso?.Invoke("Reinstalando archivos de Steam...");
                 var psi = new ProcessStartInfo(rutaTemp, "/S")
                 {
                     WindowStyle = ProcessWindowStyle.Hidden,
@@ -78,17 +79,63 @@ namespace SteamOSConfigurator.Services
                     if (proc != null) await proc.WaitForExitAsync();
                 }
 
-                // Limpiar instalador temporal
                 try { File.Delete(rutaTemp); } catch { }
 
+                // Reparar / Instalar Servicio de Steam (Steam Client Service)
+                onProgreso?.Invoke("Reparando Servicio de Steam...");
+                RepararServicioSteam();
+
+                onProgreso?.Invoke("Iniciando Steam...");
+                try
+                {
+                    string rutaSteam = AppPaths.SteamFallback;
+                    using RegistryKey? key = Registry.LocalMachine.OpenSubKey(AppPaths.SteamRegistryKey);
+                    if (key != null) rutaSteam = Path.Combine(key.GetValue("InstallPath") as string ?? "", "steam.exe");
+                    if (File.Exists(rutaSteam))
+                    {
+                        Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true });
+                    }
+                }
+                catch { }
+
                 bool exito = SteamInstalado;
-                Logger.Log(exito ? "Steam instalado correctamente desde CDN." : "Error: Steam no se detecta tras instalación.");
+                Logger.Log(exito ? "Steam y su servicio instalados correctamente." : "Error: Steam no se detecta tras instalación.");
                 return exito;
             }
             catch (Exception ex)
             {
                 Logger.Log($"Error al descargar/instalar Steam: {ex.Message}");
                 return false;
+            }
+        }
+
+        private void RepararServicioSteam()
+        {
+            try
+            {
+                string pathCommon = @"C:\Program Files (x86)\Common Files\Steam\SteamService.exe";
+                string pathSteamBin = @"C:\Program Files (x86)\Steam\bin\steamservice.exe";
+                string target = File.Exists(pathCommon) ? pathCommon : (File.Exists(pathSteamBin) ? pathSteamBin : "");
+
+                if (!string.IsNullOrEmpty(target))
+                {
+                    var psi = new ProcessStartInfo(target, "/install")
+                    {
+                        WindowStyle = ProcessWindowStyle.Hidden,
+                        CreateNoWindow = true,
+                        UseShellExecute = true,
+                        Verb = "runas"
+                    };
+                    using (var p = Process.Start(psi))
+                    {
+                        p?.WaitForExit(5000);
+                    }
+                    Logger.Log("[RepararServicioSteam] Servicio de Steam instalado/reparado correctamente.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[RepararServicioSteam] Error: {ex.Message}");
             }
         }
 

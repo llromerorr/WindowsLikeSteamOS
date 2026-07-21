@@ -12,10 +12,12 @@ using AudioSwitcher.AudioApi.CoreAudio;
 using System.Security.Principal; 
 using SteamOSConfigurator.Models;
 using SteamOSConfigurator.Helpers;
+using Wpf.Ui.Controls;
+using Wpf.Ui.Appearance;
 
 namespace SteamOSConfigurator
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : FluentWindow
     {
         const int LOGON32_LOGON_INTERACTIVE = 2; const int LOGON32_PROVIDER_DEFAULT = 0;
         const int DISP_CHANGE_SUCCESSFUL = 0; const int DISP_CHANGE_BADMODE = -2; const int CDS_TEST = 0x00000002;
@@ -325,7 +327,7 @@ namespace SteamOSConfigurator
                         });
                         if (!ok)
                         {
-                            System.Windows.MessageBox.Show("No se pudo descargar o instalar Steam de forma automática. Por favor, instálalo manualmente.", "Error de Dependencia", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            System.Windows.MessageBox.Show("No se pudo descargar o instalar Steam de forma automática. Por favor, instálalo manualmente.", "Error de Dependencia", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                             return;
                         }
                     }
@@ -338,7 +340,7 @@ namespace SteamOSConfigurator
                         });
                         if (!ok)
                         {
-                            System.Windows.MessageBox.Show("No se pudo descargar o instalar RivaTuner Statistics Server. Por favor, instálalo manualmente.", "Error de Dependencia", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            System.Windows.MessageBox.Show("No se pudo descargar o instalar RivaTuner Statistics Server. Por favor, instálalo manualmente.", "Error de Dependencia", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                         }
                     }
                 }
@@ -347,7 +349,7 @@ namespace SteamOSConfigurator
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"Ocurrió un error durante la instalación: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Windows.MessageBox.Show($"Ocurrió un error durante la instalación: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
             finally
             {
@@ -387,7 +389,7 @@ namespace SteamOSConfigurator
             } 
             catch (Exception ex) 
             { 
-                System.Windows.MessageBox.Show($"Revisa los valores de configuración:\n{ex.Message}", "Error de Validación", MessageBoxButton.OK, MessageBoxImage.Warning);
+                System.Windows.MessageBox.Show($"Revisa los valores de configuración:\n{ex.Message}", "Error de Validación", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                 throw;
             }
 
@@ -413,11 +415,11 @@ namespace SteamOSConfigurator
                 });
 
                 GuardarConfiguracionJson(indiceMonitor, w, h, hz, audioTexto, emuladorActivado, fps, fastSync, delay);
-                System.Windows.MessageBox.Show(_entornoInstalado ? "Configuración de juego actualizada con éxito." : "¡Entorno Gaming creado con éxito!\n\nTu cuenta SteamOS está lista.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+                System.Windows.MessageBox.Show(_entornoInstalado ? "Configuración de juego actualizada con éxito." : "¡Entorno Gaming creado con éxito!\n\nTu cuenta SteamOS está lista.", "Éxito", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
             }
             catch (Exception ex) 
             { 
-                System.Windows.MessageBox.Show($"Error en despliegue:\n{ex.Message}", "Error Crítico", MessageBoxButton.OK, MessageBoxImage.Error); 
+                System.Windows.MessageBox.Show($"Error en despliegue:\n{ex.Message}", "Error Crítico", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error); 
                 throw;
             }
         }
@@ -438,17 +440,17 @@ namespace SteamOSConfigurator
 
         private async void BtnDesinstalar_Click(object sender, RoutedEventArgs e)
         {
-            if (System.Windows.MessageBox.Show("¿Eliminar el entorno de consola y purgar la cuenta SteamOS?", "Desinstalar", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            if (System.Windows.MessageBox.Show("¿Eliminar el entorno de consola y purgar la cuenta SteamOS?", "Desinstalar", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes)
             {
                 DeshabilitarControlesInteraccion("Eliminando cuenta SteamOS y desinstalando entorno... Por favor espera.");
                 try 
                 { 
                     await Task.Run(() => { EliminarUsuarioSteamOS(); }); 
-                    System.Windows.MessageBox.Show("Entorno desinstalado con éxito del sistema.", "Desinstalación Completada", MessageBoxButton.OK, MessageBoxImage.Information); 
+                    System.Windows.MessageBox.Show("Entorno desinstalado con éxito del sistema.", "Desinstalación Completada", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information); 
                 }
                 catch (Exception ex) 
                 { 
-                    System.Windows.MessageBox.Show($"Error de purga:\n{ex.Message}", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning); 
+                    System.Windows.MessageBox.Show($"Error de purga:\n{ex.Message}", "Aviso", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning); 
                 }
                 finally 
                 { 

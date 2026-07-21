@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using System.Windows;
 using SharpDX.DirectInput;
 using SteamOSConfigurator.Helpers;
+using System.Diagnostics;
+using Wpf.Ui.Controls;
 
 namespace SteamOSConfigurator
 {
@@ -21,7 +23,7 @@ namespace SteamOSConfigurator
         public Dictionary<string, string> Ejes { get; set; } = new Dictionary<string, string>();
     }
 
-    public partial class VentanaMapeo : Window
+    public partial class VentanaMapeo : FluentWindow
     {
         private DirectInput _directInput;
         private Joystick? _joystick;

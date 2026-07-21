@@ -1,182 +1,57 @@
 <Window x:Class="SteamOSConfigurator.VentanaRecuperacion"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="WLSteamOS Recovery" Height="720" Width="1280"
-        WindowStyle="None" WindowState="Maximized" Topmost="True"
-        Background="#080C14" FontFamily="Segoe UI"
+        Title="Quick Access"
+        Left="0" Top="0"
+        WindowStyle="None" Topmost="True" ShowActivated="False"
+        AllowsTransparency="True" Background="Transparent" FontFamily="Segoe UI"
+        Opacity="0" IsHitTestVisible="False"
         Loaded="Window_Loaded" Closing="Window_Closing" KeyDown="Window_KeyDown">
 
     <Window.Resources>
-        <!-- ══ ICONOS VECTORIALES ══ -->
+        <!-- Iconos SVG estandarizados -->
+        <Geometry x:Key="IconVolume">M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z</Geometry>
+        <Geometry x:Key="IconFPS">M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z</Geometry>
+        <Geometry x:Key="IconPerf">M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z</Geometry>
+        <Geometry x:Key="IconStretch">M4 6h16v12H4zm2 2v8h12V8z</Geometry>
         <Geometry x:Key="IconRefresh">M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z</Geometry>
-        <Geometry x:Key="IconCDN">M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z</Geometry>
+        <Geometry x:Key="IconDownload">M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z</Geometry>
+        <Geometry x:Key="IconPower">M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z</Geometry>
+        <Geometry x:Key="IconSleep">M12.3 2.31c-.96.4-1.83 1-2.5 1.77C8.12 5.76 7.42 8.35 8.16 11c.74 2.65 2.64 4.8 5.17 5.74 1.13.42 2.33.56 3.51.42-1.07 1.25-2.58 2.06-4.24 2.27-3.26.41-6.42-1.41-7.66-4.42C3.7 12 4.41 8.5 6.7 6.05c1.47-1.57 3.44-2.58 5.6-2.74z</Geometry>
+        <Geometry x:Key="IconRam">M2 7h20v10H2V7zm2 2v6h16V9H4zm2 1h2v4H6v-4zm4 0h2v4h-2v-4zm4 0h2v4h-2v-4zm4 0h2v4h-2v-4z</Geometry>
         <Geometry x:Key="IconDisplay">M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z</Geometry>
-        <Geometry x:Key="IconLogs">M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z</Geometry>
         <Geometry x:Key="IconLock">M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z</Geometry>
         <Geometry x:Key="IconExit">M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z</Geometry>
 
-        <!-- ══ ESTILO TARJETA PRINCIPAL ══ -->
-        <Style x:Key="CardButton" TargetType="Button">
-            <Setter Property="Height" Value="72"/>
-            <Setter Property="Margin" Value="0,0,0,6"/>
-            <Setter Property="Cursor" Value="Hand"/>
+        <!-- Botón QAM: Estilo Microsoft Game Bar / Gamescope (Compacto para Consolas Portátiles) -->
+        <Style x:Key="QamBtn" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#C8D6E5"/>
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Margin" Value="0,1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="True"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Grid>
-                            <!-- Fondo con gradiente sutil -->
-                            <Border x:Name="bgBorder" CornerRadius="14" Opacity="0.6">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                        <GradientStop Color="#0F1923" Offset="0"/>
-                                        <GradientStop Color="#131D2B" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                            </Border>
-                            <!-- Borde fino -->
-                            <Border x:Name="edgeBorder" CornerRadius="14" BorderThickness="1.5" BorderBrush="#1A2A3E"/>
-                            <!-- Contenido -->
-                            <Border CornerRadius="14" Padding="16,0">
-                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" 
-                                                  VerticalAlignment="Center"/>
-                            </Border>
-                        </Grid>
+                        <Border x:Name="bg" Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4" Padding="10,0" SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
+                        </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="bgBorder" Property="Opacity" Value="1.0"/>
-                                <Setter TargetName="bgBorder" Property="Background">
-                                    <Setter.Value>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#0D2847" Offset="0"/>
-                                            <GradientStop Color="#153A5E" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Setter.Value>
-                                </Setter>
-                                <Setter TargetName="edgeBorder" Property="BorderBrush" Value="#00AAFF"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
-                            </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bgBorder" Property="Opacity" Value="1.0"/>
-                                <Setter TargetName="bgBorder" Property="Background">
-                                    <Setter.Value>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#112E52" Offset="0"/>
-                                            <GradientStop Color="#1A4268" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Setter.Value>
-                                </Setter>
-                                <Setter TargetName="edgeBorder" Property="BorderBrush" Value="#00AAFF"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter TargetName="bg" Property="Background" Value="#15FFFFFF"/>
                             </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- ══ ESTILO TARJETA CERRAR SESIÓN ══ -->
-        <Style x:Key="CardButtonLogoff" TargetType="Button" BasedOn="{StaticResource CardButton}">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Grid>
-                            <Border x:Name="bgBorder" CornerRadius="14" Opacity="0.6">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                        <GradientStop Color="#1F1508" Offset="0"/>
-                                        <GradientStop Color="#2A1B0A" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                            </Border>
-                            <Border x:Name="edgeBorder" CornerRadius="14" BorderThickness="1.5" BorderBrush="#3D2A10"/>
-                            <Border CornerRadius="14" Padding="16,0">
-                                <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
-                            </Border>
-                        </Grid>
-                        <ControlTemplate.Triggers>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="bgBorder" Property="Opacity" Value="1.0"/>
-                                <Setter TargetName="bgBorder" Property="Background">
-                                    <Setter.Value>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#3A2508" Offset="0"/>
-                                            <GradientStop Color="#4A3010" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Setter.Value>
-                                </Setter>
-                                <Setter TargetName="edgeBorder" Property="BorderBrush" Value="#FFB74D"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter TargetName="bg" Property="Background" Value="#20FFFFFF"/>
+                                <Setter TargetName="bg" Property="BorderBrush" Value="#40FFFFFF"/>
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bgBorder" Property="Opacity" Value="1.0"/>
-                                <Setter TargetName="bgBorder" Property="Background">
-                                    <Setter.Value>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#45300C" Offset="0"/>
-                                            <GradientStop Color="#553A12" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Setter.Value>
-                                </Setter>
-                                <Setter TargetName="edgeBorder" Property="BorderBrush" Value="#FFB74D"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- ══ ESTILO TARJETA SALIR (ROJA) ══ -->
-        <Style x:Key="CardButtonExit" TargetType="Button" BasedOn="{StaticResource CardButton}">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Grid>
-                            <Border x:Name="bgBorder" CornerRadius="14" Opacity="0.6">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                        <GradientStop Color="#1F0C0E" Offset="0"/>
-                                        <GradientStop Color="#2A1114" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                            </Border>
-                            <Border x:Name="edgeBorder" CornerRadius="14" BorderThickness="1.5" BorderBrush="#3D1519"/>
-                            <Border CornerRadius="14" Padding="16,0">
-                                <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
-                            </Border>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="bgBorder" Property="Opacity" Value="1.0"/>
-                                <Setter TargetName="bgBorder" Property="Background">
-                                    <Setter.Value>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#3A1215" Offset="0"/>
-                                            <GradientStop Color="#4E1A1F" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Setter.Value>
-                                </Setter>
-                                <Setter TargetName="edgeBorder" Property="BorderBrush" Value="#FF5252"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bgBorder" Property="Opacity" Value="1.0"/>
-                                <Setter TargetName="bgBorder" Property="Background">
-                                    <Setter.Value>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#451619" Offset="0"/>
-                                            <GradientStop Color="#5A1F24" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Setter.Value>
-                                </Setter>
-                                <Setter TargetName="edgeBorder" Property="BorderBrush" Value="#FF5252"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#30FFFFFF"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -186,287 +61,330 @@
     </Window.Resources>
 
     <Grid>
-        <!-- Fondo con doble gradiente radial para profundidad -->
-        <Grid.Background>
-            <RadialGradientBrush Center="0.3,0.1" GradientOrigin="0.3,0.1" RadiusX="1.2" RadiusY="1.0">
-                <GradientStop Color="#0E1E35" Offset="0.0"/>
-                <GradientStop Color="#080C14" Offset="0.8"/>
-            </RadialGradientBrush>
-        </Grid.Background>
-        <!-- Segundo gradiente decorativo -->
-        <Border Opacity="0.35">
+        <!-- AREA TRANSPARENTE: click aquí = cerrar -->
+        <Border Background="#01000000" MouseLeftButtonDown="AreaTransparente_MouseDown"/>
+
+        <!-- CAJÓN LATERAL DERECHO (Estilo Game Bar / Gamescope) -->
+        <Border x:Name="CajonLateral" HorizontalAlignment="Right" Width="310" 
+                BorderBrush="#25FFFFFF" BorderThickness="1,0,0,0"
+                Margin="0,0,0,0">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="CajonTranslate" X="310" />
+            </Border.RenderTransform>
             <Border.Background>
-                <RadialGradientBrush Center="0.85,0.9" GradientOrigin="0.85,0.9" RadiusX="0.5" RadiusY="0.5">
-                    <GradientStop Color="#1A0A30" Offset="0.0"/>
-                    <GradientStop Color="Transparent" Offset="1.0"/>
-                </RadialGradientBrush>
+                <SolidColorBrush Color="#F0181818"/>
             </Border.Background>
-        </Border>
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="20" ShadowDepth="0" Color="#000000" Opacity="0.5"/>
+            </Border.Effect>
 
-        <Grid Margin="60,28,60,20">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+            <Grid Margin="20,24,20,20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-            <!-- ══ CABECERA ══ -->
-            <Grid Grid.Row="0" Margin="0,0,0,24">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Logo circular con brillo -->
-                    <Grid Width="56" Height="56" Margin="0,0,18,0">
-                        <Ellipse Fill="#0A1628" Stroke="#00AAFF" StrokeThickness="2"/>
-                        <TextBlock Text="WL" FontSize="20" FontWeight="Black" Foreground="#00CCFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Grid>
-                    <StackPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="WLSteamOS" FontSize="28" FontWeight="Black" Foreground="#00CCFF"/>
-                            <TextBlock Text="  Recovery" FontSize="28" FontWeight="Light" Foreground="#FFFFFF" Opacity="0.85"/>
-                        </StackPanel>
-                        <TextBlock x:Name="lblEstadoSubtitulo" Text="Se ha pausado la sesión. Selecciona una acción con el mando o teclado." FontSize="13" Foreground="#6B8EAD" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- Indicador de estado -->
-                <Border HorizontalAlignment="Right" VerticalAlignment="Center" CornerRadius="20" Padding="14,7"
-                        Background="#0C1622" BorderBrush="#1A3050" BorderThickness="1">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse x:Name="dotEstado" Width="8" Height="8" Fill="#00E676" Margin="0,0,10,0"/>
-                        <TextBlock x:Name="lblEstadoConexion" Text="MANDO CONECTADO" FontSize="11" FontWeight="Bold" Foreground="#8FAFC8"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
-
-            <!-- ══ CONTENIDO CENTRAL ══ -->
-            <Grid Grid.Row="1">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="530"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- ── TARJETAS ── -->
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,28,0">
-                    
-                    <!-- 1. Reintentar Steam -->
-                    <Button x:Name="btnReintentar" Style="{StaticResource CardButton}" Click="BtnReintentar_Click">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="56"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid Width="44" Height="44">
-                                <Ellipse>
-                                    <Ellipse.Fill>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#0D3A6E" Offset="0"/>
-                                            <GradientStop Color="#0A2648" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Ellipse.Fill>
-                                </Ellipse>
-                                <Path Data="{StaticResource IconRefresh}" Fill="#4FC3F7" Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
-                                <TextBlock Text="Reintentar lanzamiento de Steam" FontSize="15" FontWeight="Bold" Foreground="#E8F0FE"/>
-                                <TextBlock Text="Limpia la memoria y vuelve a abrir Steam Big Picture" FontSize="11.5" Foreground="#6B8EAD" Margin="0,2,0,0"/>
-                            </StackPanel>
-                        </Grid>
-                    </Button>
-
-                    <!-- 2. Reparar CDN -->
-                    <Button x:Name="btnRepararCDN" Style="{StaticResource CardButton}" Click="BtnRepararCDN_Click">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="56"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid Width="44" Height="44">
-                                <Ellipse>
-                                    <Ellipse.Fill>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#0D4A30" Offset="0"/>
-                                            <GradientStop Color="#083820" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Ellipse.Fill>
-                                </Ellipse>
-                                <Path Data="{StaticResource IconCDN}" Fill="#66BB6A" Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
-                                <TextBlock Text="Reinstalar / Reparar Steam (CDN Valve)" FontSize="15" FontWeight="Bold" Foreground="#E8F0FE"/>
-                                <TextBlock Text="Descarga silenciosa de la última versión oficial" FontSize="11.5" Foreground="#6B8EAD" Margin="0,2,0,0"/>
-                            </StackPanel>
-                        </Grid>
-                    </Button>
-
-                    <!-- 3. Restaurar Pantallas -->
-                    <Button x:Name="btnRestaurarPantalla" Style="{StaticResource CardButton}" Click="BtnRestaurarPantalla_Click">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="56"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid Width="44" Height="44">
-                                <Ellipse>
-                                    <Ellipse.Fill>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#4A3800" Offset="0"/>
-                                            <GradientStop Color="#352800" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Ellipse.Fill>
-                                </Ellipse>
-                                <Path Data="{StaticResource IconDisplay}" Fill="#FFCA28" Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
-                                <TextBlock Text="Restaurar Pantallas y Resoluciones" FontSize="15" FontWeight="Bold" Foreground="#E8F0FE"/>
-                                <TextBlock Text="Restablece topología visual y Hz por defecto" FontSize="11.5" Foreground="#6B8EAD" Margin="0,2,0,0"/>
-                            </StackPanel>
-                        </Grid>
-                    </Button>
-
-                    <!-- 4. Ver Logs -->
-                    <Button x:Name="btnVerLogs" Style="{StaticResource CardButton}" Click="BtnVerLogs_Click">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="56"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid Width="44" Height="44">
-                                <Ellipse>
-                                    <Ellipse.Fill>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#2E1565" Offset="0"/>
-                                            <GradientStop Color="#1A0D40" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Ellipse.Fill>
-                                </Ellipse>
-                                <Path Data="{StaticResource IconLogs}" Fill="#CE93D8" Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
-                                <TextBlock Text="Ver Registro de Errores" FontSize="15" FontWeight="Bold" Foreground="#E8F0FE"/>
-                                <TextBlock Text="Consulta diagnósticos detallados del sistema" FontSize="11.5" Foreground="#6B8EAD" Margin="0,2,0,0"/>
-                            </StackPanel>
-                        </Grid>
-                    </Button>
-
-                    <!-- Separador sutil -->
-                    <Border Height="1" Margin="10,6,10,8" Opacity="0.25" Background="#2A4060"/>
-
-                    <!-- 5. Cerrar Sesión -->
-                    <Button x:Name="btnCerrarSesion" Style="{StaticResource CardButtonLogoff}" Click="BtnCerrarSesion_Click">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="56"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid Width="44" Height="44">
-                                <Ellipse>
-                                    <Ellipse.Fill>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#5A3D00" Offset="0"/>
-                                            <GradientStop Color="#3D2900" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Ellipse.Fill>
-                                </Ellipse>
-                                <Path Data="{StaticResource IconLock}" Fill="#FFD54F" Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
-                                <TextBlock Text="Cerrar Sesión de Windows" FontSize="15" FontWeight="Bold" Foreground="#FFE082"/>
-                                <TextBlock Text="Regresa a la pantalla de usuarios de Windows" FontSize="11.5" Foreground="#B8924A" Margin="0,2,0,0"/>
-                            </StackPanel>
-                        </Grid>
-                    </Button>
-
-                    <!-- 6. Modo Escritorio -->
-                    <Button x:Name="btnModoEscritorio" Style="{StaticResource CardButtonExit}" Click="BtnModoEscritorio_Click">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="56"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid Width="44" Height="44">
-                                <Ellipse>
-                                    <Ellipse.Fill>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#5A1520" Offset="0"/>
-                                            <GradientStop Color="#3D0E15" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Ellipse.Fill>
-                                </Ellipse>
-                                <Path Data="{StaticResource IconExit}" Fill="#EF5350" Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
-                                <TextBlock Text="Cargar Escritorio de Windows" FontSize="15" FontWeight="Bold" Foreground="#EF9A9A"/>
-                                <TextBlock Text="Cierra Steam y carga explorer.exe" FontSize="11.5" Foreground="#A05A5A" Margin="0,2,0,0"/>
-                            </StackPanel>
-                        </Grid>
-                    </Button>
-                </StackPanel>
-
-                <!-- ── TERMINAL DE LOGS ── -->
-                <Border Grid.Column="1" CornerRadius="14" Padding="20">
-                    <Border.Background>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="#060910" Offset="0"/>
-                            <GradientStop Color="#080D16" Offset="1"/>
-                        </LinearGradientBrush>
-                    </Border.Background>
-                    <Border.BorderBrush>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="#1A2D45" Offset="0"/>
-                            <GradientStop Color="#101A28" Offset="1"/>
-                        </LinearGradientBrush>
-                    </Border.BorderBrush>
-                    <Border.BorderThickness>
-                        <Thickness>1.5</Thickness>
-                    </Border.BorderThickness>
+                <!-- ═══ HEADER (DASHBOARD) ═══ -->
+                <StackPanel Grid.Row="0" Margin="0,0,0,20">
                     <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Quick Access" FontSize="18" FontWeight="SemiBold" Foreground="#E0E0E0" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="lblHora" Grid.Column="1" Text="12:00" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                    </Grid>
+                    
+                    <Grid Margin="0,15,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                        <!-- Cabecera del terminal -->
-                        <Grid Grid.Row="0" Margin="0,0,0,12">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Ellipse Width="8" Height="8" Fill="#FF5F56" Margin="0,0,5,0"/>
-                                <Ellipse Width="8" Height="8" Fill="#FFBD2E" Margin="0,0,5,0"/>
-                                <Ellipse Width="8" Height="8" Fill="#27C93F" Margin="0,0,14,0"/>
-                                <TextBlock Text="SYSTEM TELEMETRY" FontSize="11" FontWeight="Bold" Foreground="#4A6A85"/>
+                        <!-- ROW 0: CPU & RAM -->
+                        <StackPanel Grid.Row="0" Grid.Column="0">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="CPU" FontSize="11" Foreground="#A0A0A0" FontWeight="SemiBold" Width="30"/>
+                                <TextBlock x:Name="lblCPU" Text="0%" FontSize="11" Foreground="#FFFFFF" FontWeight="Bold" Margin="0,0,5,0"/>
+                                <TextBlock x:Name="lblCPUTemp" Text="--°C" FontSize="11" Foreground="#FFB74D" FontWeight="Bold"/>
                             </StackPanel>
-                            <TextBlock x:Name="lblUltimaActualizacion" Text="Actualizado" FontSize="10" Foreground="#3A5068" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        </Grid>
+                            <ProgressBar x:Name="barCPU" Height="4" Value="0" Maximum="100" Background="#20FFFFFF" Foreground="#4FC3F7" BorderThickness="0"/>
+                        </StackPanel>
 
-                        <ScrollViewer x:Name="scrollLogs" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-                            <TextBox x:Name="txtLogs" Background="Transparent" Foreground="#6B8EAD" BorderThickness="0" 
-                                     FontFamily="Cascadia Mono, Consolas, Courier New" FontSize="11" IsReadOnly="True" TextWrapping="NoWrap"
-                                     AcceptsReturn="True"/>
-                        </ScrollViewer>
+                        <StackPanel Grid.Row="0" Grid.Column="2">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="RAM" FontSize="11" Foreground="#A0A0A0" FontWeight="SemiBold" Width="30"/>
+                                <TextBlock x:Name="lblRAM" Text="0%" FontSize="11" Foreground="#FFFFFF" FontWeight="Bold"/>
+                            </StackPanel>
+                            <ProgressBar x:Name="barRAM" Height="4" Value="0" Maximum="100" Background="#20FFFFFF" Foreground="#CE93D8" BorderThickness="0"/>
+                        </StackPanel>
+
+                        <!-- ROW 2: GPU & DISK -->
+                        <StackPanel Grid.Row="2" Grid.Column="0">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="GPU" FontSize="11" Foreground="#A0A0A0" FontWeight="SemiBold" Width="30"/>
+                                <TextBlock x:Name="lblGPU" Text="0%" FontSize="11" Foreground="#FFFFFF" FontWeight="Bold" Margin="0,0,5,0"/>
+                                <TextBlock x:Name="lblGPUTemp" Text="--°C" FontSize="11" Foreground="#FFB74D" FontWeight="Bold"/>
+                            </StackPanel>
+                            <ProgressBar x:Name="barGPU" Height="4" Value="0" Maximum="100" Background="#20FFFFFF" Foreground="#81C784" BorderThickness="0"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2" Grid.Column="2">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="DISK" FontSize="11" Foreground="#A0A0A0" FontWeight="SemiBold" Width="30"/>
+                                <TextBlock x:Name="lblDisk" Text="0%" FontSize="11" Foreground="#FFFFFF" FontWeight="Bold"/>
+                            </StackPanel>
+                            <ProgressBar x:Name="barDisk" Height="4" Value="0" Maximum="100" Background="#20FFFFFF" Foreground="#FF8A65" BorderThickness="0"/>
+                        </StackPanel>
+
+                        <!-- ROW 4: NET & BATTERY -->
+                        <StackPanel Grid.Row="4" Grid.Column="0">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="NET" FontSize="11" Foreground="#A0A0A0" FontWeight="SemiBold" Width="30"/>
+                                <TextBlock x:Name="lblNet" Text="0 KB/s" FontSize="11" Foreground="#FFFFFF" FontWeight="Bold"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel x:Name="panelBateria" Grid.Row="4" Grid.Column="2" Orientation="Horizontal" Visibility="Collapsed">
+                            <TextBlock Text="BATT" FontSize="11" Foreground="#A0A0A0" FontWeight="SemiBold" Width="35"/>
+                            <TextBlock x:Name="lblBateria" Text="100%" FontSize="11" Foreground="#FFFFFF" FontWeight="Bold"/>
+                        </StackPanel>
                     </Grid>
-                </Border>
-            </Grid>
 
-            <!-- ══ BARRA INFERIOR ══ -->
-            <Border Grid.Row="2" Margin="0,16,0,0" Padding="0,12,0,0" BorderBrush="#152030" BorderThickness="0,1,0,0">
-                <Grid>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
-                        <Border Background="#00AAFF" CornerRadius="4" Width="24" Height="24" Margin="0,0,8,0">
-                            <TextBlock Text="A" FontSize="13" FontWeight="Black" Foreground="#080C14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <TextBlock Text="SELECCIONAR" FontSize="11" FontWeight="Bold" Foreground="#8FAFC8" VerticalAlignment="Center" Margin="0,0,28,0"/>
+                    <Rectangle Height="1" Margin="0,15,0,0" Fill="#20FFFFFF"/>
+                </StackPanel>
 
-                        <Border Background="#FF5252" CornerRadius="4" Width="24" Height="24" Margin="0,0,8,0">
-                            <TextBlock Text="B" FontSize="13" FontWeight="Black" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <TextBlock Text="ESCRITORIO" FontSize="11" FontWeight="Bold" Foreground="#8FAFC8" VerticalAlignment="Center" Margin="0,0,28,0"/>
+                <!-- ═══ ITEMS ═══ -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Hidden">
+                    <StackPanel>
 
-                        <Border Background="#152030" CornerRadius="4" Padding="10,4" Margin="0,0,8,0" BorderBrush="#253848" BorderThickness="1">
-                            <TextBlock Text="D-PAD" FontSize="10" FontWeight="Black" Foreground="#4FC3F7"/>
-                        </Border>
-                        <TextBlock Text="NAVEGAR" FontSize="11" FontWeight="Bold" Foreground="#8FAFC8" VerticalAlignment="Center"/>
+                        <!-- SECCIÓN: AJUSTES RÁPIDOS -->
+                        <TextBlock Text="AJUSTES RÁPIDOS" FontSize="10" FontWeight="Bold" Foreground="#80FFFFFF" Margin="6,4,0,4"/>
+
+                        <!-- VOLUMEN -->
+                        <Button x:Name="btnVolumen" Style="{StaticResource QamBtn}" Click="BtnVolumen_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconVolume}" Fill="#D0D0D0" Stretch="Uniform"/></Viewbox>
+                                <TextBlock Grid.Column="1" Text="Volumen" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="lblValVolumen" Grid.Column="2" Text="85%" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- FPS -->
+                        <Button x:Name="btnLimiteFPS" Style="{StaticResource QamBtn}" Click="BtnLimiteFPS_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconFPS}" Fill="#D0D0D0" Stretch="Uniform"/></Viewbox>
+                                <TextBlock Grid.Column="1" Text="Límite FPS" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="lblValFPS" Grid.Column="2" Text="60" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- OVERLAY -->
+                        <Button x:Name="btnNivelOSD" Style="{StaticResource QamBtn}" Click="BtnNivelOSD_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconPerf}" Fill="#D0D0D0" Stretch="Uniform"/></Viewbox>
+                                <TextBlock Grid.Column="1" Text="Capa de Rendimiento" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="lblValOSD" Grid.Column="2" Text="Desactivado" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- GPU STRETCH -->
+                        <Button x:Name="btnGpuStretch" Style="{StaticResource QamBtn}" Click="BtnGpuStretch_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconStretch}" Fill="#D0D0D0" Stretch="Uniform"/></Viewbox>
+                                <TextBlock Grid.Column="1" Text="Escalado GPU" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="lblValStretch" Grid.Column="2" Text="Activado" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- LIBERAR MEMORIA RAM -->
+                        <Button x:Name="btnLiberarRAM" Style="{StaticResource QamBtn}" Click="BtnLiberarRAM_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconRam}" Fill="#D0D0D0" Stretch="Uniform"/></Viewbox>
+                                <TextBlock x:Name="txtLiberarRAM" Grid.Column="1" Text="Liberar Memoria RAM" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <Rectangle Height="1" Margin="4,10" Fill="#20FFFFFF"/>
+
+                        <!-- SECCIÓN: MANTENIMIENTO -->
+                        <TextBlock Text="MANTENIMIENTO" FontSize="10" FontWeight="Bold" Foreground="#80FFFFFF" Margin="6,4,0,4"/>
+
+                        <!-- REINICIAR -->
+                        <Button x:Name="btnReintentar" Style="{StaticResource QamBtn}" Click="BtnReintentar_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconRefresh}" Fill="#D0D0D0" Stretch="Uniform"/></Viewbox>
+                                <TextBlock x:Name="txtReintentar" Grid.Column="1" Text="Reiniciar Steam" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- REINSTALAR STEAM -->
+                        <Button x:Name="btnReinstalarSteam" Style="{StaticResource QamBtn}" Click="BtnReinstalarSteam_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconDownload}" Fill="#D0D0D0" Stretch="Uniform"/></Viewbox>
+                                <TextBlock x:Name="txtReinstalarSteam" Grid.Column="1" Text="Reinstalar Steam" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- RESTAURAR -->
+                        <Button x:Name="btnRestaurarPantalla" Style="{StaticResource QamBtn}" Click="BtnRestaurarPantalla_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconDisplay}" Fill="#D0D0D0" Stretch="Uniform"/></Viewbox>
+                                <TextBlock Grid.Column="1" Text="Restaurar Pantalla" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <Rectangle Height="1" Margin="4,10" Fill="#20FFFFFF"/>
+
+                        <!-- SECCIÓN: OPCIONES DE ENERGÍA -->
+                        <TextBlock Text="OPCIONES DE ENERGÍA" FontSize="10" FontWeight="Bold" Foreground="#80FFFFFF" Margin="6,4,0,4"/>
+
+                        <!-- SUSPENDER CONSOLA -->
+                        <Button x:Name="btnSuspenderConsola" Style="{StaticResource QamBtn}" Click="BtnSuspenderConsola_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconSleep}" Fill="#D0D0D0" Stretch="Uniform"/></Viewbox>
+                                <TextBlock Grid.Column="1" Text="Suspender Consola" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- HIBERNAR CONSOLA -->
+                        <Button x:Name="btnHibernarConsola" Style="{StaticResource QamBtn}" Click="BtnHibernarConsola_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconSleep}" Fill="#60A5FA" Stretch="Uniform"/></Viewbox>
+                                <TextBlock Grid.Column="1" Text="Hibernar Consola" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- CERRAR SESION DE WINDOWS (AMARILLO) -->
+                        <Button x:Name="btnCerrarSesion" Style="{StaticResource QamBtn}" Click="BtnCerrarSesion_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconLock}" Fill="#FFC107" Stretch="Uniform"/></Viewbox>
+                                <TextBlock Grid.Column="1" Text="Cerrar Sesión de Windows" FontSize="13" FontWeight="SemiBold" Foreground="#FFC107" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- REINICIAR CONSOLA -->
+                        <Button x:Name="btnReiniciarConsola" Style="{StaticResource QamBtn}" Click="BtnReiniciarConsola_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconRefresh}" Fill="#D0D0D0" Stretch="Uniform"/></Viewbox>
+                                <TextBlock Grid.Column="1" Text="Reiniciar Consola" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- APAGAR CONSOLA (ROJO) -->
+                        <Button x:Name="btnApagarConsola" Style="{StaticResource QamBtn}" Click="BtnApagarConsola_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconPower}" Fill="#FF6B6B" Stretch="Uniform"/></Viewbox>
+                                <TextBlock Grid.Column="1" Text="Apagar Consola" FontSize="13" FontWeight="SemiBold" Foreground="#FF6B6B" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
+                        <Rectangle Height="1" Margin="4,10" Fill="#20FFFFFF"/>
+
+                        <!-- SECCIÓN: SALIDA -->
+                        <TextBlock Text="SALIDA" FontSize="10" FontWeight="Bold" Foreground="#80FFFFFF" Margin="6,4,0,4"/>
+
+                        <!-- ESCRITORIO -->
+                        <Button x:Name="btnModoEscritorio" Style="{StaticResource QamBtn}" Click="BtnModoEscritorio_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Width="18" Height="18"><Path Data="{StaticResource IconExit}" Fill="#D0D0D0" Stretch="Uniform"/></Viewbox>
+                                <TextBlock Grid.Column="1" Text="Salir al Escritorio" FontSize="13" FontWeight="Normal" Foreground="#D0D0D0" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+
                     </StackPanel>
+                </ScrollViewer>
 
-                    <TextBlock Text="WLSteamOS v4.0" FontSize="11" FontWeight="Bold" Foreground="#253848" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                <!-- ═══ OVERLAY DE CONFIRMACIÓN (CONSOLA) ═══ -->
+                <Grid x:Name="OverlayConfirmacion" Grid.RowSpan="3" Visibility="Collapsed" Background="#F0121212" Margin="-20,-24,-20,-20">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="25,0">
+                        <Viewbox Width="40" Height="40" HorizontalAlignment="Center" Margin="0,0,0,12">
+                            <Path Data="{StaticResource IconPower}" Fill="#FFC107" Stretch="Uniform"/>
+                        </Viewbox>
+                        <TextBlock x:Name="txtTituloConfirmacion" Text="¿Confirmar acción?" FontSize="17" FontWeight="Bold" Foreground="#FFFFFF" TextAlignment="Center" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="txtSubtituloConfirmacion" Text="Se cerrará cualquier juego sin guardar." FontSize="12" Foreground="#A0A0A0" TextAlignment="Center" Margin="0,8,0,24" TextWrapping="Wrap"/>
+
+                        <StackPanel Orientation="Vertical">
+                            <Button x:Name="btnConfirmarAccion" Style="{StaticResource QamBtn}" Click="BtnConfirmarAccion_Click" Height="44">
+                                <TextBlock Text="Sí, Confirmar" FontSize="14" FontWeight="Bold" Foreground="#FF6B6B" HorizontalAlignment="Center"/>
+                            </Button>
+                            <Button x:Name="btnCancelarAccion" Style="{StaticResource QamBtn}" Click="BtnCancelarAccion_Click" Height="44" Margin="0,8,0,0">
+                                <TextBlock Text="Cancelar" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center"/>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
                 </Grid>
-            </Border>
-        </Grid>
+
+            </Grid>
+        </Border>
     </Grid>
 </Window>

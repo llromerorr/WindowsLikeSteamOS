@@ -325,8 +325,8 @@ namespace SteamOSConfigurator.Services
 
                                     juegoActivo = proc;
                                     _juegoActivoHwnd = fgHwnd;
-                                    keyboardHookService.Suspendido = true;
-                                    Logger.Log($"[MonitorDeJuegosAsync] Juego detectado en primer plano: '{pName}' (PID={pid}, Title=\"{titulo}\"). Ocultando Steam y suspendiendo hook de teclado.");
+                                    // Mantener el hook de teclado activo durante el juego para bloquear Alt+Tab, Alt+F4 y Tecla Windows
+                                    Logger.Log($"[MonitorDeJuegosAsync] Juego detectado en primer plano: '{pName}' (PID={pid}, Title=\"{titulo}\"). Ocultando ventanas secundarias de Steam.");
                                     CambiarVisibilidadSteam(true);
                                 }
                                 else

@@ -60,8 +60,18 @@ namespace SteamOSConfigurator.Services
                 bool altPressed = (GetKeyState(0x12) & 0x8000) != 0;
                 bool ctrlPressed = (GetKeyState(0x11) & 0x8000) != 0;
 
-                if ((vkCode == 0x09 && altPressed) || (vkCode == 0x1B && altPressed) || (vkCode == 0x1B && ctrlPressed) || vkCode == 0x5B || vkCode == 0x5C)
+                // vkCode == 0x09: Tab, 0x1B: Esc, 0x5B/0x5C: Windows Keys, 0x73: F4
+                bool isAltTab = (vkCode == 0x09 && altPressed);
+                bool isAltEsc = (vkCode == 0x1B && altPressed);
+                bool isCtrlEsc = (vkCode == 0x1B && ctrlPressed);
+                bool isWinKey = (vkCode == 0x5B || vkCode == 0x5C);
+                bool isAltF4 = (vkCode == 0x73 && altPressed);
+
+                if (isAltTab || isAltEsc || isCtrlEsc || isWinKey || isAltF4)
+                {
+                    Logger.Log($"[KeyboardHookService] Tecla/Atajo bloqueado: VK=0x{vkCode:X}");
                     return new IntPtr(1);
+                }
             }
             return CallNextHookEx(_keyboardHook, nCode, wParam, lParam);
         }
