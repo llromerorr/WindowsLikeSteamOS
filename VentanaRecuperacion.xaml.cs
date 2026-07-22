@@ -62,6 +62,7 @@ namespace SteamOSConfigurator
         private Action? _accionConfirmada;
         private bool _modoConfirmacion = false;
         private List<Button> _botonesOriginales = new();
+        private int _indiceOriginal = 0;
 
         public static VentanaRecuperacion? Instancia { get; private set; }
 
@@ -132,7 +133,17 @@ namespace SteamOSConfigurator
             if (_focusedIndex >= 0 && _focusedIndex < _botonesNavegables.Count)
                 _botonesNavegables[_focusedIndex].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         });
-        public void NavBack() => Dispatcher.Invoke(() => OcultarPanel());
+        public void NavBack() => Dispatcher.Invoke(() => 
+        {
+            if (_modoConfirmacion)
+            {
+                OcultarConfirmacion();
+            }
+            else
+            {
+                OcultarPanel();
+            }
+        });
 
         // ══════════════════════════════════════════════════════════════
         //  FORZAR FOCO (Win32 AttachThreadInput)
@@ -178,6 +189,7 @@ namespace SteamOSConfigurator
         {
             _accionConfirmada = accion;
             _modoConfirmacion = true;
+            _indiceOriginal = _focusedIndex;
             txtTituloConfirmacion.Text = titulo;
             txtSubtituloConfirmacion.Text = subtitulo;
             OverlayConfirmacion.Visibility = Visibility.Visible;
@@ -207,8 +219,8 @@ namespace SteamOSConfigurator
             if (_botonesOriginales.Count > 0)
             {
                 _botonesNavegables = new List<Button>(_botonesOriginales);
+                _focusedIndex = _indiceOriginal;
             }
-            _focusedIndex = 0;
             ActualizarEstilosBotones();
         }
 
@@ -274,20 +286,12 @@ namespace SteamOSConfigurator
             float gpuTemp = SysInfo.GetGpuTemp();
             lblGPUTemp.Text = gpuTemp > 0 ? $"{gpuTemp:0}°C" : "--°C";
 
-            float diskLoad = (float)Math.Clamp(SysInfo.GetDiskReadWriteMBps(), 0, 100);
-            lblDisk.Text = $"{diskLoad:0.0}MB/s";
-            barDisk.Value = Math.Min(diskLoad, 100);
-
-            float netSpeed = SysInfo.GetNetworkSpeedKbps();
-            lblNet.Text = netSpeed > 1024 ? $"{(netSpeed/1024f):0.0} MB/s" : $"{netSpeed:0} KB/s";
-
             var (isCharging, batteryPercent) = SysInfo.GetBatteryStatus();
-            if (!isCharging && batteryPercent < 100)
+            if (batteryPercent >= 0)
             {
                 panelBateria.Visibility = Visibility.Visible;
                 lblBateria.Text = $"{batteryPercent}%";
-                if (batteryPercent < 20) lblBateria.Foreground = new SolidColorBrush(Color.FromRgb(255, 80, 80));
-                else lblBateria.Foreground = new SolidColorBrush(Colors.White);
+                barBateria.Value = batteryPercent;
             }
             else
             {
@@ -363,8 +367,8 @@ namespace SteamOSConfigurator
                 var btn = _botonesNavegables[i];
                 if (i == _focusedIndex)
                 {
-                    btn.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
-                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 255, 255, 255));
+                    btn.Background = new SolidColorBrush(Color.FromRgb(42, 63, 94)); // Steam Pill Cyan Background (#2A3F5E)
+                    btn.ClearValue(Button.BorderBrushProperty);
                 }
                 else
                 {
@@ -457,7 +461,7 @@ namespace SteamOSConfigurator
         {
             App.ReinstalandoOReinicioSteam = true;
             btnReintentar.IsEnabled = false;
-            txtReintentar.Text = "Cerrando Steam...";
+            lblEstadoReiniciarSteam.Text = "Cerrando...";
 
             await Task.Run(() =>
             {
@@ -466,7 +470,7 @@ namespace SteamOSConfigurator
             });
 
             await Task.Delay(1500);
-            txtReintentar.Text = "Iniciando Steam...";
+            lblEstadoReiniciarSteam.Text = "Iniciando...";
 
             await Task.Run(() =>
             {
@@ -478,9 +482,9 @@ namespace SteamOSConfigurator
             });
 
             await Task.Delay(3000);
-            txtReintentar.Text = "¡Steam Reiniciado!";
+            lblEstadoReiniciarSteam.Text = "¡Listo!";
             await Task.Delay(2000);
-            txtReintentar.Text = "Reiniciar Steam";
+            lblEstadoReiniciarSteam.Text = "";
             btnReintentar.IsEnabled = true;
             App.ReinstalandoOReinicioSteam = false;
         }
@@ -498,19 +502,19 @@ namespace SteamOSConfigurator
         {
             App.ReinstalandoOReinicioSteam = true;
             btnReinstalarSteam.IsEnabled = false;
-            txtReinstalarSteam.Text = "Instalando...";
+            lblEstadoReinstalar.Text = "Instalando...";
             
             bool exito = await _dependencyService.InstalarSteamAsync(estado => 
             {
-                Dispatcher.Invoke(() => txtReinstalarSteam.Text = estado);
+                Dispatcher.Invoke(() => lblEstadoReinstalar.Text = estado);
             });
 
             Dispatcher.Invoke(() =>
             {
-                txtReinstalarSteam.Text = exito ? "Reinstalado con éxito" : "Error al reinstalar";
+                lblEstadoReinstalar.Text = exito ? "¡Listo!" : "Error";
                 Task.Delay(3000).ContinueWith(_ => Dispatcher.Invoke(() => 
                 {
-                    txtReinstalarSteam.Text = "Reinstalar Steam";
+                    lblEstadoReinstalar.Text = "";
                     btnReinstalarSteam.IsEnabled = true;
                     App.ReinstalandoOReinicioSteam = false;
                 }));
@@ -524,7 +528,7 @@ namespace SteamOSConfigurator
 
         private async void BtnLiberarRAM_Click(object sender, RoutedEventArgs e)
         {
-            txtLiberarRAM.Text = "Liberando RAM...";
+            lblValRAM.Text = "Liberando...";
             btnLiberarRAM.IsEnabled = false;
 
             await Task.Run(() => 
@@ -541,9 +545,9 @@ namespace SteamOSConfigurator
                 catch { }
             });
 
-            txtLiberarRAM.Text = "¡RAM Liberada!";
+            lblValRAM.Text = "¡RAM Liberada!";
             await Task.Delay(2000);
-            txtLiberarRAM.Text = "Liberar Memoria RAM";
+            lblValRAM.Text = "Limpiar";
             btnLiberarRAM.IsEnabled = true;
         }
 

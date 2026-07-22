@@ -194,8 +194,15 @@ namespace SteamOSConfigurator.Helpers
         public static (bool IsCharging, int BatteryPercent) GetBatteryStatus()
         {
             var power = new SYSTEM_POWER_STATUS();
-            if (GetSystemPowerStatus(power)) return (power.ACLineStatus == 1, power.BatteryLifePercent);
-            return (true, 100);
+            if (GetSystemPowerStatus(power))
+            {
+                if (power.BatteryLifePercent == 255 || power.BatteryFlag == 128)
+                {
+                    return (true, -1); // Sin batería (PC de Escritorio / Mini PC)
+                }
+                return (power.ACLineStatus == 1, power.BatteryLifePercent);
+            }
+            return (true, -1);
         }
     }
 }
