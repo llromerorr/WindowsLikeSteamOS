@@ -65,7 +65,7 @@ namespace SteamOSConfigurator
                     }
                 }
             } 
-            catch (Exception ex) { Logger.Log($"Error al activar Fast Sync: {ex.Message}"); }
+            catch (Exception ex) { Logger.Log($"NVIDIA Fast Sync no disponible en este sistema: {ex.Message}"); }
         }
 
         public static void Restaurar()
@@ -90,7 +90,7 @@ namespace SteamOSConfigurator
                     }
                 }
             } 
-            catch (Exception ex) { Logger.Log($"Error al restaurar Fast Sync: {ex.Message}"); }
+            catch (Exception ex) { Logger.Log($"NVIDIA Fast Sync no disponible en este sistema: {ex.Message}"); }
         }
     }
 
@@ -119,6 +119,8 @@ namespace SteamOSConfigurator
             AplicarConfiguracion(limiteFPS, NivelOSDActual);
         }
 
+        public static string OsdEngineActual { get; private set; } = "WPF";
+
         private static System.Threading.Timer? _osdTimer;
 
         public static void IniciarOSDBackground()
@@ -128,7 +130,7 @@ namespace SteamOSConfigurator
                 _osdTimer = new System.Threading.Timer(_ => 
                 {
                     int nivel = NivelOSDActual;
-                    if (nivel <= 0)
+                    if (nivel <= 0 || OsdEngineActual != "RTSS")
                     {
                         RTSSSharedMemory.UpdateOSD("");
                         return;
@@ -141,81 +143,129 @@ namespace SteamOSConfigurator
                     float gpuTemp = SysInfo.GetGpuTemp();
                     float diskLoad = (float)Math.Clamp(SysInfo.GetDiskReadWriteMBps(), 0, 100);
 
-                    string text = "";
-                    if (nivel == 1) // FPS
+                    string osdText = "";
+                    if (nivel == 1)
                     {
-                        // RTSS handles FPS natively via profile
-                        text = "";
+                        osdText = "<C=66C0F4>FPS";
                     }
-                    else if (nivel == 2) // GPU/CPU
+                    else if (nivel == 2)
                     {
-                        string cTempStr = cpuTemp > 0 ? $" {cpuTemp:0}°C" : "";
-                        string gTempStr = gpuTemp > 0 ? $" {gpuTemp:0}°C" : "";
-                        text = $"<s=80><c=00FF88>CPU:</c> {cpu:0}%{cTempStr}  |  <c=00C8FF>GPU:</c> {gpuLoad:0}%{gTempStr}</s=";
+                        osdText = $"<C=66C0F4>CPU <C=FFFFFF>{cpu:F0}%   <C=66C0F4>GPU <C=FFFFFF>{gpuLoad:F0}%";
                     }
-                    else if (nivel == 3) // Frametime / Main stats
+                    else if (nivel == 3)
                     {
-                        text = $"<s=80><c=00FF88>CPU:</c> {cpu:0}%  |  <c=00C8FF>GPU:</c> {gpuLoad:0}%  |  <c=FFC800>RAM:</c> {ram:0}%</s=";
+                        osdText = $"<C=66C0F4>CPU <C=FFFFFF>{cpu:F0}% <C=FF8800>{cpuTemp:F0}°C   <C=66C0F4>GPU <C=FFFFFF>{gpuLoad:F0}% <C=FF8800>{gpuTemp:F0}°C";
                     }
-                    else if (nivel >= 4) // Full
+                    else if (nivel >= 4)
                     {
-                        string cTempStr = cpuTemp > 0 ? $" {cpuTemp:0}°C" : "";
-                        string gTempStr = gpuTemp > 0 ? $" {gpuTemp:0}°C" : "";
-                        text = $"<s=80><c=00FF88>CPU:</c> {cpu:0}%{cTempStr}\n<c=00C8FF>GPU:</c> {gpuLoad:0}%{gTempStr}\n<c=FFC800>RAM:</c> {ram:0}%\n<c=FF5050>DISK:</c> {diskLoad:0.0}MB/s</s=";
+                        float cpuFan = SysInfo.GetCpuFanRPM();
+                        float gpuFan = SysInfo.GetGpuFanRPM();
+                        string cpuFanStr = cpuFan > 0 ? $" <C=88FF88>{cpuFan:F0}RPM" : "";
+                        string gpuFanStr = gpuFan > 0 ? $" <C=88FF88>{gpuFan:F0}RPM" : "";
+                        osdText = $"<C=66C0F4>CPU <C=FFFFFF>{cpu:F0}% <C=FF8800>{cpuTemp:F0}°C{cpuFanStr}\n<C=66C0F4>GPU <C=FFFFFF>{gpuLoad:F0}% <C=FF8800>{gpuTemp:F0}°C{gpuFanStr}\n<C=66C0F4>RAM <C=FFFFFF>{ram:F1}GB";
                     }
 
-                    RTSSSharedMemory.UpdateOSD(text);
+                    RTSSSharedMemory.UpdateOSD(osdText);
                 }, null, 0, 1000);
             }
         }
 
-        public static void AplicarConfiguracion(int limiteFPS, int nivelOSD) 
+        public static void AplicarConfiguracion(int limiteFPS, int nivelOSD, string osdEngine = null) 
         { 
             try 
             { 
+                if (osdEngine == null) {
+                    var conf = SteamOSConfigurator.Helpers.ConfigManager.CargarConfiguracion();
+                    osdEngine = conf.OsdEngine;
+                }
                 LimiteFPSActual = limiteFPS;
                 NivelOSDActual = nivelOSD;
+                OsdEngineActual = osdEngine;
+                
+                // Actualizar nuestro propio HUD Overlay Nativo (VentanaHUD)
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    try
+                    {
+                        if (osdEngine == "WPF" && nivelOSD > 0)
+                        {
+                            if (VentanaHUD.Instancia == null)
+                            {
+                                var hud = new VentanaHUD();
+                                hud.Show();
+                            }
+                            VentanaHUD.Instancia?.ActualizarNivelOSD(nivelOSD);
+                        }
+                        else
+                        {
+                            if (VentanaHUD.Instancia != null)
+                            {
+                                VentanaHUD.Instancia.Close();
+                            }
+                        }
+                    }
+                    catch { }
+                });
+
                 IniciarOSDBackground();
 
                 string dirPerfiles = Path.GetDirectoryName(RutaPerfilGlobal)!; 
                 if (!Directory.Exists(dirPerfiles)) Directory.CreateDirectory(dirPerfiles); 
                 
-                int enableOSD = nivelOSD > 0 ? 1 : 0;
-                int showFramerate = nivelOSD >= 1 ? 1 : 0;
-                int showFrametime = nivelOSD >= 3 ? 1 : 0;
+                int enableOSD = (nivelOSD > 0 && osdEngine == "RTSS") ? 1 : 0; 
+                int showFramerate = (nivelOSD > 0 && osdEngine == "RTSS") ? 1 : 0;
+                int showFrametime = 0;
 
                 string configuracion = 
                     "[Settings]\nName=Global\n\n" +
-                    "[Hooking]\nEnableHooking=1\n\n" +
+                    "[Hooking]\nEnableHooking=1\nHookLevel=1\nInjectionDelay=0\n\n" +
                     $"[Framerate]\nLimit={limiteFPS}\nLimitDenominator=1\n\n" +
                     $"[OSD]\nEnableOSD={enableOSD}\nShowStat={enableOSD}\nShowFramerate={showFramerate}\nShowFrametime={showFrametime}\nPlacementX=15\nPlacementY=15\nPositionX=1\nPositionY=1\nZoomRatio=1\n"; 
                 
                 File.WriteAllText(RutaPerfilGlobal, configuracion); 
                 
-                // Forzar ShowOSD maestro en Config
+                // Auto-configurar llaves de Registro de Windows (para no requerir clicks del usuario)
                 try
                 {
                     string rutaConfig = Path.Combine(dirPerfiles, "Config");
-                    if (File.Exists(rutaConfig))
+                    var lineas = File.Exists(rutaConfig) ? File.ReadAllLines(rutaConfig).ToList() : new List<string> { "[Master]" };
+                    bool foundShowOSD = false, foundHooking = false;
+                    for (int i = 0; i < lineas.Count; i++)
                     {
-                        var lineas = File.ReadAllLines(rutaConfig).ToList();
-                        bool found = false;
-                        for (int i = 0; i < lineas.Count; i++)
+                        if (lineas[i].StartsWith("ShowOSD="))
                         {
-                            if (lineas[i].StartsWith("ShowOSD="))
-                            {
-                                lineas[i] = $"ShowOSD={enableOSD}";
-                                found = true;
-                                break;
-                            }
+                            lineas[i] = $"ShowOSD=0";
+                            foundShowOSD = true;
                         }
-                        if (!found) lineas.Add($"ShowOSD={enableOSD}");
-                        File.WriteAllLines(rutaConfig, lineas);
+                        if (lineas[i].StartsWith("EnableHooking="))
+                        {
+                            lineas[i] = "EnableHooking=1";
+                            foundHooking = true;
+                        }
+                    }
+                    if (!foundShowOSD) lineas.Add($"ShowOSD=0");
+                    if (!foundHooking) lineas.Add("EnableHooking=1");
+                    File.WriteAllLines(rutaConfig, lineas);
+                }
+                catch { }
+
+                // Auto-configurar llaves de Registro de Windows (para no requerir clicks del usuario)
+                try
+                {
+                    using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Unwinder\RTSS"))
+                    {
+                        if (key != null)
+                        {
+                            key.SetValue("ShowOSD", enableOSD, Microsoft.Win32.RegistryValueKind.DWord);
+                            key.SetValue("EnableOSD", enableOSD, Microsoft.Win32.RegistryValueKind.DWord);
+                            key.SetValue("StartWithWindows", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                            key.SetValue("StartMinimized", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                        }
                     }
                 }
                 catch { }
 
-                Logger.Log($"[RTSS] Perfil actualizado: FPS={limiteFPS}, Nivel OSD={nivelOSD}");
+                Logger.Log($"[RTSS] Perfil y Registro actualizados: FPS={limiteFPS}, Nivel OSD={nivelOSD}");
 
                 // Llamar a UpdateProfiles de RTSS para que recargue el archivo Global sin tener que reiniciar
                 try
@@ -266,8 +316,9 @@ namespace SteamOSConfigurator
                         FileName = RutaExe, 
                         WorkingDirectory = Path.GetDirectoryName(RutaExe),
                         UseShellExecute = true
-                    })) {}
-                }
+                    })) {} 
+                    Logger.Log("[RTSS] Lanzado en background silenciosamente.");
+                } 
             } 
         }
 
@@ -275,6 +326,46 @@ namespace SteamOSConfigurator
         { 
             foreach (var proc in Process.GetProcessesByName("RTSS")) { try { proc.Kill(); proc.Dispose(); } catch { } } 
             foreach (var proc in Process.GetProcessesByName("rtss")) { try { proc.Kill(); proc.Dispose(); } catch { } } 
+        }
+    }
+
+    public static class MSIAfterburnerCore
+    {
+        private static readonly string RutaExe = AppPaths.RutaExeMSIAfterburner;
+        private static readonly string RutaExeFallback = @"C:\Program Files\MSI Afterburner\MSIAfterburner.exe";
+
+        public static void AsegurarEjecucion()
+        {
+            string rutaFinal = File.Exists(RutaExe) ? RutaExe : (File.Exists(RutaExeFallback) ? RutaExeFallback : "");
+            if (!string.IsNullOrEmpty(rutaFinal))
+            {
+                var procesos = Process.GetProcessesByName("MSIAfterburner");
+                bool tieneProcesos = procesos.Length > 0;
+                foreach (var p in procesos) p.Dispose();
+                if (!tieneProcesos)
+                {
+                    try
+                    {
+                        using (var pStart = Process.Start(new ProcessStartInfo 
+                        { 
+                            FileName = rutaFinal, 
+                            WorkingDirectory = Path.GetDirectoryName(rutaFinal),
+                            UseShellExecute = true,
+                            // Parámetros para forzar inicio minimizado si es necesario, 
+                            // aunque MSI AB suele iniciar minimizado si está configurado
+                        })) {} 
+                        Logger.Log("[MSI Afterburner] Lanzado silenciosamente.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[MSI Afterburner] Error al lanzar: {ex.Message}");
+                    }
+                }
+            }
+            else
+            {
+                Logger.Log("[MSI Afterburner] No encontrado, no se puede iniciar.");
+            }
         }
     }
 
@@ -340,10 +431,21 @@ namespace SteamOSConfigurator
         private readonly object _timerLock = new object();
         private WinEventDelegate? _winEventDelegate; 
         private IntPtr _hWinEventHook = IntPtr.Zero;
+        private SteamOSConfigurator.Services.WindowWatcherService? _windowWatcherService;
 
         public static volatile bool ReinstalandoOReinicioSteam = false;
 
         // ── ARRANQUE Y PRIVILEGIOS ──
+        protected override void OnExit(ExitEventArgs e)
+        {
+            if (_windowWatcherService != null)
+            {
+                _windowWatcherService.Dispose();
+                _windowWatcherService = null;
+            }
+            base.OnExit(e);
+        }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             AppDomain.CurrentDomain.UnhandledException += (s, ev) => 
@@ -538,11 +640,30 @@ namespace SteamOSConfigurator
                     NvidiaFastSync.Restaurar();
                 }
                 
+                Logger.Log("[EjecutarModoConsolaAsync] Limpiando instancias previas de RTSS y MSI Afterburner...");
+                foreach (var p in Process.GetProcessesByName("RTSS")) { try { p.Kill(); p.Dispose(); } catch { } }
+                foreach (var p in Process.GetProcessesByName("rtss")) { try { p.Kill(); p.Dispose(); } catch { } }
+                foreach (var p in Process.GetProcessesByName("MSIAfterburner")) { try { p.Kill(); p.Dispose(); } catch { } }
+                System.Threading.Thread.Sleep(800); // Dar un margen para que Windows cierre los procesos por completo
+                
                 Logger.Log("[EjecutarModoConsolaAsync] Configurando RivaTuner (RTSS)...");
                 RivaTunerCore.AsegurarInstalacionSilenciosa(); 
                 RivaTunerCore.ForzarModoConsola(config.LimiteFPS); 
                 RivaTunerCore.DespertarFantasma(); 
                 Logger.Log("[EjecutarModoConsolaAsync] RivaTuner configurado.");
+
+                Logger.Log("[EjecutarModoConsolaAsync] Iniciando WindowWatcherService (Gestión Anti-Cheat Borderless)...");
+                _windowWatcherService = new SteamOSConfigurator.Services.WindowWatcherService();
+                _windowWatcherService.Start();
+
+                Logger.Log("[EjecutarModoConsolaAsync] Asegurando MSI Afterburner (Sensores)...");
+                MSIAfterburnerCore.AsegurarEjecucion();
+                
+                Logger.Log("[EjecutarModoConsolaAsync] Aplicando configuración inicial (HUD y Límites)...");
+                RivaTunerCore.AplicarConfiguracion(config.LimiteFPS, config.IndexOSD);
+
+                Logger.Log("[EjecutarModoConsolaAsync] Desactivando Multiplane Overlays (MPO)...");
+                Helpers.MPOService.AsegurarMPODesactivado();
                 // ───────────────────────────────────────────
 
                 Logger.Log("[EjecutarModoConsolaAsync] Forzando registro de escalado NVIDIA...");
@@ -883,7 +1004,7 @@ namespace SteamOSConfigurator
             if (_ventanaRecuperacion == null)
             {
                 _ventanaRecuperacion = new VentanaRecuperacion();
-                _ventanaRecuperacion.Show();
+                _ventanaRecuperacion.Show(); // Usa Show, WS_EX_NOACTIVATE previene el robo de foco
                 
                 _ventanaRecuperacion.PanelOcultado += (s, e) =>
                 {
@@ -956,14 +1077,6 @@ namespace SteamOSConfigurator
                     App.VentanaRecuperacionAbierta = true;
                     _keyboardHookService.DetenerHook();
                     
-                    _ventanaRecuperacion.Focus();
-                    _ventanaRecuperacion.Activate();
-                    IntPtr hwnd = new WindowInteropHelper(_ventanaRecuperacion).Handle;
-                    if (hwnd != IntPtr.Zero)
-                    {
-                        SetForegroundWindow(hwnd);
-                        ShowWindow(hwnd, 5); // SW_SHOW
-                    }
                     _ventanaRecuperacion.MostrarPanel();
                     TraductorMando.IsQAMOpen = true;
                 }

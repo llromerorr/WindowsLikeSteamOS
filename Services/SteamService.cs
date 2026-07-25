@@ -33,13 +33,116 @@ namespace SteamOSConfigurator.Services
         [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hWnd);
         [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
         [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        [DllImport("user32.dll", SetLastError = true)] static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+        [DllImport("user32.dll", SetLastError = true)] static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
         [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
 
-        const uint SWP_NOSIZE = 0x0001;
-        const uint SWP_NOZORDER = 0x0004;
-        const int SW_HIDE = 0;
-        const int SW_SHOW = 5;
-        const int SW_RESTORE = 9;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOZORDER = 0x0004;
+        private const int SW_HIDE = 0;
+        private const int SW_SHOW = 5;
+        private const int SW_RESTORE = 9;
+
+        [DllImport("user32.dll")]
+        static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+        
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        public struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int left;
+            public int top;
+            public int right;
+            public int bottom;
+        }
+
+        private const uint MONITOR_DEFAULTTONEAREST = 2;
+
+        private const int GWL_STYLE = -16;
+        private const int WS_CAPTION = 0x00C00000;
+        private const int WS_THICKFRAME = 0x00040000;
+        private const int WS_MINIMIZEBOX = 0x00020000;
+        private const int WS_MAXIMIZEBOX = 0x00010000;
+        private const int WS_SYSMENU = 0x00080000;
+        private const int WS_POPUP = unchecked((int)0x80000000);
+        private const uint SWP_FRAMECHANGED = 0x0020;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+        private static readonly IntPtr HWND_TOP = IntPtr.Zero;
+
+        public static void ForceDisableFullscreenOptimizations(string exePath)
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
+                    @"Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers");
+
+                string current = key.GetValue(exePath) as string ?? "";
+                if (!current.Contains("DISABLEDXMAXIMIZEDWINDOWEDMODE"))
+                {
+                    string newValue = string.IsNullOrEmpty(current)
+                        ? "~ DISABLEDXMAXIMIZEDWINDOWEDMODE"
+                        : current + " DISABLEDXMAXIMIZEDWINDOWEDMODE";
+                    key.SetValue(exePath, newValue, RegistryValueKind.String);
+                    Logger.Log($"[SteamService] AppCompatFlags activado para {exePath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[SteamService] Error al establecer AppCompatFlags para {exePath}: {ex.Message}");
+            }
+        }
+
+        public static void ForzarVentanaSinBordes(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero) return;
+            try
+            {
+                int style = GetWindowLong(hwnd, GWL_STYLE);
+                // Si ya es popup y no tiene título, puede ser que ya sea borderless.
+                // Sin embargo, si es un re-intento, forzamos de nuevo el resize.
+
+                style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
+                style |= WS_POPUP;
+                SetWindowLong(hwnd, GWL_STYLE, style);
+
+                IntPtr hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                MONITORINFO monitorInfo = new MONITORINFO();
+                monitorInfo.cbSize = Marshal.SizeOf(monitorInfo);
+
+                if (GetMonitorInfo(hMonitor, ref monitorInfo))
+                {
+                    int x = monitorInfo.rcMonitor.left;
+                    int y = monitorInfo.rcMonitor.top;
+                    int w = monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left;
+                    int h = monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top;
+
+                    SetWindowPos(hwnd, HWND_TOP, x, y, w, h, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+                    Logger.Log($"[SteamService] Ventana de juego (HWND={hwnd.ToInt64():X}) convertida a Modo Ventana Sin Bordes en monitor real ({w}x{h} at {x},{y}).");
+                }
+                else
+                {
+                    // Fallback to Primary Screen if MonitorInfo fails
+                    int screenWidth = (int)System.Windows.SystemParameters.PrimaryScreenWidth;
+                    int screenHeight = (int)System.Windows.SystemParameters.PrimaryScreenHeight;
+                    SetWindowPos(hwnd, HWND_TOP, 0, 0, screenWidth, screenHeight, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[SteamService] Error al forzar ventana sin bordes: {ex.Message}");
+            }
+        }
 
         private HashSet<IntPtr> _ventanasSteamOcultas = new HashSet<IntPtr>();
         private readonly object _lockVentanas = new object();
@@ -325,6 +428,7 @@ namespace SteamOSConfigurator.Services
 
                                     juegoActivo = proc;
                                     _juegoActivoHwnd = fgHwnd;
+                                    ForzarVentanaSinBordes(fgHwnd);
                                     // Mantener el hook de teclado activo durante el juego para bloquear Alt+Tab, Alt+F4 y Tecla Windows
                                     Logger.Log($"[MonitorDeJuegosAsync] Juego detectado en primer plano: '{pName}' (PID={pid}, Title=\"{titulo}\"). Ocultando ventanas secundarias de Steam.");
                                     CambiarVisibilidadSteam(true);

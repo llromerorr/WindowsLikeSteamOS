@@ -1,0 +1,64 @@
+{
+  "$schema": "Perfiles de estrategia de ventana para el frontend tipo SteamOS. No editar el orden: el primer match por processName gana; '*' es siempre el fallback.",
+  "profiles": [
+    {
+      "processName": "re3.exe",
+      "engine": "RE_ENGINE",
+      "displayName": "Resident Evil 3",
+      "strategy": "ConfigEdit",
+      "configPath": "%USERPROFILE%\\Saved Games\\CAPCOM\\RE3\\Config\\graphics_options.ini",
+      "configSection": "Display",
+      "configKey": "FullScreenMode",
+      "configValue": "0",
+      "keyValueDelimiter": "=",
+      "notes": "RE Engine ignora AppCompatFlags. Hay que forzar el .ini ANTES de lanzar el proceso; si el juego ya está corriendo, el cambio no se aplica en caliente."
+    },
+    {
+      "processName": "re2.exe",
+      "engine": "RE_ENGINE",
+      "displayName": "Resident Evil 2",
+      "strategy": "ConfigEdit",
+      "configPath": "%USERPROFILE%\\Saved Games\\CAPCOM\\RE2\\Config\\graphics_options.ini",
+      "configSection": "Display",
+      "configKey": "FullScreenMode",
+      "configValue": "0",
+      "keyValueDelimiter": "="
+    },
+    {
+      "processName": "re7.exe",
+      "engine": "RE_ENGINE",
+      "displayName": "Resident Evil 7",
+      "strategy": "ConfigEdit",
+      "configPath": "%USERPROFILE%\\Saved Games\\CAPCOM\\RE7\\Config\\graphics_options.ini",
+      "configSection": "Display",
+      "configKey": "FullScreenMode",
+      "configValue": "0",
+      "keyValueDelimiter": "="
+    },
+    {
+      "processName": "DarkSoulsIII.exe",
+      "engine": "HAVOK_FROMSOFT",
+      "displayName": "Dark Souls III",
+      "strategy": "Standard"
+    },
+    {
+      "processName": "sekiro.exe",
+      "engine": "HAVOK_FROMSOFT",
+      "displayName": "Sekiro: Shadows Die Twice",
+      "strategy": "Standard"
+    },
+    {
+      "processName": "eldenring.exe",
+      "engine": "HAVOK_FROMSOFT",
+      "displayName": "Elden Ring",
+      "strategy": "Standard"
+    },
+    {
+      "processName": "*",
+      "engine": "GENERIC",
+      "displayName": "Fallback genérico",
+      "strategy": "Standard",
+      "notes": "AppCompatFlags DISABLEDXMAXIMIZEDWINDOWEDMODE + SetWindowLongPtr/SetWindowPos, tal como ya lo tienes implementado."
+    }
+  ]
+}

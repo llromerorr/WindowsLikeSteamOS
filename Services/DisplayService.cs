@@ -103,6 +103,7 @@ namespace SteamOSConfigurator.Services
                 {
                     string idFisico = DisplayHelper.ObtenerDeviceIdFisico(deviceName);
                     Logger.Log($"[AislarPantalla] Pantalla activa: {deviceName}, ID Físico: '{idFisico}'");
+                    
                     if (!string.IsNullOrEmpty(config.MonitorDeviceId) && idFisico == config.MonitorDeviceId)
                     {
                         monitorObjetivo = deviceName;
@@ -110,11 +111,15 @@ namespace SteamOSConfigurator.Services
                         Logger.Log($"[AislarPantalla] Coincidencia por ID Físico: '{idFisico}' -> {deviceName}");
                         break;
                     }
-                    else if (deviceName == config.MonitorDeviceName)
+                    else if (!string.IsNullOrEmpty(config.MonitorDeviceName) && 
+                             (deviceName == config.MonitorDeviceName || 
+                              config.MonitorDeviceName.Contains(deviceName) || 
+                              deviceName.Contains(config.MonitorDeviceName)))
                     {
                         monitorObjetivo = deviceName;
                         monitorEncontrado = true;
                         Logger.Log($"[AislarPantalla] Coincidencia por nombre: '{deviceName}'");
+                        break;
                     }
                 }
 
@@ -133,11 +138,19 @@ namespace SteamOSConfigurator.Services
                         DEVMODE_ANSI mode = new DEVMODE_ANSI { dmSize = (short)Marshal.SizeOf<DEVMODE_ANSI>() };
                         EnumDisplaySettingsA(deviceName, ENUM_CURRENT_SETTINGS, ref mode);
 
-                        Logger.Log($"[AislarPantalla] Configurando pantalla principal {deviceName}: {config.ResolucionWidth}x{config.ResolucionHeight}@{config.RefreshRate}Hz...");
-                        mode.dmPelsWidth = (uint)config.ResolucionWidth;
-                        mode.dmPelsHeight = (uint)config.ResolucionHeight;
+                        int width = config.ResolucionWidth > 0 ? config.ResolucionWidth : (int)mode.dmPelsWidth;
+                        int height = config.ResolucionHeight > 0 ? config.ResolucionHeight : (int)mode.dmPelsHeight;
+                        int refresh = config.RefreshRate > 0 ? config.RefreshRate : (int)mode.dmDisplayFrequency;
+
+                        if (width <= 0) width = 1920;
+                        if (height <= 0) height = 1080;
+                        if (refresh <= 0) refresh = 60;
+
+                        Logger.Log($"[AislarPantalla] Configurando pantalla principal {deviceName}: {width}x{height}@{refresh}Hz...");
+                        mode.dmPelsWidth = (uint)width;
+                        mode.dmPelsHeight = (uint)height;
                         mode.dmBitsPerPel = 32;
-                        mode.dmDisplayFrequency = (uint)config.RefreshRate;
+                        mode.dmDisplayFrequency = (uint)refresh;
                         mode.dmPositionX = 0;
                         mode.dmPositionY = 0;
                         mode.dmDisplayFixedOutput = DMDFO_DEFAULT;
@@ -213,6 +226,9 @@ namespace SteamOSConfigurator.Services
                 Logger.Log($"[RestaurarEntornoOriginal] Resultado final Reset: {resReset}");
                 
                 _aislamientoActivo = false;
+                Logger.Log("[RestaurarEntornoOriginal] Restaurando Multiplane Overlays (MPO)...");
+                Helpers.MPOService.RestaurarMPO();
+
                 Logger.Log("[RestaurarEntornoOriginal] Restaurando escalado por monitor en segundo plano...");
                 Task.Run(() => 
                 { 

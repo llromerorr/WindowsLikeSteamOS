@@ -22,6 +22,7 @@ namespace SteamOSConfigurator.Helpers
         // ── Dependencias externas ──
         public static readonly string RutaInstaladorRTSS = Path.Combine(RaizDatos, @"Dependencias\RTSSSetup.exe");
         public static readonly string RutaExeRTSS = @"C:\Program Files (x86)\RivaTuner Statistics Server\RTSS.exe";
+        public static readonly string RutaExeMSIAfterburner = @"C:\Program Files (x86)\MSI Afterburner\MSIAfterburner.exe";
         public static readonly string RutaPerfilGlobalRTSS = @"C:\Program Files (x86)\RivaTuner Statistics Server\Profiles\Global";
 
         // ── Drivers ──

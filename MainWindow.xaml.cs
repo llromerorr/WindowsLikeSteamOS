@@ -24,18 +24,28 @@ namespace SteamOSConfigurator
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         public struct PROFILEINFO { public int dwSize; public int dwFlags; public string lpUserName; public string lpProfilePath; public string lpDefaultPath; public string lpServerName; public string lpPolicyPath; public IntPtr hProfile; }
-        [StructLayout(LayoutKind.Sequential)]
-        public struct DEVMODE { [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName; public short dmSpecVersion; public short dmDriverVersion; public short dmSize; public short dmDriverExtra; public int dmFields; public int dmPositionX; public int dmPositionY; public int dmDisplayOrientation; public int dmDisplayFixedOutput; public short dmColor; public short dmDuplex; public short dmYResolution; public short dmTTOption; public short dmCollate; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName; public short dmLogPixels; public int dmBitsPerPel; public int dmPelsWidth; public int dmPelsHeight; public int dmDisplayFlags; public int dmDisplayFrequency; public int dmICMMethod; public int dmICMIntent; public int dmMediaType; public int dmDitherType; public int dmReserved1; public int dmReserved2; public int dmPanningWidth; public int dmPanningHeight; }
+        
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        public struct DEVMODE 
+        { 
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName; 
+            public short dmSpecVersion; public short dmDriverVersion; public short dmSize; public short dmDriverExtra; 
+            public int dmFields; public int dmPositionX; public int dmPositionY; public int dmDisplayOrientation; public int dmDisplayFixedOutput; 
+            public short dmColor; public short dmDuplex; public short dmYResolution; public short dmTTOption; public short dmCollate; 
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName; 
+            public short dmLogPixels; public int dmBitsPerPel; public int dmPelsWidth; public int dmPelsHeight; public int dmDisplayFlags; public int dmDisplayFrequency; 
+            public int dmICMMethod; public int dmICMIntent; public int dmMediaType; public int dmDitherType; public int dmReserved1; public int dmReserved2; public int dmPanningWidth; public int dmPanningHeight; 
+        }
 
         [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)] public static extern bool LogonUser(string lpszUsername, string lpszDomain, string lpszPassword, int dwLogonType, int dwLogonProvider, out IntPtr phToken);
         [DllImport("userenv.dll", SetLastError = true, CharSet = CharSet.Auto)] public static extern bool LoadUserProfile(IntPtr hToken, ref PROFILEINFO lpProfileInfo);
         [DllImport("userenv.dll", SetLastError = true)] public static extern bool UnloadUserProfile(IntPtr hToken, IntPtr hProfile);
         [DllImport("kernel32.dll", SetLastError = true)] public static extern bool CloseHandle(IntPtr handle);
         [DllImport("userenv.dll", CharSet = CharSet.Auto, SetLastError = true)] public static extern bool DeleteProfile(string lpSidString, string? lpProfilePath, string? lpComputerName);
-        [DllImport("user32.dll")] public static extern int EnumDisplaySettings(string? deviceName, int modeNum, ref DEVMODE devMode);
+        [DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern int EnumDisplaySettings(string? deviceName, int modeNum, ref DEVMODE devMode);
         [DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern int PrivateExtractIcons(string lpszFile, int nIconIndex, int cxIcon, int cyIcon, IntPtr[] phicon, int[] piconid, int nIcons, int flags);
         [DllImport("user32.dll", SetLastError = true)] public static extern bool DestroyIcon(IntPtr hIcon);
-        [DllImport("user32.dll")] public static extern int ChangeDisplaySettingsEx(string? lpszDeviceName, ref DEVMODE lpDevMode, IntPtr hwnd, int dwflags, IntPtr lParam);
+        [DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern int ChangeDisplaySettingsEx(string? lpszDeviceName, ref DEVMODE lpDevMode, IntPtr hwnd, int dwflags, IntPtr lParam);
         
         const int ENUM_CURRENT_SETTINGS = -1; const int DM_PELSWIDTH = 0x00080000; const int DM_PELSHEIGHT = 0x00100000; const int DM_DISPLAYFREQUENCY = 0x00400000;
         private bool _entornoInstalado = false;
@@ -149,6 +159,22 @@ namespace SteamOSConfigurator
                 lblEstadoRTSS.Text = "No detectado";
                 lblEstadoRTSS.Foreground = System.Windows.Media.Brushes.Crimson;
             }
+
+            // 4.5 MSI Afterburner
+            if (depService.AfterburnerInstalado)
+            {
+                dotMSI.Fill = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#10D275")!; // Verde
+                lblSimpleMSI.Text = "MSI Afterburner: Instalado y listo";
+                lblEstadoMSI.Text = "Preparado";
+                lblEstadoMSI.Foreground = System.Windows.Media.Brushes.SpringGreen;
+            }
+            else
+            {
+                dotMSI.Fill = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#FF4A4A")!; // Rojo
+                lblSimpleMSI.Text = "MSI Afterburner: No instalado (Requerido)";
+                lblEstadoMSI.Text = "No detectado";
+                lblEstadoMSI.Foreground = System.Windows.Media.Brushes.Crimson;
+            }
             
             // 5. Botón Acción Principal
             btnAccionPrincipal.Content = _entornoInstalado ? "APLICAR Y DEPLOYAR CONFIGURACIÓN" : "INSTALAR STEAMKIOSK";
@@ -208,8 +234,18 @@ namespace SteamOSConfigurator
                             else if (!string.IsNullOrEmpty(config.MonitorDeviceName) && cmbMonitores.Items[i].ToString()!.Contains(config.MonitorDeviceName)) { cmbMonitores.SelectedIndex = i; break; }
                         }
                         
-                        cmbResoluciones.Text = $"{config.ResolucionWidth} x {config.ResolucionHeight}";
-                        cmbRefresco.Text = $"{config.RefreshRate} Hz";
+                        string resText = $"{config.ResolucionWidth} x {config.ResolucionHeight}";
+                        for (int i = 0; i < cmbResoluciones.Items.Count; i++)
+                        {
+                            if (cmbResoluciones.Items[i].ToString() == resText) { cmbResoluciones.SelectedIndex = i; break; }
+                        }
+                        
+                        string refText = $"{config.RefreshRate} Hz";
+                        for (int i = 0; i < cmbRefresco.Items.Count; i++)
+                        {
+                            if (cmbRefresco.Items[i].ToString() == refText) { cmbRefresco.SelectedIndex = i; break; }
+                        }
+                        
                         for (int i = 0; i < cmbAudio.Items.Count; i++) if (cmbAudio.Items[i].ToString() == config.AudioDispositivo) { cmbAudio.SelectedIndex = i; break; }
                         
                         chkEmulador.IsChecked = config.EmuladorActivado;
@@ -251,19 +287,90 @@ namespace SteamOSConfigurator
 
         private void CmbMonitores_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            if (cmbMonitores.SelectedIndex < 0) return; cmbResoluciones.Items.Clear(); _resolucionesSoportadas.Clear();
-            string deviceName = _monitorInfo[cmbMonitores.SelectedIndex].DeviceName; DEVMODE devMode = new DEVMODE(); devMode.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE)); int modeNum = 0;
-            while (EnumDisplaySettings(deviceName, modeNum, ref devMode) != 0) { if (devMode.dmBitsPerPel == 32) _resolucionesSoportadas.Add(devMode); modeNum++; }
-            var resUnicas = _resolucionesSoportadas.GroupBy(d => new { d.dmPelsWidth, d.dmPelsHeight }).OrderByDescending(g => g.Key.dmPelsWidth * g.Key.dmPelsHeight).ToList();
-            foreach(var g in resUnicas) cmbResoluciones.Items.Add($"{g.Key.dmPelsWidth} x {g.Key.dmPelsHeight}"); if (cmbResoluciones.Items.Count > 0) cmbResoluciones.SelectedIndex = 0; 
+            if (cmbMonitores.SelectedIndex < 0) return; 
+            cmbResoluciones.Items.Clear(); 
+            _resolucionesSoportadas.Clear();
+            
+            string deviceName = _monitorInfo[cmbMonitores.SelectedIndex].DeviceName; 
+            DEVMODE devMode = new DEVMODE(); 
+            devMode.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE)); 
+            int modeNum = 0;
+            
+            // Probar primero con el nombre de dispositivo específico
+            while (EnumDisplaySettings(deviceName, modeNum, ref devMode) != 0) 
+            { 
+                if (devMode.dmBitsPerPel == 32 || devMode.dmBitsPerPel == 0) 
+                    _resolucionesSoportadas.Add(devMode); 
+                modeNum++; 
+            }
+            
+            // Fallback si no retornó modos para deviceName específico
+            if (_resolucionesSoportadas.Count == 0)
+            {
+                modeNum = 0;
+                while (EnumDisplaySettings(null, modeNum, ref devMode) != 0)
+                {
+                    if (devMode.dmBitsPerPel == 32 || devMode.dmBitsPerPel == 0)
+                        _resolucionesSoportadas.Add(devMode);
+                    modeNum++;
+                }
+            }
+
+            var resUnicas = _resolucionesSoportadas
+                .GroupBy(d => new { d.dmPelsWidth, d.dmPelsHeight })
+                .Where(g => g.Key.dmPelsWidth > 0 && g.Key.dmPelsHeight > 0)
+                .OrderByDescending(g => g.Key.dmPelsWidth * g.Key.dmPelsHeight)
+                .ToList();
+
+            foreach(var g in resUnicas) 
+                cmbResoluciones.Items.Add($"{g.Key.dmPelsWidth} x {g.Key.dmPelsHeight}"); 
+
+            // Fallback por defecto si aún no hay resoluciones
+            if (cmbResoluciones.Items.Count == 0)
+            {
+                cmbResoluciones.Items.Add("3840 x 2160");
+                cmbResoluciones.Items.Add("2560 x 1440");
+                cmbResoluciones.Items.Add("1920 x 1080");
+                cmbResoluciones.Items.Add("1600 x 900");
+                cmbResoluciones.Items.Add("1366 x 768");
+                cmbResoluciones.Items.Add("1280 x 720");
+            }
+
+            cmbResoluciones.SelectedIndex = 0; 
         }
 
         private void CmbResoluciones_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            if (cmbResoluciones.SelectedIndex < 0 || cmbResoluciones.SelectedItem == null) return; cmbRefresco.Items.Clear();
-            string[] partes = cmbResoluciones.SelectedItem.ToString()!.Split('x'); int w = int.Parse(partes[0].Trim()); int h = int.Parse(partes[1].Trim());
-            var hzUnicos = _resolucionesSoportadas.Where(d => d.dmPelsWidth == w && d.dmPelsHeight == h).Select(d => d.dmDisplayFrequency).Distinct().OrderByDescending(hz => hz).ToList();
-            foreach(var hz in hzUnicos) cmbRefresco.Items.Add($"{hz} Hz"); if (cmbRefresco.Items.Count > 0) cmbRefresco.SelectedIndex = 0;
+            if (cmbResoluciones.SelectedIndex < 0 || cmbResoluciones.SelectedItem == null) return; 
+            cmbRefresco.Items.Clear();
+            
+            string selText = cmbResoluciones.SelectedItem.ToString()!;
+            if (selText.Contains("x"))
+            {
+                string[] partes = selText.Split('x'); 
+                int w = int.Parse(partes[0].Trim()); 
+                int h = int.Parse(partes[1].Trim());
+                var hzUnicos = _resolucionesSoportadas
+                    .Where(d => d.dmPelsWidth == w && d.dmPelsHeight == h && d.dmDisplayFrequency > 0)
+                    .Select(d => d.dmDisplayFrequency)
+                    .Distinct()
+                    .OrderByDescending(hz => hz)
+                    .ToList();
+                    
+                foreach(var hz in hzUnicos) cmbRefresco.Items.Add($"{hz} Hz"); 
+            }
+
+            if (cmbRefresco.Items.Count == 0)
+            {
+                cmbRefresco.Items.Add("60 Hz");
+                cmbRefresco.Items.Add("120 Hz");
+                cmbRefresco.Items.Add("144 Hz");
+                cmbRefresco.Items.Add("165 Hz");
+                cmbRefresco.Items.Add("240 Hz");
+                cmbRefresco.Items.Add("59 Hz");
+            }
+
+            cmbRefresco.SelectedIndex = 0;
         }
 
         private bool VerificarSteamInstalado()
@@ -317,6 +424,13 @@ namespace SteamOSConfigurator
             
             try
             {
+                if (!depService.AfterburnerInstalado)
+                {
+                    HabilitarControlesInteraccion();
+                    System.Windows.MessageBox.Show("MSI Afterburner es requerido para la telemetría (Sensores). Por favor, instálelo manualmente y vuelva a intentarlo.", "Error de Dependencia", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
                 if (!depService.SteamInstalado || !depService.RtssInstalado)
                 {
                     if (!depService.SteamInstalado)
@@ -328,6 +442,7 @@ namespace SteamOSConfigurator
                         if (!ok)
                         {
                             System.Windows.MessageBox.Show("No se pudo descargar o instalar Steam de forma automática. Por favor, instálalo manualmente.", "Error de Dependencia", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                            HabilitarControlesInteraccion();
                             return;
                         }
                     }
@@ -429,6 +544,14 @@ namespace SteamOSConfigurator
             DeshabilitarControlesInteraccion("Instalando o aplicando configuración...");
             try
             {
+                var depService = new Services.DependencyService();
+                if (!depService.AfterburnerInstalado)
+                {
+                    HabilitarControlesInteraccion();
+                    System.Windows.MessageBox.Show("MSI Afterburner es requerido para la telemetría (Sensores). Por favor, instálelo manualmente y vuelva a intentarlo.", "Error de Dependencia", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+                
                 await EjecutarInstalacionConfiguracion();
             }
             catch { }
@@ -464,25 +587,45 @@ namespace SteamOSConfigurator
             string deviceName = _monitorInfo[indiceMonitor].DeviceName;
             string deviceId = DisplayHelper.ObtenerDeviceIdFisico(deviceName);
 
-            var config = new { 
-                MonitorDeviceName = deviceName, MonitorDeviceId = deviceId, 
-                ResolucionWidth = w, ResolucionHeight = h, RefreshRate = hz, 
-                AudioDispositivo = audioPreferido, EmuladorActivado = emuActivado,
-                LimiteFPS = fps, ForzarFastSync = fastSync, DelayBotonHome = delay
-            };
-            string rutaConfig = AppPaths.Config;
-            if (!Directory.Exists(AppPaths.RaizDatos)) Directory.CreateDirectory(AppPaths.RaizDatos);
-            File.WriteAllText(rutaConfig, JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true }));
+            var config = ConfigManager.CargarConfiguracion();
+            config.MonitorDeviceName = deviceName;
+            config.MonitorDeviceId = deviceId;
+            config.ResolucionWidth = w;
+            config.ResolucionHeight = h;
+            config.RefreshRate = hz;
+            config.AudioDispositivo = audioPreferido;
+            config.EmuladorActivado = emuActivado;
+            config.LimiteFPS = fps;
+            config.ForzarFastSync = fastSync;
+            config.DelayBotonHome = delay;
+            
+            ConfigManager.GuardarConfiguracion(config);
         }
 
         // --- Funciones auxiliares de Windows ---
         private void CrearUsuarioSteam(string nombreUsuario, string passwordTemporal) { EjecutarComandoOculto($"net user {nombreUsuario} {passwordTemporal} /add /y"); EjecutarComandoOculto($"wmic useraccount where \"name='{nombreUsuario}'\" set PasswordExpires=FALSE"); EjecutarComandoOculto($"net localgroup Administradores {nombreUsuario} /add"); EjecutarComandoOculto($"net localgroup Administrators {nombreUsuario} /add"); try { using (RegistryKey? key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList")) { key?.SetValue(nombreUsuario, 1, RegistryValueKind.DWord); } } catch { } }
-        private void EliminarUsuarioSteamOS() { string sid = ObtenerSidUsuario("SteamOS"); if (!string.IsNullOrEmpty(sid)) { DeleteProfile(sid, null, null); } EjecutarComandoOculto("net user SteamOS /delete"); try { Directory.Delete(@"C:\Users\SteamOS", true); } catch { } }
+        private void EliminarUsuarioSteamOS() { string sid = ObtenerSidUsuario("SteamOS"); if (!string.IsNullOrEmpty(sid)) { /* DeleteProfile(sid, null, null); */ } EjecutarComandoOculto("net user SteamOS /delete"); /* try { Directory.Delete(@"C:\Users\SteamOS", true); } catch { } */ }
         private void EjecutarComandoOculto(string comando) { try { ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", $"/c {comando}") { WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true, UseShellExecute = false }; Process.Start(psi)?.WaitForExit(); } catch { } }
         private string ObtenerSidUsuario(string nombreUsuario) { try { var cuenta = new NTAccount(nombreUsuario); var sid = (SecurityIdentifier)cuenta.Translate(typeof(SecurityIdentifier)); return sid.Value; } catch { return ""; } }
         private void ConfigurarIconoSteamOS(string sidUsuario) { try { string rutaSteam = AppPaths.SteamFallback; using (RegistryKey? key = Registry.LocalMachine.OpenSubKey(AppPaths.SteamRegistryKey)) { if (key != null) rutaSteam = Path.Combine(key.GetValue("InstallPath") as string ?? "", "steam.exe"); } if (File.Exists(rutaSteam)) { string rutaAvatar = AppPaths.Avatar; IntPtr[] phicon = new IntPtr[1]; int[] piconid = new int[1]; int result = PrivateExtractIcons(rutaSteam, 0, 256, 256, phicon, piconid, 1, 0); if (result > 0 && phicon[0] != IntPtr.Zero) { using (System.Drawing.Icon icon = System.Drawing.Icon.FromHandle(phicon[0])) using (System.Drawing.Bitmap bitmap = icon.ToBitmap()) { bitmap.Save(rutaAvatar, System.Drawing.Imaging.ImageFormat.Png); } DestroyIcon(phicon[0]); } using (RegistryKey key = Registry.LocalMachine.CreateSubKey($@"SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\{sidUsuario}")) { if (key != null) { foreach(string size in new[] { "32", "40", "48", "96", "192", "200", "240", "448" }) key.SetValue($"Image{size}", rutaAvatar, RegistryValueKind.String); } } } } catch { } }
         private void OptimizarInicioNuevoUsuario() { try { using (RegistryKey? key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System")) key?.SetValue("EnableFirstLogonAnimation", 0, RegistryValueKind.DWord); using (RegistryKey? key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows\OOBE")) key?.SetValue("DisablePrivacyExperience", 1, RegistryValueKind.DWord); } catch { } }
-        private string InstalarEjecutableEnRutaSegura() { string rutaOrigen = Environment.ProcessPath ?? throw new Exception("Error ruta ejecutable."); string carpetaDestino = AppPaths.RaizDatos; string rutaDestino = AppPaths.EjecutableDestino; if (!Directory.Exists(carpetaDestino)) Directory.CreateDirectory(carpetaDestino); File.Copy(rutaOrigen, rutaDestino, true); return rutaDestino; }
+        private string InstalarEjecutableEnRutaSegura() { 
+            string rutaOrigen = Environment.ProcessPath ?? throw new Exception("Error ruta ejecutable."); 
+            string carpetaDestino = AppPaths.RaizDatos; 
+            string rutaDestino = AppPaths.EjecutableDestino; 
+            if (!Directory.Exists(carpetaDestino)) Directory.CreateDirectory(carpetaDestino); 
+            File.Copy(rutaOrigen, rutaDestino, true); 
+            
+            string dllOrigen = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(rutaOrigen) ?? "", "SteamOSHooks64.dll");
+            string dllDestino = System.IO.Path.Combine(carpetaDestino, "SteamOSHooks64.dll");
+            if (File.Exists(dllOrigen)) File.Copy(dllOrigen, dllDestino, true);
+            
+            string jsonOrigen = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(rutaOrigen) ?? "", "juegos_perfiles.json");
+            string jsonDestino = System.IO.Path.Combine(carpetaDestino, "juegos_perfiles.json");
+            if (File.Exists(jsonOrigen)) File.Copy(jsonOrigen, jsonDestino, true);
+            
+            return rutaDestino; 
+        }
         private void ConstruirPerfilEnSegundoPlano(string usuario, string contrasena, string rutaEjecutable) { IntPtr token = IntPtr.Zero; try { if (!LogonUser(usuario, ".", contrasena, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, out token)) throw new Exception("Error token."); PROFILEINFO p = new PROFILEINFO { dwSize = Marshal.SizeOf(typeof(PROFILEINFO)), lpUserName = usuario }; if (LoadUserProfile(token, ref p)) { string sid = ObtenerSidUsuario(usuario); using (RegistryKey? key = Registry.Users.CreateSubKey($@"{sid}\Software\Microsoft\Windows NT\CurrentVersion\Winlogon")) { if (key != null) { key.SetValue("Shell", $"\"{rutaEjecutable}\" -shell", RegistryValueKind.String); key.Flush(); } } UnloadUserProfile(token, p.hProfile); } } finally { if (token != IntPtr.Zero) CloseHandle(token); } }
     }
 }

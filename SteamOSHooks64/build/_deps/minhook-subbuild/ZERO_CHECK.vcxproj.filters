@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-subbuild\CMakeFiles\bbd162d731f56948984c580dec7659aa\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{8FF050A6-5CD1-34EB-8795-DD60561ABE7D}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

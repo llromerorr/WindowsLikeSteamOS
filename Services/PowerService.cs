@@ -10,10 +10,36 @@ namespace SteamOSConfigurator.Services
         void RestaurarPlanEnergia();
         void PrevenirSuspensionAutomatica();
         void PermitirSuspension();
+        void Suspend();
+        void Hibernate();
+        void Restart();
+        void Shutdown();
     }
 
     public class PowerService : IPowerService
     {
+        [DllImport("PowrProf.dll", CharSet = CharSet.Auto, ExactSpelling = true)]
+        public static extern bool SetSuspendState(bool hiberate, bool forceCritical, bool disableWakeEvent);
+
+        public void Suspend()
+        {
+            SetSuspendState(false, true, true);
+        }
+
+        public void Hibernate()
+        {
+            SetSuspendState(true, true, true);
+        }
+
+        public void Restart()
+        {
+            Process.Start(new ProcessStartInfo("shutdown", "/r /t 0") { CreateNoWindow = true, UseShellExecute = false });
+        }
+
+        public void Shutdown()
+        {
+            Process.Start(new ProcessStartInfo("shutdown", "/s /t 0") { CreateNoWindow = true, UseShellExecute = false });
+        }
         [DllImport("kernel32.dll")]
         private static extern uint SetThreadExecutionState(uint esFlags);
 

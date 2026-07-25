@@ -12,6 +12,7 @@ namespace SteamOSConfigurator.Services
     {
         bool SteamInstalado { get; }
         bool RtssInstalado { get; }
+        bool AfterburnerInstalado { get; }
         bool ViGEmInstalado { get; }
         bool HidHideInstalado { get; }
         Task<bool> InstalarSteamAsync(Action<string>? onProgreso = null);
@@ -44,6 +45,7 @@ namespace SteamOSConfigurator.Services
         }
 
         public bool RtssInstalado => File.Exists(AppPaths.RutaExeRTSS);
+        public bool AfterburnerInstalado => File.Exists(AppPaths.RutaExeMSIAfterburner) || File.Exists(@"C:\Program Files\MSI Afterburner\MSIAfterburner.exe");
         public bool ViGEmInstalado => File.Exists(AppPaths.DriverViGEm);
         public bool HidHideInstalado => File.Exists(AppPaths.DriverHidHide);
 

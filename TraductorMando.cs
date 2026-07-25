@@ -31,6 +31,8 @@ namespace SteamOSConfigurator
         private static long _ultimoTickDerecha = 0;
         private static long _ultimoTickEnter = 0;
         private static long _ultimoTickCancelar = 0;
+        private static long _ultimoTickLB = 0;
+        private static long _ultimoTickRB = 0;
 
         private static CancellationTokenSource? _cts;
         private static ViGEmClient? _vigemClient;
@@ -248,6 +250,18 @@ namespace SteamOSConfigurator
                             if (currentTick - _ultimoTickEnter > 300) { VentanaRecuperacion.Instancia?.NavSelect(); _ultimoTickEnter = currentTick; } 
                         }
                         else _ultimoTickEnter = 0;
+
+                        if (btnLB) 
+                        { 
+                            if (currentTick - _ultimoTickLB > 300) { VentanaRecuperacion.Instancia?.NavPrevTab(); _ultimoTickLB = currentTick; } 
+                        }
+                        else _ultimoTickLB = 0;
+
+                        if (btnRB) 
+                        { 
+                            if (currentTick - _ultimoTickRB > 300) { VentanaRecuperacion.Instancia?.NavNextTab(); _ultimoTickRB = currentTick; } 
+                        }
+                        else _ultimoTickRB = 0;
 
                         // Solo procesar cancelar (B) o acorde de cierre tras haber liberado los botones de apertura
                         bool cerrarPorAcorde = !_esperarLiberacionAcordesQAM && (btnSelect && btnStart);
