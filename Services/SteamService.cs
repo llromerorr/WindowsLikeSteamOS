@@ -103,46 +103,7 @@ namespace SteamOSConfigurator.Services
             }
         }
 
-        public static void ForzarVentanaSinBordes(IntPtr hwnd)
-        {
-            if (hwnd == IntPtr.Zero) return;
-            try
-            {
-                int style = GetWindowLong(hwnd, GWL_STYLE);
-                // Si ya es popup y no tiene título, puede ser que ya sea borderless.
-                // Sin embargo, si es un re-intento, forzamos de nuevo el resize.
 
-                style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
-                style |= WS_POPUP;
-                SetWindowLong(hwnd, GWL_STYLE, style);
-
-                IntPtr hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-                MONITORINFO monitorInfo = new MONITORINFO();
-                monitorInfo.cbSize = Marshal.SizeOf(monitorInfo);
-
-                if (GetMonitorInfo(hMonitor, ref monitorInfo))
-                {
-                    int x = monitorInfo.rcMonitor.left;
-                    int y = monitorInfo.rcMonitor.top;
-                    int w = monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left;
-                    int h = monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top;
-
-                    SetWindowPos(hwnd, HWND_TOP, x, y, w, h, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-                    Logger.Log($"[SteamService] Ventana de juego (HWND={hwnd.ToInt64():X}) convertida a Modo Ventana Sin Bordes en monitor real ({w}x{h} at {x},{y}).");
-                }
-                else
-                {
-                    // Fallback to Primary Screen if MonitorInfo fails
-                    int screenWidth = (int)System.Windows.SystemParameters.PrimaryScreenWidth;
-                    int screenHeight = (int)System.Windows.SystemParameters.PrimaryScreenHeight;
-                    SetWindowPos(hwnd, HWND_TOP, 0, 0, screenWidth, screenHeight, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Log($"[SteamService] Error al forzar ventana sin bordes: {ex.Message}");
-            }
-        }
 
         private HashSet<IntPtr> _ventanasSteamOcultas = new HashSet<IntPtr>();
         private readonly object _lockVentanas = new object();
@@ -428,7 +389,7 @@ namespace SteamOSConfigurator.Services
 
                                     juegoActivo = proc;
                                     _juegoActivoHwnd = fgHwnd;
-                                    ForzarVentanaSinBordes(fgHwnd);
+
                                     // Mantener el hook de teclado activo durante el juego para bloquear Alt+Tab, Alt+F4 y Tecla Windows
                                     Logger.Log($"[MonitorDeJuegosAsync] Juego detectado en primer plano: '{pName}' (PID={pid}, Title=\"{titulo}\"). Ocultando ventanas secundarias de Steam.");
                                     CambiarVisibilidadSteam(true);

@@ -31,12 +31,6 @@
     <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\Win32Hooks.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\WrappedDXGIFactory.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\WrappedDXGISwapChain.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\XInputHooks.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -109,12 +103,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\ShaderSource_CRT.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\WrappedDXGIFactory.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\WrappedDXGISwapChain.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\XInputHooks.h">

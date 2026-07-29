@@ -140,6 +140,9 @@
                                 <Path Data="{StaticResource IconPerf}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
                             </Viewbox>
                         </Button>
+                        <Button x:Name="btnTabJuegos" Style="{StaticResource TabBtn}" Click="BtnTabJuegos_Click">
+                            <TextBlock Text="🎮" FontSize="18" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
                         <Button x:Name="btnTabMando" Style="{StaticResource TabBtn}" Click="BtnTabMando_Click">
                             <Viewbox Width="22" Height="22">
                                 <Path Data="{StaticResource IconController}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
@@ -381,6 +384,49 @@
 
                         </StackPanel>
                     </ScrollViewer>
+
+                    <!-- PESTAÑA JUEGOS -->
+                    <Grid x:Name="Grid_TabJuegos" Grid.Row="1" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="GESTOR DE JUEGOS (DLL PROXY)" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
+                        
+                        <ListBox x:Name="lstJuegos" Grid.Row="1" Background="Transparent" BorderThickness="0" Foreground="#F3F3F3" 
+                                 ScrollViewer.VerticalScrollBarVisibility="Hidden" Margin="0,5" SelectionChanged="LstJuegos_SelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}" FontSize="13" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="11" Foreground="{Binding StatusColor}" VerticalAlignment="Center" FontWeight="Bold"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="5"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#2A475E"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
+
+                        <Button x:Name="btnGestionarJuego" Grid.Row="2" Style="{StaticResource QamBtn}" Click="BtnGestionarJuego_Click" Margin="0,10,0,10" IsEnabled="False">
+                            <Grid>
+                                <TextBlock x:Name="txtAccionJuego" Text="Selecciona un juego..." FontSize="13" FontWeight="Bold" Foreground="#F3F3F3" HorizontalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+                    </Grid>
 
                     <!-- PESTAÑA 4: MANDO 🚧 -->
                     <ScrollViewer x:Name="Grid_TabMando" Grid.Row="1" VerticalScrollBarVisibility="Hidden" Visibility="Collapsed">

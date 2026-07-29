@@ -49,12 +49,12 @@ namespace DXGIHooks {
     }
 
     HRESULT STDMETHODCALLTYPE hkSetFullscreenState(IDXGISwapChain* pSwapChain, BOOL Fullscreen, IDXGIOutput* pTarget) {
-        Logger::Log("[Hook] SetFullscreenState interceptado. Solicitado: %d -> Forzando Borderless Window.", Fullscreen);
+        Logger::Log("[Hook] SetFullscreenState interceptado. Solicitado: %d -> Forzando Borderless/Window.", Fullscreen);
         
         g_FakeFullscreen = Fullscreen;
         HRESULT hr = oSetFullscreen(pSwapChain, FALSE, nullptr);
 
-        // Forzar Borderless Window
+        // Forzar Borderless Window o restaurar Window normal
         DXGI_SWAP_CHAIN_DESC desc;
         if (SUCCEEDED(pSwapChain->GetDesc(&desc))) {
             HWND hwnd = desc.OutputWindow;
@@ -66,6 +66,9 @@ namespace DXGIHooks {
                 ShowWindow(hwnd, SW_RESTORE);
                 SetWindowLongW(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
                 SetWindowPos(hwnd, HWND_TOP, 0, 0, devMode.dmPelsWidth, devMode.dmPelsHeight, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+            } else {
+                SetWindowLongW(hwnd, GWL_STYLE, WS_OVERLAPPEDWINDOW | WS_VISIBLE);
+                SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
             }
         }
         
@@ -73,9 +76,9 @@ namespace DXGIHooks {
     }
 
     HRESULT STDMETHODCALLTYPE hkResizeTarget(IDXGISwapChain* pSwapChain, const DXGI_MODE_DESC* pNewTargetParameters) {
-        Logger::Log("[Hook] ResizeTarget interceptado (%ux%u) -> Ignorado/S_OK.",
+        Logger::Log("[Hook] ResizeTarget interceptado (%ux%u) -> Pasando a la original.",
             pNewTargetParameters->Width, pNewTargetParameters->Height);
-        return S_OK;
+        return oResizeTarget(pSwapChain, pNewTargetParameters);
     }
 
     HRESULT STDMETHODCALLTYPE hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT BufferCount,

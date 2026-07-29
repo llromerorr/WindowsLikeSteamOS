@@ -26,6 +26,14 @@ namespace SteamOSConfigurator
         CerrarSesionWindows
     }
 
+    public class GameViewModel
+    {
+        public SteamOSConfigurator.Helpers.ManagedGame Game { get; set; }
+        public string Name => Game?.Name ?? "";
+        public string StatusText => (Game?.IsPluginInstalled ?? false) ? "PROXY ACTIVO" : "";
+        public string StatusColor => (Game?.IsPluginInstalled ?? false) ? "#00FF00" : "Transparent";
+    }
+
     public partial class VentanaRecuperacion : Window
     {
         // ── Win32: forzar foco incluso sobre juegos fullscreen ──
@@ -124,12 +132,42 @@ namespace SteamOSConfigurator
         //  NAVEGACIÓN DIRECTA — llamadas desde TraductorMando
         // ══════════════════════════════════════════════════════════════
 
-        public void NavUp() => Dispatcher.Invoke(() => MoverEnfoque(-1));
-        public void NavDown() => Dispatcher.Invoke(() => MoverEnfoque(1));
+        public void NavUp() => Dispatcher.Invoke(() => 
+        {
+            if (Grid_TabJuegos.Visibility == Visibility.Visible)
+            {
+                if (lstJuegos.Items.Count > 0)
+                {
+                    lstJuegos.SelectedIndex = Math.Max(0, lstJuegos.SelectedIndex - 1);
+                    lstJuegos.ScrollIntoView(lstJuegos.SelectedItem);
+                }
+                return;
+            }
+            MoverEnfoque(-1);
+        });
+        public void NavDown() => Dispatcher.Invoke(() => 
+        {
+            if (Grid_TabJuegos.Visibility == Visibility.Visible)
+            {
+                if (lstJuegos.Items.Count > 0)
+                {
+                    lstJuegos.SelectedIndex = Math.Min(lstJuegos.Items.Count - 1, lstJuegos.SelectedIndex + 1);
+                    lstJuegos.ScrollIntoView(lstJuegos.SelectedItem);
+                }
+                return;
+            }
+            MoverEnfoque(1);
+        });
         public void NavLeft() => Dispatcher.Invoke(() => AjustarOpcionActual(-1));
         public void NavRight() => Dispatcher.Invoke(() => AjustarOpcionActual(1));
         public void NavSelect() => Dispatcher.Invoke(() =>
         {
+            if (Grid_TabJuegos.Visibility == Visibility.Visible)
+            {
+                if (btnGestionarJuego.IsEnabled)
+                    btnGestionarJuego.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                return;
+            }
             if (_focusedIndex >= 0 && _focusedIndex < _botonesNavegables.Count)
                 _botonesNavegables[_focusedIndex].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         });
@@ -150,8 +188,8 @@ namespace SteamOSConfigurator
 
         private void CambiarPestañaRelativa(int delta)
         {
-            var grids = new[] { Grid_TabConfig, Grid_TabRed, Grid_TabRendimiento, Grid_TabMando, Grid_TabEnergia };
-            var tabs = new[] { btnTabConfig, btnTabRed, btnTabRendimiento, btnTabMando, btnTabEnergia };
+            var grids = new FrameworkElement[] { Grid_TabConfig, Grid_TabRed, Grid_TabRendimiento, Grid_TabJuegos, Grid_TabMando, Grid_TabEnergia };
+            var tabs = new[] { btnTabConfig, btnTabRed, btnTabRendimiento, btnTabJuegos, btnTabMando, btnTabEnergia };
             
             int idx = Array.FindIndex(grids, g => g.Visibility == Visibility.Visible);
             if (idx == -1) idx = 0;
@@ -194,17 +232,19 @@ namespace SteamOSConfigurator
             }
         }
 
-        private void CambiarPestaña(ScrollViewer nuevaPestaña, Button btnTabSeleccionado)
+        private void CambiarPestaña(FrameworkElement nuevaPestaña, Button btnTabSeleccionado)
         {
             Grid_TabConfig.Visibility = Visibility.Collapsed;
             Grid_TabRed.Visibility = Visibility.Collapsed;
             Grid_TabRendimiento.Visibility = Visibility.Collapsed;
+            Grid_TabJuegos.Visibility = Visibility.Collapsed;
             Grid_TabMando.Visibility = Visibility.Collapsed;
             Grid_TabEnergia.Visibility = Visibility.Collapsed;
             
             btnTabConfig.Background = new SolidColorBrush(Colors.Transparent);
             btnTabRed.Background = new SolidColorBrush(Colors.Transparent);
             btnTabRendimiento.Background = new SolidColorBrush(Colors.Transparent);
+            btnTabJuegos.Background = new SolidColorBrush(Colors.Transparent);
             btnTabMando.Background = new SolidColorBrush(Colors.Transparent);
             btnTabEnergia.Background = new SolidColorBrush(Colors.Transparent);
 
@@ -220,6 +260,15 @@ namespace SteamOSConfigurator
             {
                 _botonesNavegables = new List<Button> { btnNivelOSD, btnMotorOSD, btnLimiteFPS, btnGpuStretch };
             }
+            else if (nuevaPestaña == Grid_TabJuegos)
+            {
+                _botonesNavegables = new List<Button>();
+                CargarListaJuegos();
+                if (lstJuegos.Items.Count > 0 && lstJuegos.SelectedIndex == -1)
+                {
+                    lstJuegos.SelectedIndex = 0;
+                }
+            }
             else if (nuevaPestaña == Grid_TabMando) 
                 _botonesNavegables = new List<Button> {  }; 
             else if (nuevaPestaña == Grid_TabEnergia) 
@@ -232,6 +281,7 @@ namespace SteamOSConfigurator
         private void BtnTabConfig_Click(object sender, RoutedEventArgs e) => CambiarPestaña(Grid_TabConfig, btnTabConfig);
         private void BtnTabRed_Click(object sender, RoutedEventArgs e) => CambiarPestaña(Grid_TabRed, btnTabRed);
         private void BtnTabRendimiento_Click(object sender, RoutedEventArgs e) => CambiarPestaña(Grid_TabRendimiento, btnTabRendimiento);
+        private void BtnTabJuegos_Click(object sender, RoutedEventArgs e) => CambiarPestaña(Grid_TabJuegos, btnTabJuegos);
         private void BtnTabMando_Click(object sender, RoutedEventArgs e) => CambiarPestaña(Grid_TabMando, btnTabMando);
         private void BtnTabEnergia_Click(object sender, RoutedEventArgs e) => CambiarPestaña(Grid_TabEnergia, btnTabEnergia);
 
@@ -466,7 +516,7 @@ namespace SteamOSConfigurator
                     if (_gpuStretchActivo) _gpuScalingService.ForzarEscaladoCompleto();
                     else _gpuScalingService.RestaurarEscaladoPorMonitor();
                 });
-                ActualizarUIStretch();
+                lblValStretch.Text = _gpuStretchActivo ? "ON" : "OFF";
                 GuardarEstadoActual();
             }
         }
@@ -532,6 +582,92 @@ namespace SteamOSConfigurator
         {
             if (sender is Button btn) SetFocusToButton(btn);
             AjustarOpcionActual(1);
+        }
+
+        // ── PESTAÑA JUEGOS ──
+        private List<GameViewModel> _juegosDisponibles = new();
+
+        private void CargarListaJuegos()
+        {
+            try
+            {
+                var managedGames = SteamOSConfigurator.Helpers.ManagedGamesManager.GetGames();
+                _juegosDisponibles = managedGames.Select(g => new GameViewModel { Game = g }).ToList();
+                lstJuegos.ItemsSource = _juegosDisponibles;
+                ActualizarBotonJuego(null);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[VentanaRecuperacion] Error cargando juegos: {ex.Message}");
+            }
+        }
+
+        private void LstJuegos_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var selected = lstJuegos.SelectedItem as GameViewModel;
+            ActualizarBotonJuego(selected);
+        }
+
+        private void ActualizarBotonJuego(GameViewModel? selected)
+        {
+            if (selected == null)
+            {
+                txtAccionJuego.Text = "Selecciona un juego...";
+                txtAccionJuego.Foreground = new SolidColorBrush(Color.FromRgb(243, 243, 243));
+                btnGestionarJuego.IsEnabled = false;
+                return;
+            }
+
+            if (SteamOSConfigurator.Services.WindowWatcherService.IsGameRunning)
+            {
+                txtAccionJuego.Text = "Debes cerrar el juego activo para gestionar los DLLs";
+                txtAccionJuego.Foreground = new SolidColorBrush(Color.FromRgb(255, 82, 82)); // Red
+                btnGestionarJuego.IsEnabled = false;
+            }
+            else
+            {
+                btnGestionarJuego.IsEnabled = true;
+                if (selected.Game.IsPluginInstalled)
+                {
+                    txtAccionJuego.Text = "Desinstalar DXGI.dll";
+                    txtAccionJuego.Foreground = new SolidColorBrush(Color.FromRgb(255, 82, 82)); // Red
+                }
+                else
+                {
+                    txtAccionJuego.Text = "Instalar DXGI.dll (Proxy)";
+                    txtAccionJuego.Foreground = new SolidColorBrush(Color.FromRgb(102, 192, 244)); // Blue
+                }
+            }
+        }
+
+        private void BtnGestionarJuego_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = lstJuegos.SelectedItem as GameViewModel;
+            if (selected == null) return;
+
+            try
+            {
+                if (selected.Game.IsPluginInstalled)
+                {
+                    SteamOSConfigurator.Helpers.ManagedGamesManager.UninstallPlugin(selected.Game);
+                }
+                else
+                {
+                    SteamOSConfigurator.Helpers.ManagedGamesManager.InstallPlugin(selected.Game);
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                // This means there is a third-party dll and we block it
+                txtAccionJuego.Text = "Bloqueado: Ya existe otro DLL (ReShade, DXVK)";
+                txtAccionJuego.Foreground = new SolidColorBrush(Color.FromRgb(255, 82, 82));
+                btnGestionarJuego.IsEnabled = false;
+                return;
+            }
+
+            // Refrescar lista visualmente
+            lstJuegos.Items.Refresh();
+            ActualizarBotonJuego(selected);
         }
 
         private async void BtnReintentar_Click(object sender, RoutedEventArgs e)

@@ -39,6 +39,15 @@ namespace WindowsLikeSteamOS.Services
                         if (string.IsNullOrEmpty(appId) || string.IsNullOrEmpty(installDir))
                             continue;
 
+                        string lowerName = (name ?? installDir).ToLowerInvariant();
+                        if (lowerName.Contains("proton") || lowerName.Contains("steamworks") ||
+                            lowerName.Contains("sdk") || lowerName.Contains("server") ||
+                            lowerName.Contains("runtime") || lowerName.Contains("redistributables") ||
+                            lowerName.Contains("soundtrack"))
+                        {
+                            continue;
+                        }
+
                         string fullInstall = Path.Combine(library, "common", installDir);
                         if (!Directory.Exists(fullInstall))
                             continue;

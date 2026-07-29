@@ -8,8 +8,6 @@ C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\ProxyLoader.cpp;C:
 C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\ShaderPipeline_DX11.cpp;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\SteamOSHooks64.dir\Release\ShaderPipeline_DX11.obj
 C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\ShaderPipeline_DX12.cpp;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\SteamOSHooks64.dir\Release\ShaderPipeline_DX12.obj
 C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\Win32Hooks.cpp;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\SteamOSHooks64.dir\Release\Win32Hooks.obj
-C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\WrappedDXGIFactory.cpp;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\SteamOSHooks64.dir\Release\WrappedDXGIFactory.obj
-C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\WrappedDXGISwapChain.cpp;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\SteamOSHooks64.dir\Release\WrappedDXGISwapChain.obj
 C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\XInputHooks.cpp;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\SteamOSHooks64.dir\Release\XInputHooks.obj
 C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\dllmain.cpp;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\SteamOSHooks64.dir\Release\dllmain.obj
 C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\imgui.cpp;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\SteamOSHooks64.dir\Release\imgui.obj

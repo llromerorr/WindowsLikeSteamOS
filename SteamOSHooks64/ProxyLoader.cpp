@@ -1,5 +1,4 @@
 #include "ProxyLoader.h"
-#include "WrappedDXGIFactory.h"
 #include "Logger.h"
 #include <dxgi1_6.h>
 #include <string>
@@ -70,9 +69,8 @@ HRESULT WINAPI dxgi_proxy_CreateDXGIFactory(REFIID riid, void** ppFactory) {
     IDXGIFactory* pRealFactory = nullptr;
     HRESULT hr = proc(riid, (void**)&pRealFactory);
     if (SUCCEEDED(hr) && pRealFactory) {
-        WrappedDXGIFactory* pWrapped = new WrappedDXGIFactory(pRealFactory);
-        *ppFactory = pWrapped;
-        Logger::Log("[dxgi_proxy] CreateDXGIFactory intercepted successfully.");
+        *ppFactory = pRealFactory;
+        Logger::Log("[dxgi_proxy] CreateDXGIFactory intercepted successfully (using MinHook fallback).");
     }
     return hr;
 }
@@ -85,9 +83,8 @@ HRESULT WINAPI dxgi_proxy_CreateDXGIFactory1(REFIID riid, void** ppFactory) {
     IDXGIFactory1* pRealFactory1 = nullptr;
     HRESULT hr = proc(riid, (void**)&pRealFactory1);
     if (SUCCEEDED(hr) && pRealFactory1) {
-        WrappedDXGIFactory* pWrapped = new WrappedDXGIFactory(pRealFactory1);
-        *ppFactory = pWrapped;
-        Logger::Log("[dxgi_proxy] CreateDXGIFactory1 intercepted successfully.");
+        *ppFactory = pRealFactory1;
+        Logger::Log("[dxgi_proxy] CreateDXGIFactory1 intercepted successfully (using MinHook fallback).");
     }
     return hr;
 }
@@ -100,9 +97,8 @@ HRESULT WINAPI dxgi_proxy_CreateDXGIFactory2(UINT Flags, REFIID riid, void** ppF
     IDXGIFactory2* pRealFactory2 = nullptr;
     HRESULT hr = proc(Flags, riid, (void**)&pRealFactory2);
     if (SUCCEEDED(hr) && pRealFactory2) {
-        WrappedDXGIFactory* pWrapped = new WrappedDXGIFactory(pRealFactory2);
-        *ppFactory = pWrapped;
-        Logger::Log("[dxgi_proxy] CreateDXGIFactory2 intercepted successfully.");
+        *ppFactory = pRealFactory2;
+        Logger::Log("[dxgi_proxy] CreateDXGIFactory2 intercepted successfully (using MinHook fallback).");
     }
     return hr;
 }

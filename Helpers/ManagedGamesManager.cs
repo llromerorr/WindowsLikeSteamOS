@@ -52,8 +52,8 @@ namespace SteamOSConfigurator.Helpers
             string deployed = Path.Combine(@"C:\ProgramData\SteamOS", "dxgi.dll");
             if (File.Exists(deployed)) return deployed;
 
-            // Luego en el directorio de la app (pre-deploy, como SteamOSHooks64.dll renombrado)
-            string local = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "dxgi.dll");
+            // Luego en el directorio de la app
+            string local = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SteamOSHooks64.dll");
             if (File.Exists(local)) return local;
 
             return "";
@@ -76,7 +76,7 @@ namespace SteamOSConfigurator.Helpers
             if (File.Exists(deployed)) return deployed;
 
             // Prioridad 2: dxgi.dll junto al exe de la app
-            string localDxgi = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "dxgi.dll");
+            string localDxgi = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SteamOSHooks64.dll");
             if (File.Exists(localDxgi)) return localDxgi;
 
             return "";
@@ -213,7 +213,7 @@ namespace SteamOSConfigurator.Helpers
 
         /// <summary>
         /// Instala nuestro dxgi.dll proxy en la carpeta del juego.
-        /// Si hay un dxgi.dll de terceros (ReShade, DXVK), lo renombra a dxgi_chain.dll.
+        /// Si hay un dxgi.dll de terceros (ReShade, DXVK), lanza una excepción para bloquear la instalación.
         /// </summary>
         public static bool InstallPlugin(ManagedGame game)
         {
@@ -223,44 +223,34 @@ namespace SteamOSConfigurator.Helpers
             string sourceDll = GetSourceDll();
             if (string.IsNullOrEmpty(sourceDll))
             {
-                Logger.Log("[ManagedGamesManager] No se encontró dxgi.dll fuente para copiar.");
+                Logger.Log("[ManagedGamesManager] No se encontró SteamOSHooks64.dll fuente para copiar.");
                 return false;
             }
 
             string targetDll = Path.Combine(game.GameDir, "dxgi.dll");
-            string chainDll = Path.Combine(game.GameDir, "dxgi_chain.dll");
 
             try
             {
-                // Si ya hay un dxgi.dll y NO es nuestro, respaldarlo como chain
+                // Si ya hay un dxgi.dll y NO es nuestro, bloquear la instalación.
                 if (File.Exists(targetDll) && !IsOurProxy(targetDll))
                 {
-                    Logger.Log($"[ManagedGamesManager] dxgi.dll de terceros detectado en {game.Name}, renombrando a dxgi_chain.dll");
-                    if (File.Exists(chainDll)) File.Delete(chainDll);
-                    File.Move(targetDll, chainDll);
-                }
-                else if (File.Exists(targetDll))
-                {
-                    // Si ya es nuestro proxy, asegurarnos de que no haya un chain corrupto nuestro
-                    if (File.Exists(chainDll) && IsOurProxy(chainDll))
-                    {
-                        File.Delete(chainDll);
-                    }
+                    Logger.Log($"[ManagedGamesManager] dxgi.dll de terceros detectado en {game.Name}. Instalación bloqueada por seguridad.");
+                    throw new InvalidOperationException("Ya existe otra modificación (ReShade, DXVK, etc) instalada en este juego. Debes desinstalarla manualmente antes de activar el DLL Proxy.");
                 }
 
                 File.Copy(sourceDll, targetDll, true);
-                Logger.Log($"[ManagedGamesManager] Plugin instalado en {game.Name} ({game.GameDir})");
+                Logger.Log($"[ManagedGamesManager] Plugin instalado exitosamente en {game.Name}");
                 return true;
             }
             catch (Exception ex)
             {
                 Logger.Log($"[ManagedGamesManager] Error instalando plugin en {game.Name}: {ex.Message}");
-                return false;
+                throw; // Rethrow para que la UI lo maneje
             }
         }
 
         /// <summary>
-        /// Desinstala nuestro proxy y restaura el dxgi.dll original si existía.
+        /// Desinstala nuestro proxy.
         /// </summary>
         public static bool UninstallPlugin(ManagedGame game)
         {
@@ -268,7 +258,6 @@ namespace SteamOSConfigurator.Helpers
                 return false;
 
             string targetDll = Path.Combine(game.GameDir, "dxgi.dll");
-            string chainDll = Path.Combine(game.GameDir, "dxgi_chain.dll");
 
             try
             {
@@ -277,14 +266,6 @@ namespace SteamOSConfigurator.Helpers
                 {
                     File.Delete(targetDll);
                     Logger.Log($"[ManagedGamesManager] Plugin desinstalado de {game.Name}");
-                }
-
-                // Restaurar el original si había uno (ReShade/DXVK)
-                if (File.Exists(chainDll))
-                {
-                    if (File.Exists(targetDll)) File.Delete(targetDll);
-                    File.Move(chainDll, targetDll);
-                    Logger.Log($"[ManagedGamesManager] dxgi_chain.dll restaurado como dxgi.dll en {game.Name}");
                 }
 
                 return true;

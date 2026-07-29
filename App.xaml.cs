@@ -218,7 +218,7 @@ namespace SteamOSConfigurator
 
                 string configuracion = 
                     "[Settings]\nName=Global\n\n" +
-                    "[Hooking]\nEnableHooking=1\nHookLevel=1\nInjectionDelay=0\n\n" +
+                    "[Hooking]\nEnableHooking=1\nHookLevel=1\nInjectionDelay=15000\n\n" +
                     $"[Framerate]\nLimit={limiteFPS}\nLimitDenominator=1\n\n" +
                     $"[OSD]\nEnableOSD={enableOSD}\nShowStat={enableOSD}\nShowFramerate={showFramerate}\nShowFrametime={showFrametime}\nPlacementX=15\nPlacementY=15\nPositionX=1\nPositionY=1\nZoomRatio=1\n"; 
                 

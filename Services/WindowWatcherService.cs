@@ -6,13 +6,20 @@ using System.Threading;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using SteamOSConfigurator.Helpers;
-using SteamOSConfigurator.Helpers.Profiles;
-using WindowsLikeSteamOS.Injection;
 
 namespace SteamOSConfigurator.Services
 {
     public class WindowWatcherService : IDisposable
     {
+        public static bool IsGameRunning
+        {
+            get
+            {
+                var rtss = Helpers.RTSSSharedMemory.ObtenerRendimientoJuegoActual();
+                return rtss.DatosValidos && !string.IsNullOrEmpty(rtss.GameName);
+            }
+        }
+
         // --- Win32 APIs ---
         [DllImport("user32.dll")]
         static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
@@ -90,23 +97,10 @@ namespace SteamOSConfigurator.Services
         // Debounce dictionary: HWND -> Last execution time
         private ConcurrentDictionary<IntPtr, DateTime> _debounceMap = new();
         private const int DEBOUNCE_MS = 500;
-        
-        private ProfileResolver? _profileResolver;
-        private readonly DllInjector _dllInjector;
 
         public WindowWatcherService()
         {
             _currentProcessId = Process.GetCurrentProcess().Id;
-            try
-            {
-                string jsonPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "juegos_perfiles.json");
-                _profileResolver = ProfileResolver.LoadFromFile(jsonPath);
-            }
-            catch (Exception ex)
-            {
-                Logger.Log($"[WindowWatcherService] Error al cargar juegos_perfiles.json: {ex.Message}");
-            }
-            _dllInjector = new DllInjector(new AntiCheatGuard(), msg => Logger.Log(msg));
         }
 
         public void Start()
@@ -192,49 +186,6 @@ namespace SteamOSConfigurator.Services
                 // Exclude common system processes
                 if (IsSystemProcess(exeName)) return;
 
-                // Si no hay resolver, fallback a Standard
-                ResolvedAction accion = _profileResolver?.Resolve(exePath) ?? new ResolvedAction 
-                { 
-                    Strategy = GameStrategy.Standard, 
-                    DisplayName = exeName, 
-                    Engine = "GENERIC" 
-                };
-
-                Logger.Log($"[WindowWatcherService] Juego detectado: {accion.DisplayName} ({accion.Engine}) - Aplicando estrategia: {accion.Strategy}");
-
-                // Inyectar SteamOSHooks64.dll siempre que se detecte un juego (si no está protegido)
-                if (!_dllInjector.InjectOnly(pid, System.IO.Path.Combine(AppPaths.RaizDatos, "SteamOSHooks64.dll")))
-                {
-                    Logger.Log($"[WindowWatcherService] ADVERTENCIA: La inyección de SteamOSHooks64.dll falló o el juego está protegido (PID {pid}).");
-                }
-
-                switch (accion.Strategy)
-                {
-                    case GameStrategy.ConfigEdit:
-                        if (IniConfigEditor.Apply(accion))
-                        {
-                            Logger.Log($"[WindowWatcherService] Archivo de configuración modificado para {accion.DisplayName}. Surtirá efecto en el próximo inicio si no lo hace ahora.");
-                        }
-                        
-                        // Fallback best-effort por si el juego aún no leyó el config
-                        SteamService.ForceDisableFullscreenOptimizations(exePath);
-                        break;
-                        
-                    case GameStrategy.SimulateAltEnter:
-                        Task.Run(() => 
-                        {
-                            Thread.Sleep(accion.PreDelayMs > 0 ? accion.PreDelayMs : 3000); // Darle tiempo a inicializar (mínimo 3 segs)
-                            Logger.Log($"[WindowWatcherService] Enviando Alt+Enter sintético a {accion.DisplayName}...");
-                            InputSimulator.SendAltEnter(hwnd);
-                        });
-                        break;
-                        
-                    case GameStrategy.Standard:
-                    default:
-                        // Apply Registry Fix Proactively if not applied
-                        SteamService.ForceDisableFullscreenOptimizations(exePath);
-                        break;
-                }
             }
             catch (Exception ex)
             {
