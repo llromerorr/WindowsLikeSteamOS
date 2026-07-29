@@ -88,6 +88,23 @@ namespace DXGIHooks {
             targetWidth = params.fakeWidth;
             targetHeight = params.fakeHeight;
             Logger::Log("[Hook] ResizeBuffers spoofing activo: %ux%u -> %ux%u", Width, Height, targetWidth, targetHeight);
+
+            DXGI_SWAP_CHAIN_DESC desc;
+            if (SUCCEEDED(pSwapChain->GetDesc(&desc)) && desc.OutputWindow) {
+                HWND hGameWindow = desc.OutputWindow;
+                RECT rcClient = { 0, 0, (LONG)targetWidth, (LONG)targetHeight };
+                DWORD style = GetWindowLongW(hGameWindow, GWL_STYLE);
+                DWORD exStyle = GetWindowLongW(hGameWindow, GWL_EXSTYLE);
+                AdjustWindowRectEx(&rcClient, style, FALSE, exStyle);
+
+                int winW = rcClient.right - rcClient.left;
+                int winH = rcClient.bottom - rcClient.top;
+
+                SetWindowPos(hGameWindow, nullptr, 0, 0, winW, winH,
+                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+                Logger::Log("[Hook] HWND redimensionado sincrónicamente: HWND=%p -> %dx%d (Cliente %ux%u)",
+                    hGameWindow, winW, winH, targetWidth, targetHeight);
+            }
         }
         
         if (targetWidth > 0 && targetHeight > 0) {
