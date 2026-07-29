@@ -92,6 +92,8 @@ namespace DXGIHooks {
     HRESULT STDMETHODCALLTYPE hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags) {
         EffectParams params;
         IPCReader::ReadParams(params);
+        
+        ResolutionSpoofer::g_State.spoofEnabled.store(params.enableResolutionSpoof != 0);
 
         if (D3D12Hooks::OnPreDx12Present(pSwapChain, params)) {
             return oPresent(pSwapChain, SyncInterval, Flags);

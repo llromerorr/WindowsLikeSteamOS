@@ -119,7 +119,6 @@ namespace ResolutionSpoofer {
         }
 
         g_State.hGameWindow = hwnd;
-        g_State.spoofEnabled = true;
         
         g_OriginalWndProc = reinterpret_cast<WNDPROC>(
             SetWindowLongPtrW(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HookedWndProc))

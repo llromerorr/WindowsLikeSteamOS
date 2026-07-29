@@ -9,8 +9,12 @@ ChangeDisplaySettingsExW_t oChangeDisplaySettingsExW = nullptr;
 LONG WINAPI hkChangeDisplaySettingsExW(LPCWSTR lpszDeviceName, DEVMODEW* lpDevMode,
     HWND hwnd, DWORD dwflags, LPVOID lParam) {
 
-    Logger::Log("[Hook] ChangeDisplaySettingsExW interceptado -> Bloqueado.");
-    return DISP_CHANGE_SUCCESSFUL;
+    if (ResolutionSpoofer::g_State.spoofEnabled.load()) {
+        Logger::Log("[Hook] ChangeDisplaySettingsExW interceptado -> Bloqueado.");
+        return DISP_CHANGE_SUCCESSFUL;
+    }
+    
+    return oChangeDisplaySettingsExW(lpszDeviceName, lpDevMode, hwnd, dwflags, lParam);
 }
 
 using GetClientRect_t = BOOL(WINAPI*)(HWND, LPRECT);
