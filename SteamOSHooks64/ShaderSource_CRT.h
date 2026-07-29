@@ -11,7 +11,8 @@ cbuffer CRTParams : register(b0) {
     float g_Curvature;
     float g_ScanlineIntensity;
     float g_Time;
-    float3 g_Padding;
+    float g_EnableCRT;
+    float2 g_Padding;
 };
 
 struct VSOutput {
@@ -50,10 +51,12 @@ float4 PSMain(VSOutput input) : SV_TARGET {
     float scanline = sin(uv.y * g_ScreenHeight * 3.14159265 * 2.0) * 0.5 + 0.5;
     color.rgb *= lerp(1.0, scanline, g_ScanlineIntensity);
 
-    float2 vigUV = uv * (1.0 - uv.yx);
-    float vig = vigUV.x * vigUV.y * 15.0;
-    vig = pow(saturate(vig), 0.25);
-    color.rgb *= vig;
+    if (g_EnableCRT > 0.5) {
+        float2 vigUV = uv * (1.0 - uv.yx);
+        float vig = vigUV.x * vigUV.y * 15.0;
+        vig = pow(saturate(vig), 0.25);
+        color.rgb *= vig;
+    }
 
     return color;
 }

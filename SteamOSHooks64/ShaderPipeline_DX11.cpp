@@ -111,7 +111,11 @@ namespace ShaderPipelineDX11 {
         ID3D11RenderTargetView* pOutputRTV, UINT width, UINT height, const EffectParams& params) {
 
         if (!g_Initialized) return;
-        if (!params.enablePostProcess || !params.enableCRT) return;
+        
+        bool needsScaling = ResolutionSpoofer::g_State.spoofEnabled.load();
+        bool needsCRT = (params.enablePostProcess && params.enableCRT);
+
+        if (!needsScaling && !needsCRT) return;
 
         ID3D11Device* pDevice = nullptr;
         pContext->GetDevice(&pDevice);
@@ -125,9 +129,10 @@ namespace ShaderPipelineDX11 {
             CRTConstantBuffer* pData = reinterpret_cast<CRTConstantBuffer*>(mapped.pData);
             pData->screenWidth       = (float)width;
             pData->screenHeight      = (float)height;
-            pData->curvature         = params.curvature;
-            pData->scanlineIntensity = params.scanlineIntensity;
+            pData->curvature         = needsCRT ? params.curvature : 0.0f;
+            pData->scanlineIntensity = needsCRT ? params.scanlineIntensity : 0.0f;
             pData->time              = (float)GetTickCount64() / 1000.0f;
+            pData->enableCRT         = needsCRT ? 1.0f : 0.0f;
             pContext->Unmap(g_pConstantBuffer, 0);
         }
 

@@ -10,7 +10,8 @@ struct CRTConstantBuffer {
     float curvature;           // 0 = plano, 4-8 = curvatura CRT típica
     float scanlineIntensity;   // 0.0 (desactivado) - 1.0 (scanlines fuertes)
     float time;                // segundos, por si se animan efectos (ruido, flicker)
-    float padding[3];          // relleno obligatorio hasta 32 bytes
+    float enableCRT;
+    float padding[2];          // relleno obligatorio hasta 32 bytes
 };
 
 static_assert(sizeof(CRTConstantBuffer) % 16 == 0,

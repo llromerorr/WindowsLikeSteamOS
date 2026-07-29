@@ -15,18 +15,21 @@ namespace DXGIHooks {
 
     enum VTableIndex {
         VT_PRESENT          = 8,
+        VT_GETBUFFER        = 9,
         VT_SETFULLSCREEN    = 10,
         VT_RESIZEBUFFERS    = 13,
         VT_RESIZETARGET     = 14
     };
 
     using Present_t          = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
+    using GetBuffer_t        = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, REFIID, void**);
     using GetFullscreenState_t = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, BOOL*, IDXGIOutput**);
     using SetFullscreen_t    = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, BOOL, IDXGIOutput*);
     using ResizeTarget_t     = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, const DXGI_MODE_DESC*);
     using ResizeBuffers_t    = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
 
     Present_t       oPresent       = nullptr;
+    GetBuffer_t     oGetBuffer     = nullptr;
     GetFullscreenState_t oGetFullscreenState = nullptr;
     SetFullscreen_t oSetFullscreen = nullptr;
     ResizeTarget_t  oResizeTarget  = nullptr;
@@ -38,7 +41,57 @@ namespace DXGIHooks {
     ID3D11DeviceContext*    g_pContext       = nullptr;
     ID3D11RenderTargetView* g_pBackBufferRTV = nullptr;
     ID3D11Texture2D*        g_pBackBufferTex = nullptr;
+    ID3D11Texture2D*        g_pFakeBackBufferTex = nullptr;
     bool                    g_ResourcesReady = false;
+
+    HRESULT STDMETHODCALLTYPE hkGetBuffer(IDXGISwapChain* pSwapChain, UINT Buffer, REFIID riid, void** ppSurface) {
+        if (!g_pDevice) {
+            pSwapChain->GetDevice(__uuidof(ID3D11Device), (void**)&g_pDevice);
+        }
+        if (g_pDevice && !g_pContext) {
+            g_pDevice->GetImmediateContext(&g_pContext);
+        }
+
+        EffectParams params;
+        IPCReader::ReadParams(params);
+        ResolutionSpoofer::g_State.spoofEnabled.store(params.enableResolutionSpoof != 0);
+
+        if (Buffer == 0 && params.enableResolutionSpoof) {
+            if (!g_pFakeBackBufferTex) {
+                UINT fakeW = ResolutionSpoofer::g_State.fakeWidth;
+                UINT fakeH = ResolutionSpoofer::g_State.fakeHeight;
+
+                if (g_pDevice && fakeW > 0 && fakeH > 0) {
+                    D3D11_TEXTURE2D_DESC desc = {};
+                    desc.Width = fakeW;
+                    desc.Height = fakeH;
+                    desc.MipLevels = 1;
+                    desc.ArraySize = 1;
+                    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                    desc.SampleDesc.Count = 1;
+                    desc.Usage = D3D11_USAGE_DEFAULT;
+                    desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+                    
+                    DXGI_SWAP_CHAIN_DESC sd;
+                    if (SUCCEEDED(pSwapChain->GetDesc(&sd))) {
+                        desc.Format = sd.BufferDesc.Format;
+                        desc.SampleDesc = sd.SampleDesc;
+                    }
+                    
+                    HRESULT hr = g_pDevice->CreateTexture2D(&desc, nullptr, &g_pFakeBackBufferTex);
+                    if (SUCCEEDED(hr)) {
+                        Logger::Log("[GetBuffer] Fake Backbuffer creado %ux%u", fakeW, fakeH);
+                    }
+                }
+            }
+            
+            if (g_pFakeBackBufferTex) {
+                return g_pFakeBackBufferTex->QueryInterface(riid, ppSurface);
+            }
+        }
+        
+        return oGetBuffer(pSwapChain, Buffer, riid, ppSurface);
+    }
 
     HRESULT STDMETHODCALLTYPE hkGetFullscreenState(IDXGISwapChain* pSwapChain, BOOL* pFullscreen, IDXGIOutput** ppTarget) {
         return oGetFullscreenState(pSwapChain, pFullscreen, ppTarget);
@@ -79,6 +132,10 @@ namespace DXGIHooks {
             g_pBackBufferRTV = nullptr;
             g_ResourcesReady = false;
         }
+        if (g_pFakeBackBufferTex) {
+            g_pFakeBackBufferTex->Release();
+            g_pFakeBackBufferTex = nullptr;
+        }
         
         D3D12Hooks::OnResizeBuffers(pSwapChain);
         
@@ -108,7 +165,7 @@ namespace DXGIHooks {
             }
 
             if (g_pDevice && g_pContext) {
-                pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&g_pBackBufferTex);
+                oGetBuffer(pSwapChain, 0, __uuidof(ID3D11Texture2D), (void**)&g_pBackBufferTex);
                 if (g_pBackBufferTex) {
                     g_pDevice->CreateRenderTargetView(g_pBackBufferTex, nullptr, &g_pBackBufferRTV);
 
@@ -134,7 +191,10 @@ namespace DXGIHooks {
         if (g_ResourcesReady) {
             DXGI_SWAP_CHAIN_DESC desc;
             pSwapChain->GetDesc(&desc);
-            ShaderPipelineDX11::Render(g_pContext, g_pBackBufferTex, g_pBackBufferRTV,
+            
+            ID3D11Texture2D* pSourceTex = g_pFakeBackBufferTex ? g_pFakeBackBufferTex : g_pBackBufferTex;
+            
+            ShaderPipelineDX11::Render(g_pContext, pSourceTex, g_pBackBufferRTV,
                 desc.BufferDesc.Width, desc.BufferDesc.Height, params);
                 
             OverlayOSD::DX11::Render(g_pContext, g_pBackBufferRTV);
@@ -182,6 +242,7 @@ namespace DXGIHooks {
 
         bool ok = true;
         ok &= Hooking::CreateHook(vtable[VT_PRESENT],       &hkPresent,          &oPresent);
+        ok &= Hooking::CreateHook(vtable[VT_GETBUFFER],     &hkGetBuffer,        &oGetBuffer);
         ok &= Hooking::CreateHook(vtable[11],               &hkGetFullscreenState, &oGetFullscreenState);
         ok &= Hooking::CreateHook(vtable[VT_SETFULLSCREEN], &hkSetFullscreenState, &oSetFullscreen);
         ok &= Hooking::CreateHook(vtable[VT_RESIZETARGET],  &hkResizeTarget,     &oResizeTarget);
