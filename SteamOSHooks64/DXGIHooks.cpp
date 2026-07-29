@@ -57,14 +57,23 @@ namespace DXGIHooks {
         ResolutionSpoofer::g_State.spoofEnabled.store(params.enableResolutionSpoof != 0);
 
         if (Buffer == 0 && params.enableResolutionSpoof) {
-            if (!g_pFakeBackBufferTex) {
-                UINT fakeW = ResolutionSpoofer::g_State.fakeWidth;
-                UINT fakeH = ResolutionSpoofer::g_State.fakeHeight;
+            UINT targetW = params.fakeWidth > 0 ? params.fakeWidth : 1280;
+            UINT targetH = params.fakeHeight > 0 ? params.fakeHeight : 720;
 
-                if (g_pDevice && fakeW > 0 && fakeH > 0) {
+            if (g_pFakeBackBufferTex) {
+                D3D11_TEXTURE2D_DESC curDesc;
+                g_pFakeBackBufferTex->GetDesc(&curDesc);
+                if (curDesc.Width != targetW || curDesc.Height != targetH) {
+                    g_pFakeBackBufferTex->Release();
+                    g_pFakeBackBufferTex = nullptr;
+                }
+            }
+
+            if (!g_pFakeBackBufferTex) {
+                if (g_pDevice) {
                     D3D11_TEXTURE2D_DESC desc = {};
-                    desc.Width = fakeW;
-                    desc.Height = fakeH;
+                    desc.Width = targetW;
+                    desc.Height = targetH;
                     desc.MipLevels = 1;
                     desc.ArraySize = 1;
                     desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -80,13 +89,18 @@ namespace DXGIHooks {
                     
                     HRESULT hr = g_pDevice->CreateTexture2D(&desc, nullptr, &g_pFakeBackBufferTex);
                     if (SUCCEEDED(hr)) {
-                        Logger::Log("[GetBuffer] Fake Backbuffer creado %ux%u", fakeW, fakeH);
+                        Logger::Log("[GetBuffer] Fake Backbuffer creado %ux%u", targetW, targetH);
                     }
                 }
             }
             
             if (g_pFakeBackBufferTex) {
                 return g_pFakeBackBufferTex->QueryInterface(riid, ppSurface);
+            }
+        } else {
+            if (g_pFakeBackBufferTex) {
+                g_pFakeBackBufferTex->Release();
+                g_pFakeBackBufferTex = nullptr;
             }
         }
         

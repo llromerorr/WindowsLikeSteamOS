@@ -84,15 +84,16 @@ namespace ShaderPipelineDX11 {
     }
 
     static void EnsureCopyResources(ID3D11Device* pDevice,
-        ID3D11Texture2D* pBackBufferTex, UINT width, UINT height) {
+        ID3D11Texture2D* pBackBufferTex) {
 
-        if (g_pCopyTexture && width == g_CachedWidth && height == g_CachedHeight) return;
+        D3D11_TEXTURE2D_DESC desc;
+        pBackBufferTex->GetDesc(&desc);
+
+        if (g_pCopyTexture && desc.Width == g_CachedWidth && desc.Height == g_CachedHeight) return;
 
         if (g_pCopySRV)     { g_pCopySRV->Release();     g_pCopySRV = nullptr; }
         if (g_pCopyTexture) { g_pCopyTexture->Release();  g_pCopyTexture = nullptr; }
 
-        D3D11_TEXTURE2D_DESC desc;
-        pBackBufferTex->GetDesc(&desc);
         desc.BindFlags      = D3D11_BIND_SHADER_RESOURCE;
         desc.Usage          = D3D11_USAGE_DEFAULT;
         desc.CPUAccessFlags = 0;
@@ -101,10 +102,10 @@ namespace ShaderPipelineDX11 {
         pDevice->CreateTexture2D(&desc, nullptr, &g_pCopyTexture);
         pDevice->CreateShaderResourceView(g_pCopyTexture, nullptr, &g_pCopySRV);
 
-        g_CachedWidth  = width;
-        g_CachedHeight = height;
+        g_CachedWidth  = desc.Width;
+        g_CachedHeight = desc.Height;
 
-        Logger::Log("[DX11 Shader] Textura de copia recreada: %ux%u", width, height);
+        Logger::Log("[DX11 Shader] Textura de copia recreada: %ux%u", desc.Width, desc.Height);
     }
 
     void Render(ID3D11DeviceContext* pContext, ID3D11Texture2D* pBackBufferTex,
@@ -119,7 +120,7 @@ namespace ShaderPipelineDX11 {
 
         ID3D11Device* pDevice = nullptr;
         pContext->GetDevice(&pDevice);
-        EnsureCopyResources(pDevice, pBackBufferTex, width, height);
+        EnsureCopyResources(pDevice, pBackBufferTex);
         pDevice->Release();
 
         pContext->CopyResource(g_pCopyTexture, pBackBufferTex);
