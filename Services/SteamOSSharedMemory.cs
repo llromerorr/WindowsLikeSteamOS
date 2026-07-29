@@ -60,6 +60,8 @@ namespace WindowsLikeSteamOS.Services
         private const uint   IPC_MAGIC      = 0x53544D53;
         private const uint   LAYOUT_VERSION = 1;
 
+        public static SteamOSSharedMemory Instance { get; } = new SteamOSSharedMemory();
+
         private readonly MemoryMappedFile          _mmf;
         private readonly MemoryMappedViewAccessor _view;
 
@@ -72,7 +74,7 @@ namespace WindowsLikeSteamOS.Services
         private static readonly long OFFSET_TELEMETRY_FRAMES = Marshal.OffsetOf<IPCSharedBlock>(nameof(IPCSharedBlock.framesRendered)).ToInt64();
         private static readonly long OFFSET_TELEMETRY_FRAMEMS = Marshal.OffsetOf<IPCSharedBlock>(nameof(IPCSharedBlock.lastFrameMs)).ToInt64();
 
-        public SteamOSSharedMemory()
+        private SteamOSSharedMemory()
         {
             _mmf  = MemoryMappedFile.CreateOrOpen(MMF_NAME, MMF_SIZE, MemoryMappedFileAccess.ReadWrite);
             _view = _mmf.CreateViewAccessor(0, MMF_SIZE, MemoryMappedFileAccess.ReadWrite);

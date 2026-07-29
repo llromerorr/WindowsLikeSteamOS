@@ -15,6 +15,7 @@ using System.Windows.Threading;
 using System.Diagnostics;
 using SteamOSConfigurator.Services;
 using SteamOSConfigurator.Helpers;
+using WindowsLikeSteamOS.Services;
 
 namespace SteamOSConfigurator
 {
@@ -66,6 +67,8 @@ namespace SteamOSConfigurator
         private readonly string[] _nombresMotorOSD = new string[] { "WPF", "RTSS" };
         private int _indexMotorOSD = 0;
         private bool _gpuStretchActivo = true;
+        private readonly string[] _opcionesEscalado = new string[] { "OFF", "720p (FSR)", "900p (FSR)" };
+        private int _indexEscalado = 0;
 
         private DispatcherTimer _timerDashboard;
         private bool _isClosing = false;
@@ -519,6 +522,21 @@ namespace SteamOSConfigurator
                 lblValStretch.Text = _gpuStretchActivo ? "ON" : "OFF";
                 GuardarEstadoActual();
             }
+            else if (btn == btnFiltroEscalado)
+            {
+                _indexEscalado = (_indexEscalado + delta + _opcionesEscalado.Length) % _opcionesEscalado.Length;
+                lblValFiltroEscalado.Text = _opcionesEscalado[_indexEscalado];
+                
+                bool isFSR = _indexEscalado > 0;
+                uint width = 0;
+                uint height = 0;
+                
+                if (_indexEscalado == 1) { width = 1280; height = 720; }
+                else if (_indexEscalado == 2) { width = 1600; height = 900; }
+                
+                SteamOSSharedMemory.Instance.SetResolutionSpoof(isFSR, width, height);
+                GuardarEstadoActual();
+            }
         }
 
         private void Window_KeyDown(object sender, KeyEventArgs e)
@@ -579,6 +597,12 @@ namespace SteamOSConfigurator
         }
 
         private void BtnGpuStretch_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn) SetFocusToButton(btn);
+            AjustarOpcionActual(1);
+        }
+
+        private void BtnFiltroEscalado_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn) SetFocusToButton(btn);
             AjustarOpcionActual(1);

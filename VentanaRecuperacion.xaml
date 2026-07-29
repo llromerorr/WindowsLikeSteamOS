@@ -360,13 +360,13 @@
                             <Rectangle Height="1" Margin="0,10,0,10" Fill="#2A475E"/>
                             <TextBlock Text="ESCALADO AVANZADO" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
 
-                            <!-- SCALING FILTER 🚧 -->
-                            <Button Style="{StaticResource QamBtn}">
+                            <!-- SCALING FILTER -->
+                            <Button x:Name="btnFiltroEscalado" Style="{StaticResource QamBtn}" Click="BtnFiltroEscalado_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="🔎" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Filtro de Escalado" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="Resolución Falsa (FSR)" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="lblValFiltroEscalado" Grid.Column="2" Text="OFF" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
                                 </Grid>
                             </Button>
 
