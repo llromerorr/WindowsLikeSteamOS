@@ -261,7 +261,7 @@ namespace SteamOSConfigurator
                 _botonesNavegables = new List<Button> {  }; 
             else if (nuevaPestaña == Grid_TabRendimiento)
             {
-                _botonesNavegables = new List<Button> { btnNivelOSD, btnMotorOSD, btnLimiteFPS, btnGpuStretch };
+                _botonesNavegables = new List<Button> { btnNivelOSD, btnMotorOSD, btnLimiteFPS, btnFiltroEscalado, btnGpuStretch };
             }
             else if (nuevaPestaña == Grid_TabJuegos)
             {
