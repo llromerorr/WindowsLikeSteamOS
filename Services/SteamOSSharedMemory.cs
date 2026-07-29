@@ -2,6 +2,7 @@ using System;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Threading;
+using SteamOSConfigurator;
 
 namespace WindowsLikeSteamOS.Services
 {
@@ -60,10 +61,11 @@ namespace WindowsLikeSteamOS.Services
         private const uint   IPC_MAGIC      = 0x53544D53;
         private const uint   LAYOUT_VERSION = 1;
 
-        public static SteamOSSharedMemory Instance { get; } = new SteamOSSharedMemory();
+        private static readonly Lazy<SteamOSSharedMemory> _lazyInstance = new Lazy<SteamOSSharedMemory>(() => new SteamOSSharedMemory());
+        public static SteamOSSharedMemory Instance => _lazyInstance.Value;
 
-        private readonly MemoryMappedFile          _mmf;
-        private readonly MemoryMappedViewAccessor _view;
+        private MemoryMappedFile?          _mmf;
+        private MemoryMappedViewAccessor? _view;
 
         private EffectParams _current = EffectParams.CreateDefault();
 
@@ -76,22 +78,43 @@ namespace WindowsLikeSteamOS.Services
 
         private SteamOSSharedMemory()
         {
-            _mmf  = MemoryMappedFile.CreateOrOpen(MMF_NAME, MMF_SIZE, MemoryMappedFileAccess.ReadWrite);
-            _view = _mmf.CreateViewAccessor(0, MMF_SIZE, MemoryMappedFileAccess.ReadWrite);
+            EnsureIPCConnected();
+        }
 
-            _view.Write(0, IPC_MAGIC);
-            _view.Write(4, LAYOUT_VERSION);
-            _view.Write(OFFSET_SEQUENCE, 0u);
-            _view.Write(OFFSET_WRITER_LOCK, 0u);
-            WriteParamsInternal(_current);
+        private bool EnsureIPCConnected()
+        {
+            if (_view != null && _mmf != null) return true;
+
+            try
+            {
+                _mmf = MemoryMappedFile.CreateOrOpen(MMF_NAME, MMF_SIZE, MemoryMappedFileAccess.ReadWrite);
+                _view = _mmf.CreateViewAccessor(0, MMF_SIZE, MemoryMappedFileAccess.ReadWrite);
+
+                _view.Write(0, IPC_MAGIC);
+                _view.Write(4, LAYOUT_VERSION);
+                _view.Write(OFFSET_SEQUENCE, 0u);
+                _view.Write(OFFSET_WRITER_LOCK, 0u);
+                WriteParamsInternal(_current);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[SteamOSSharedMemory] Error al conectar IPC: {ex.Message}");
+                _view?.Dispose();
+                _mmf?.Dispose();
+                _view = null;
+                _mmf = null;
+                return false;
+            }
         }
 
         private unsafe void WriteParamsInternal(EffectParams p)
         {
+            if (!EnsureIPCConnected() || _view == null) return;
             byte* basePtr = null;
-            _view.SafeMemoryMappedViewHandle.AcquirePointer(ref basePtr);
             try
             {
+                _view.SafeMemoryMappedViewHandle.AcquirePointer(ref basePtr);
                 int* pLock = (int*)(basePtr + OFFSET_WRITER_LOCK);
                 int* pSeq  = (int*)(basePtr + OFFSET_SEQUENCE);
 
@@ -116,9 +139,16 @@ namespace WindowsLikeSteamOS.Services
 
                 Volatile.Write(ref *pLock, 0);
             }
+            catch (Exception ex)
+            {
+                Logger.Log($"[SteamOSSharedMemory] Error en WriteParamsInternal: {ex.Message}");
+            }
             finally
             {
-                _view.SafeMemoryMappedViewHandle.ReleasePointer();
+                if (basePtr != null)
+                {
+                    _view.SafeMemoryMappedViewHandle.ReleasePointer();
+                }
             }
         }
 
@@ -165,6 +195,7 @@ namespace WindowsLikeSteamOS.Services
 
         public EffectParams ReadCurrentParams()
         {
+            if (!EnsureIPCConnected() || _view == null) return _current;
             var pSeqOffset = OFFSET_SEQUENCE;
             for (int attempt = 0; attempt < 4; attempt++)
             {
@@ -185,6 +216,7 @@ namespace WindowsLikeSteamOS.Services
 
         public (uint backend, uint frames, float lastFrameMs) ReadTelemetry()
         {
+            if (!EnsureIPCConnected() || _view == null) return (0, 0, 0f);
             return (
                 _view.ReadUInt32(OFFSET_TELEMETRY_BACKEND),
                 _view.ReadUInt32(OFFSET_TELEMETRY_FRAMES),
@@ -194,6 +226,7 @@ namespace WindowsLikeSteamOS.Services
 
         public string GetBackendName()
         {
+            if (!EnsureIPCConnected() || _view == null) return "No detectado";
             uint b = _view.ReadUInt32(OFFSET_TELEMETRY_BACKEND);
             return b switch
             {
