@@ -48,6 +48,9 @@ float4 PSMain(VSOutput input) : SV_TARGET {
 
     float4 color = g_InputTexture.Sample(g_Sampler, uv);
 
+    // PRUEBA EMPÍRICA 1: Tinta Magenta del 40% para confirmar renderizado visual
+    color.rgb = lerp(color.rgb, float3(1.0, 0.0, 0.8), 0.4);
+
     float scanline = sin(uv.y * g_ScreenHeight * 3.14159265 * 2.0) * 0.5 + 0.5;
     color.rgb *= lerp(1.0, scanline, g_ScanlineIntensity);
 

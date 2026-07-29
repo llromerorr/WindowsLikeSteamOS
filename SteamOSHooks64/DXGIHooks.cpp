@@ -56,54 +56,6 @@ namespace DXGIHooks {
         IPCReader::ReadParams(params);
         ResolutionSpoofer::g_State.spoofEnabled.store(params.enableResolutionSpoof != 0);
 
-        if (Buffer == 0 && params.enableResolutionSpoof) {
-            UINT targetW = params.fakeWidth > 0 ? params.fakeWidth : 1280;
-            UINT targetH = params.fakeHeight > 0 ? params.fakeHeight : 720;
-
-            if (g_pFakeBackBufferTex) {
-                D3D11_TEXTURE2D_DESC curDesc;
-                g_pFakeBackBufferTex->GetDesc(&curDesc);
-                if (curDesc.Width != targetW || curDesc.Height != targetH) {
-                    g_pFakeBackBufferTex->Release();
-                    g_pFakeBackBufferTex = nullptr;
-                }
-            }
-
-            if (!g_pFakeBackBufferTex) {
-                if (g_pDevice) {
-                    D3D11_TEXTURE2D_DESC desc = {};
-                    desc.Width = targetW;
-                    desc.Height = targetH;
-                    desc.MipLevels = 1;
-                    desc.ArraySize = 1;
-                    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-                    desc.SampleDesc.Count = 1;
-                    desc.Usage = D3D11_USAGE_DEFAULT;
-                    desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-                    
-                    DXGI_SWAP_CHAIN_DESC sd;
-                    if (SUCCEEDED(pSwapChain->GetDesc(&sd))) {
-                        desc.Format = sd.BufferDesc.Format;
-                        desc.SampleDesc = sd.SampleDesc;
-                    }
-                    
-                    HRESULT hr = g_pDevice->CreateTexture2D(&desc, nullptr, &g_pFakeBackBufferTex);
-                    if (SUCCEEDED(hr)) {
-                        Logger::Log("[GetBuffer] Fake Backbuffer creado %ux%u", targetW, targetH);
-                    }
-                }
-            }
-            
-            if (g_pFakeBackBufferTex) {
-                return g_pFakeBackBufferTex->QueryInterface(riid, ppSurface);
-            }
-        } else {
-            if (g_pFakeBackBufferTex) {
-                g_pFakeBackBufferTex->Release();
-                g_pFakeBackBufferTex = nullptr;
-            }
-        }
-        
         return oGetBuffer(pSwapChain, Buffer, riid, ppSurface);
     }
 
@@ -206,16 +158,23 @@ namespace DXGIHooks {
             DXGI_SWAP_CHAIN_DESC desc;
             pSwapChain->GetDesc(&desc);
             
-            ID3D11Texture2D* pSourceTex = g_pFakeBackBufferTex ? g_pFakeBackBufferTex : g_pBackBufferTex;
-            
-            ShaderPipelineDX11::Render(g_pContext, pSourceTex, g_pBackBufferRTV,
+            ShaderPipelineDX11::Render(g_pContext, g_pBackBufferTex, g_pBackBufferRTV,
                 desc.BufferDesc.Width, desc.BufferDesc.Height, params);
                 
             OverlayOSD::DX11::Render(g_pContext, g_pBackBufferRTV);
         }
 
         static uint32_t frameCounter = 0;
-        IPCReader::WriteTelemetry(11, ++frameCounter, 0.0f);
+        frameCounter++;
+        static uint32_t lastSpoofState = 999;
+        if (params.enableResolutionSpoof != lastSpoofState || (frameCounter % 300 == 0)) {
+            lastSpoofState = params.enableResolutionSpoof;
+            Logger::Log("[Diagnostic] Present #%u | spoofEnabled=%u | fakeWxH=%ux%u | pSourceTex=%s | g_ResourcesReady=%d",
+                frameCounter, params.enableResolutionSpoof, params.fakeWidth, params.fakeHeight,
+                g_pFakeBackBufferTex ? "FakeBackBuffer" : "RealBackBuffer", g_ResourcesReady ? 1 : 0);
+        }
+
+        IPCReader::WriteTelemetry(11, frameCounter, 0.0f);
 
         return oPresent(pSwapChain, SyncInterval, Flags);
     }
