@@ -77,10 +77,22 @@ namespace DXGIHooks {
     HRESULT STDMETHODCALLTYPE hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT BufferCount,
         UINT Width, UINT Height, DXGI_FORMAT Format, UINT Flags) {
         Logger::Log("[Hook] ResizeBuffers solicitado: %ux%u", Width, Height);
+
+        EffectParams params;
+        IPCReader::ReadParams(params);
+
+        UINT targetWidth = Width;
+        UINT targetHeight = Height;
+
+        if (params.enableResolutionSpoof && params.fakeWidth > 0 && params.fakeHeight > 0) {
+            targetWidth = params.fakeWidth;
+            targetHeight = params.fakeHeight;
+            Logger::Log("[Hook] ResizeBuffers spoofing activo: %ux%u -> %ux%u", Width, Height, targetWidth, targetHeight);
+        }
         
-        if (Width > 0 && Height > 0) {
-            ResolutionSpoofer::g_State.fakeWidth = Width;
-            ResolutionSpoofer::g_State.fakeHeight = Height;
+        if (targetWidth > 0 && targetHeight > 0) {
+            ResolutionSpoofer::g_State.fakeWidth = targetWidth;
+            ResolutionSpoofer::g_State.fakeHeight = targetHeight;
         }
         
         if (g_pContext) {
@@ -105,7 +117,7 @@ namespace DXGIHooks {
         
         D3D12Hooks::OnResizeBuffers(pSwapChain);
         
-        HRESULT hr = oResizeBuffers(pSwapChain, BufferCount, Width, Height, Format, Flags);
+        HRESULT hr = oResizeBuffers(pSwapChain, BufferCount, targetWidth, targetHeight, Format, Flags);
         if (FAILED(hr)) {
             Logger::Log("[Hook] ERROR FATAL oResizeBuffers fallo con hr=0x%08X", hr);
         }
