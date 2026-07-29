@@ -20,8 +20,21 @@ namespace WindowsLikeSteamOS.Services
         public uint  fakeHeight;
         public uint  showOverlay;
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 60)]
-        public byte[] reserved;
+        public uint reserved0;
+        public uint reserved1;
+        public uint reserved2;
+        public uint reserved3;
+        public uint reserved4;
+        public uint reserved5;
+        public uint reserved6;
+        public uint reserved7;
+        public uint reserved8;
+        public uint reserved9;
+        public uint reserved10;
+        public uint reserved11;
+        public uint reserved12;
+        public uint reserved13;
+        public uint reserved14;
 
         public static EffectParams CreateDefault() => new EffectParams
         {
@@ -34,8 +47,7 @@ namespace WindowsLikeSteamOS.Services
             enableResolutionSpoof = 0,
             fakeWidth             = 1920,
             fakeHeight            = 1080,
-            showOverlay           = 0,
-            reserved              = new byte[60]
+            showOverlay           = 0
         };
     }
 
@@ -50,8 +62,19 @@ namespace WindowsLikeSteamOS.Services
         public uint         detectedBackend;
         public uint         framesRendered;
         public float        lastFrameMs;
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 13)]
-        public uint[] _reservedTelemetry;
+        public uint _reservedTelemetry0;
+        public uint _reservedTelemetry1;
+        public uint _reservedTelemetry2;
+        public uint _reservedTelemetry3;
+        public uint _reservedTelemetry4;
+        public uint _reservedTelemetry5;
+        public uint _reservedTelemetry6;
+        public uint _reservedTelemetry7;
+        public uint _reservedTelemetry8;
+        public uint _reservedTelemetry9;
+        public uint _reservedTelemetry10;
+        public uint _reservedTelemetry11;
+        public uint _reservedTelemetry12;
     }
 
     public sealed class SteamOSSharedMemory : IDisposable
