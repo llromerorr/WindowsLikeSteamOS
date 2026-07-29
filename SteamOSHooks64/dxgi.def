@@ -1,0 +1,12 @@
+EXPORTS
+    ApplyCompatResolutionQuirking=dxgi_proxy_ApplyCompatResolutionQuirking
+    CompatString=dxgi_proxy_CompatString
+    CompatValue=dxgi_proxy_CompatValue
+    CreateDXGIFactory=dxgi_proxy_CreateDXGIFactory
+    CreateDXGIFactory1=dxgi_proxy_CreateDXGIFactory1
+    CreateDXGIFactory2=dxgi_proxy_CreateDXGIFactory2
+    DXGID3D10CreateDevice=dxgi_proxy_DXGID3D10CreateDevice
+    DXGID3D10CreateLayeredDevice=dxgi_proxy_DXGID3D10CreateLayeredDevice
+    DXGID3D10GetLayeredDeviceSize=dxgi_proxy_DXGID3D10GetLayeredDeviceSize
+    DXGIDeclareAdapterRemovalSupport=dxgi_proxy_DXGIDeclareAdapterRemovalSupport
+    DXGIGetDebugInterface1=dxgi_proxy_DXGIGetDebugInterface1

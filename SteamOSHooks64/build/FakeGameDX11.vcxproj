@@ -22,31 +22,31 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{02856E4C-D310-3DC0-AE40-D4FD5B55664A}</ProjectGuid>
+    <ProjectGuid>{3DD77D46-382E-3483-AA80-DC3A8251B337}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
     <Platform>x64</Platform>
-    <ProjectName>SteamOSHooks64</ProjectName>
+    <ProjectName>FakeGameDX11</ProjectName>
     <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
@@ -60,34 +60,32 @@
   <PropertyGroup>
     <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\Debug\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">SteamOSHooks64.dir\Debug\</IntDir>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">SteamOSHooks64</TargetName>
-    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.dll</TargetExt>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">FakeGameDX11.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">FakeGameDX11</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.exe</TargetExt>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</LinkIncremental>
     <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</GenerateManifest>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\Release\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">SteamOSHooks64.dir\Release\</IntDir>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">SteamOSHooks64</TargetName>
-    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.dll</TargetExt>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">FakeGameDX11.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">FakeGameDX11</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.exe</TargetExt>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
     <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</GenerateManifest>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\MinSizeRel\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">SteamOSHooks64.dir\MinSizeRel\</IntDir>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">SteamOSHooks64</TargetName>
-    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.dll</TargetExt>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">FakeGameDX11.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">FakeGameDX11</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.exe</TargetExt>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkIncremental>
     <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">true</GenerateManifest>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\RelWithDebInfo\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">SteamOSHooks64.dir\RelWithDebInfo\</IntDir>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">SteamOSHooks64</TargetName>
-    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.dll</TargetExt>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">FakeGameDX11.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">FakeGameDX11</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.exe</TargetExt>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</LinkIncremental>
     <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</GenerateManifest>
   </PropertyGroup>
-  <PropertyGroup />
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <BufferSecurityCheck></BufferSecurityCheck>
@@ -108,16 +106,15 @@
       <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
       <UseFullPaths>false</UseFullPaths>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;CMAKE_INTDIR="Debug";SteamOSHooks64_EXPORTS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;CMAKE_INTDIR=\"Debug\";SteamOSHooks64_EXPORTS</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -125,16 +122,16 @@
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
     <Link>
-      <AdditionalDependencies>d3d11.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;user32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <DataExecutionPrevention></DataExecutionPrevention>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
-      <ImportLibrary>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/Debug/SteamOSHooks64.lib</ImportLibrary>
+      <ImportLibrary>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/Debug/FakeGameDX11.lib</ImportLibrary>
       <LinkErrorReporting></LinkErrorReporting>
-      <ProgramDataBaseFile>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/Debug/SteamOSHooks64.pdb</ProgramDataBaseFile>
+      <ProgramDataBaseFile>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/Debug/FakeGameDX11.pdb</ProgramDataBaseFile>
       <RandomizedBaseAddress></RandomizedBaseAddress>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -144,7 +141,6 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck></BufferSecurityCheck>
@@ -164,18 +160,17 @@
       <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
       <UseFullPaths>false</UseFullPaths>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="Release";SteamOSHooks64_EXPORTS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <DebugInformationFormat>
       </DebugInformationFormat>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\";SteamOSHooks64_EXPORTS</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -183,16 +178,16 @@
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
     <Link>
-      <AdditionalDependencies>d3d11.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;user32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <DataExecutionPrevention></DataExecutionPrevention>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
-      <ImportLibrary>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/Release/SteamOSHooks64.lib</ImportLibrary>
+      <ImportLibrary>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/Release/FakeGameDX11.lib</ImportLibrary>
       <LinkErrorReporting></LinkErrorReporting>
-      <ProgramDataBaseFile>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/Release/SteamOSHooks64.pdb</ProgramDataBaseFile>
+      <ProgramDataBaseFile>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/Release/FakeGameDX11.pdb</ProgramDataBaseFile>
       <RandomizedBaseAddress></RandomizedBaseAddress>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -202,7 +197,6 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck></BufferSecurityCheck>
@@ -222,18 +216,17 @@
       <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
       <UseFullPaths>false</UseFullPaths>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="MinSizeRel";SteamOSHooks64_EXPORTS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <DebugInformationFormat>
       </DebugInformationFormat>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"MinSizeRel\";SteamOSHooks64_EXPORTS</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -241,16 +234,16 @@
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
     <Link>
-      <AdditionalDependencies>d3d11.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;user32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <DataExecutionPrevention></DataExecutionPrevention>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
-      <ImportLibrary>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/MinSizeRel/SteamOSHooks64.lib</ImportLibrary>
+      <ImportLibrary>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/MinSizeRel/FakeGameDX11.lib</ImportLibrary>
       <LinkErrorReporting></LinkErrorReporting>
-      <ProgramDataBaseFile>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/MinSizeRel/SteamOSHooks64.pdb</ProgramDataBaseFile>
+      <ProgramDataBaseFile>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/MinSizeRel/FakeGameDX11.pdb</ProgramDataBaseFile>
       <RandomizedBaseAddress></RandomizedBaseAddress>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -260,7 +253,6 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck></BufferSecurityCheck>
@@ -281,16 +273,15 @@
       <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
       <UseFullPaths>false</UseFullPaths>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="RelWithDebInfo";SteamOSHooks64_EXPORTS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"RelWithDebInfo\";SteamOSHooks64_EXPORTS</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends;C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -298,16 +289,16 @@
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
     <Link>
-      <AdditionalDependencies>d3d11.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;user32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <DataExecutionPrevention></DataExecutionPrevention>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
-      <ImportLibrary>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/RelWithDebInfo/SteamOSHooks64.lib</ImportLibrary>
+      <ImportLibrary>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/RelWithDebInfo/FakeGameDX11.lib</ImportLibrary>
       <LinkErrorReporting></LinkErrorReporting>
-      <ProgramDataBaseFile>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/RelWithDebInfo/SteamOSHooks64.pdb</ProgramDataBaseFile>
+      <ProgramDataBaseFile>C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/RelWithDebInfo/FakeGameDX11.pdb</ProgramDataBaseFile>
       <RandomizedBaseAddress></RandomizedBaseAddress>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -373,45 +364,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\D3D12Hooks.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\DXGIHooks.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\IPCReader.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\OverlayOSD_Common.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\OverlayOSD_DX11.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\OverlayOSD_DX12.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\ProxyLoader.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\ShaderPipeline_DX11.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\ShaderPipeline_DX12.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\Win32Hooks.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\WrappedDXGIFactory.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\WrappedDXGISwapChain.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\XInputHooks.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\dllmain.cpp" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\D3D12Hooks.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\Hooking.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\IPCLayout.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\IPCReader.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\Logger.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\OverlayOSD.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\ProxyLoader.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\ResolutionSpoofer.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\ShaderPipeline.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\ShaderSource_CRT.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\WrappedDXGIFactory.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\WrappedDXGISwapChain.h" />
-    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\XInputHooks.h" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\imgui.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\imgui_draw.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\imgui_tables.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\imgui_widgets.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends\imgui_impl_win32.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends\imgui_impl_dx11.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\imgui-src\backends\imgui_impl_dx12.cpp" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\src\buffer.c" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\src\hook.c" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\src\trampoline.c" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\src\hde\hde32.c" />
-    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\build\_deps\minhook-src\src\hde\hde64.c" />
+    <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\scratch\FakeGameDX11\main.cpp" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>

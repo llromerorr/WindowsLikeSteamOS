@@ -26,7 +26,8 @@ namespace SteamOSConfigurator.Services
         {
             try
             {
-                NvidiaScaler.RestaurarEscaladoPorMonitor();
+                // NvidiaScaler.RestaurarEscaladoPorMonitor();
+                Logger.Log("[NvidiaGpuScalingService] RestaurarEscaladoPorMonitor llamado, pero desactivado por seguridad.");
             }
             catch (Exception ex)
             {
