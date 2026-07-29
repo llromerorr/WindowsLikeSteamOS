@@ -98,20 +98,24 @@ namespace ShaderPipelineDX11 {
         desc.Usage          = D3D11_USAGE_DEFAULT;
         desc.CPUAccessFlags = 0;
         desc.MiscFlags      = 0;
+        desc.SampleDesc.Count = 1;
+        desc.SampleDesc.Quality = 0;
 
-        pDevice->CreateTexture2D(&desc, nullptr, &g_pCopyTexture);
-        pDevice->CreateShaderResourceView(g_pCopyTexture, nullptr, &g_pCopySRV);
+        HRESULT hr = pDevice->CreateTexture2D(&desc, nullptr, &g_pCopyTexture);
+        if (SUCCEEDED(hr)) {
+            pDevice->CreateShaderResourceView(g_pCopyTexture, nullptr, &g_pCopySRV);
+        }
 
         g_CachedWidth  = desc.Width;
         g_CachedHeight = desc.Height;
 
-        Logger::Log("[DX11 Shader] Textura de copia recreada: %ux%u", desc.Width, desc.Height);
+        Logger::Log("[DX11 Shader] Textura de copia recreada: %ux%u (Format=%d)", desc.Width, desc.Height, desc.Format);
     }
 
     void Render(ID3D11DeviceContext* pContext, ID3D11Texture2D* pBackBufferTex,
         ID3D11RenderTargetView* pOutputRTV, UINT width, UINT height, const EffectParams& params) {
 
-        if (!g_Initialized) return;
+        if (!g_Initialized || !pBackBufferTex || !pOutputRTV) return;
         
         bool needsScaling = ResolutionSpoofer::g_State.spoofEnabled.load();
         bool needsCRT = (params.enablePostProcess && params.enableCRT);
@@ -123,7 +127,16 @@ namespace ShaderPipelineDX11 {
         EnsureCopyResources(pDevice, pBackBufferTex);
         pDevice->Release();
 
-        pContext->CopyResource(g_pCopyTexture, pBackBufferTex);
+        if (!g_pCopyTexture || !g_pCopySRV) return;
+
+        D3D11_TEXTURE2D_DESC srcDesc;
+        pBackBufferTex->GetDesc(&srcDesc);
+
+        if (srcDesc.SampleDesc.Count > 1) {
+            pContext->ResolveSubresource(g_pCopyTexture, 0, pBackBufferTex, 0, srcDesc.Format);
+        } else {
+            pContext->CopyResource(g_pCopyTexture, pBackBufferTex);
+        }
 
         D3D11_MAPPED_SUBRESOURCE mapped;
         if (SUCCEEDED(pContext->Map(g_pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
