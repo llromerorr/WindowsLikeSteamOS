@@ -41,38 +41,12 @@ namespace DXGIHooks {
     bool                    g_ResourcesReady = false;
 
     HRESULT STDMETHODCALLTYPE hkGetFullscreenState(IDXGISwapChain* pSwapChain, BOOL* pFullscreen, IDXGIOutput** ppTarget) {
-        HRESULT hr = oGetFullscreenState(pSwapChain, pFullscreen, ppTarget);
-        if (pFullscreen && g_FakeFullscreen) {
-            *pFullscreen = TRUE;
-        }
-        return hr;
+        return oGetFullscreenState(pSwapChain, pFullscreen, ppTarget);
     }
 
     HRESULT STDMETHODCALLTYPE hkSetFullscreenState(IDXGISwapChain* pSwapChain, BOOL Fullscreen, IDXGIOutput* pTarget) {
-        Logger::Log("[Hook] SetFullscreenState interceptado. Solicitado: %d -> Forzando Borderless/Window.", Fullscreen);
-        
-        g_FakeFullscreen = Fullscreen;
-        HRESULT hr = oSetFullscreen(pSwapChain, FALSE, nullptr);
-
-        // Forzar Borderless Window o restaurar Window normal
-        DXGI_SWAP_CHAIN_DESC desc;
-        if (SUCCEEDED(pSwapChain->GetDesc(&desc))) {
-            HWND hwnd = desc.OutputWindow;
-            if (Fullscreen) {
-                DEVMODEW devMode = {};
-                devMode.dmSize = sizeof(DEVMODEW);
-                EnumDisplaySettingsW(NULL, ENUM_CURRENT_SETTINGS, &devMode);
-                
-                ShowWindow(hwnd, SW_RESTORE);
-                SetWindowLongW(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
-                SetWindowPos(hwnd, HWND_TOP, 0, 0, devMode.dmPelsWidth, devMode.dmPelsHeight, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-            } else {
-                SetWindowLongW(hwnd, GWL_STYLE, WS_OVERLAPPEDWINDOW | WS_VISIBLE);
-                SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-            }
-        }
-        
-        return S_OK; // Engañar al juego para que crea que tuvo éxito
+        Logger::Log("[Hook] SetFullscreenState solicitado: %d", Fullscreen);
+        return oSetFullscreen(pSwapChain, Fullscreen, pTarget);
     }
 
     HRESULT STDMETHODCALLTYPE hkResizeTarget(IDXGISwapChain* pSwapChain, const DXGI_MODE_DESC* pNewTargetParameters) {
