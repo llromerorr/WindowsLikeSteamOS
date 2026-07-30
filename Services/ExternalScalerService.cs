@@ -131,16 +131,24 @@ namespace WindowsLikeSteamOS.Services
 
         private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
         {
+            const uint WM_NCHITTEST = 0x0084;
+            if (msg == WM_NCHITTEST)
+            {
+                return (IntPtr)(-1); // HTTRANSPARENT
+            }
             return DefWindowProc(hWnd, msg, wParam, lParam);
         }
+
+        private WndProcDelegate? _wndProcDelegate;
 
         private void RenderThreadProc()
         {
             // 1. Crear ventana Win32 pura
             IntPtr hInstance = GetModuleHandle(null);
+            _wndProcDelegate = new WndProcDelegate(WndProc);
             WNDCLASS wc = new WNDCLASS
             {
-                lpfnWndProc = Marshal.GetFunctionPointerForDelegate((WndProcDelegate)WndProc),
+                lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_wndProcDelegate),
                 hInstance = hInstance,
                 lpszClassName = "SteamOS_ExternalCompositor_Class_" + Guid.NewGuid().ToString("N")
             };
