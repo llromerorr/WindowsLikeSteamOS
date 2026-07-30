@@ -29,9 +29,9 @@ namespace ProxyLoader {
             wchar_t systemDir[MAX_PATH];
             GetSystemDirectoryW(systemDir, MAX_PATH);
             std::wstring systemDxgi = std::wstring(systemDir) + L"\\dxgi.dll";
-            g_hRealModule = LoadLibraryW(systemDxgi.c_str());
+            g_hRealModule = LoadLibraryExW(systemDxgi.c_str(), nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
             if (g_hRealModule) {
-                Logger::Log("[ProxyLoader] Loaded system dxgi.dll from: %ls", systemDxgi.c_str());
+                Logger::Log("[ProxyLoader] Loaded system dxgi.dll from: %ls (Search System32)", systemDxgi.c_str());
             } else {
                 Logger::Log("[ProxyLoader] FATAL: Failed to load system dxgi.dll from %ls", systemDxgi.c_str());
                 return false;
