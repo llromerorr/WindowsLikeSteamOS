@@ -76,6 +76,13 @@ namespace DXGIHooks {
 
     HRESULT STDMETHODCALLTYPE hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT BufferCount,
         UINT Width, UINT Height, DXGI_FORMAT Format, UINT Flags) {
+        
+        static bool g_inResize = false;
+        if (g_inResize) {
+            return oResizeBuffers(pSwapChain, BufferCount, Width, Height, Format, Flags);
+        }
+        g_inResize = true;
+
         Logger::Log("[Hook] ResizeBuffers solicitado: %ux%u", Width, Height);
 
         EffectParams params;
@@ -138,6 +145,8 @@ namespace DXGIHooks {
         if (FAILED(hr)) {
             Logger::Log("[Hook] ERROR FATAL oResizeBuffers fallo con hr=0x%08X", hr);
         }
+        
+        g_inResize = false;
         return hr;
     }
 
