@@ -302,7 +302,15 @@ namespace WindowsLikeSteamOS.Services
                     if (_sharedTexture != null)
                     {
                         _keyedMutex = _sharedTexture.QueryInterface<KeyedMutex>();
-                        Logger.Log($"[ExternalScalerService] Conectado a textura compartida {width}x{height} (Handle=0x{hShared.ToInt64():X}).");
+                        var desc = _sharedTexture.Description;
+                        Logger.Log($"[ExternalScalerService] Conectado a textura compartida {width}x{height} (Handle=0x{hShared.ToInt64():X}). Formato real: {desc.Format}");
+                        
+                        try {
+                           using var testSrv = new ShaderResourceView(_d3dDevice, _sharedTexture);
+                           Logger.Log($"[ExternalScalerService] SRV creado exitosamente. Formato: {testSrv.Description.Format}");
+                        } catch (Exception ex) {
+                           Logger.Log($"[ExternalScalerService] Falla crítica al crear SRV: {ex.Message}");
+                        }
                     }
                 }
                 catch (SharpDX.SharpDXException ex) when (ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceRemoved || ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceReset)
