@@ -170,33 +170,34 @@ namespace DXGIHooks {
             }
 
             if (g_pDevice && g_pContext) {
-                oGetBuffer(pSwapChain, 0, __uuidof(ID3D11Texture2D), (void**)&g_pBackBufferTex);
-                if (g_pBackBufferTex) {
-                    g_pDevice->CreateRenderTargetView(g_pBackBufferTex, nullptr, &g_pBackBufferRTV);
-                    g_pBackBufferTex->Release();
-                    g_pBackBufferTex = nullptr;
+                DXGI_SWAP_CHAIN_DESC desc;
+                pSwapChain->GetDesc(&desc);
+                ResolutionSpoofer::InstallOn(desc.OutputWindow);
 
-                    DXGI_SWAP_CHAIN_DESC desc;
-                    pSwapChain->GetDesc(&desc);
-                    ResolutionSpoofer::InstallOn(desc.OutputWindow);
-
-                    if (desc.BufferDesc.Width > 0 && desc.BufferDesc.Height > 0) {
-                        ResolutionSpoofer::g_State.fakeWidth = desc.BufferDesc.Width;
-                        ResolutionSpoofer::g_State.fakeHeight = desc.BufferDesc.Height;
-                    }
-
-                    ShaderPipelineDX11::Initialize(g_pDevice);
-                    OverlayOSD::InitializeCommon(desc.OutputWindow);
-                    OverlayOSD::DX11::Initialize(g_pDevice, g_pContext);
-
-                    g_ResourcesReady = true;
-                    Logger::Log("[Present] Recursos D3D11 inicializados. HWND=%p", desc.OutputWindow);
+                if (desc.BufferDesc.Width > 0 && desc.BufferDesc.Height > 0) {
+                    ResolutionSpoofer::g_State.fakeWidth = desc.BufferDesc.Width;
+                    ResolutionSpoofer::g_State.fakeHeight = desc.BufferDesc.Height;
                 }
+
+                ShaderPipelineDX11::Initialize(g_pDevice);
+                OverlayOSD::InitializeCommon(desc.OutputWindow);
+                OverlayOSD::DX11::Initialize(g_pDevice, g_pContext);
+
+                g_ResourcesReady = true;
+                Logger::Log("[Present] Recursos D3D11 inicializados. HWND=%p", desc.OutputWindow);
             }
         }
 
-        if (g_ResourcesReady) {
-            OverlayOSD::DX11::Render(g_pContext, g_pBackBufferRTV);
+        if (g_ResourcesReady && g_pDevice && g_pContext) {
+            ID3D11Texture2D* pCurBackBuffer = nullptr;
+            if (SUCCEEDED(oGetBuffer(pSwapChain, 0, __uuidof(ID3D11Texture2D), (void**)&pCurBackBuffer)) && pCurBackBuffer) {
+                ID3D11RenderTargetView* pCurRTV = nullptr;
+                if (SUCCEEDED(g_pDevice->CreateRenderTargetView(pCurBackBuffer, nullptr, &pCurRTV)) && pCurRTV) {
+                    OverlayOSD::DX11::Render(g_pContext, pCurRTV);
+                    pCurRTV->Release();
+                }
+                pCurBackBuffer->Release();
+            }
         }
 
         static uint32_t frameCounter = 0;
