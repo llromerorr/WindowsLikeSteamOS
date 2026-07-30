@@ -144,9 +144,10 @@ namespace WindowsLikeSteamOS.Services
                 int spins = 0;
                 while (Interlocked.CompareExchange(ref *pLock, 1, 0) != 0)
                 {
-                    if (++spins > 10_000)
+                    if (++spins > 500)
                     {
                         Interlocked.Exchange(ref *pLock, 0);
+                        break;
                     }
                     Thread.SpinWait(20);
                 }
