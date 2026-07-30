@@ -47,6 +47,11 @@ namespace OverlayOSD::DX11 {
 
         ID3D11VertexShader* vs = nullptr;
         ID3D11PixelShader* ps = nullptr;
+        ID3D11GeometryShader* gs = nullptr;
+        ID3D11HullShader* hs = nullptr;
+        ID3D11DomainShader* ds = nullptr;
+        ID3D11ComputeShader* cs = nullptr;
+
         ID3D11Buffer* vsConstantBuffer = nullptr;
         ID3D11Buffer* psConstantBuffer = nullptr;
         ID3D11ShaderResourceView* psSRV = nullptr;
@@ -69,6 +74,11 @@ namespace OverlayOSD::DX11 {
             ctx->IAGetIndexBuffer(&indexBuffer, &indexFormat, &indexOffset);
             ctx->VSGetShader(&vs, nullptr, nullptr);
             ctx->PSGetShader(&ps, nullptr, nullptr);
+            ctx->GSGetShader(&gs, nullptr, nullptr);
+            ctx->HSGetShader(&hs, nullptr, nullptr);
+            ctx->DSGetShader(&ds, nullptr, nullptr);
+            ctx->CSGetShader(&cs, nullptr, nullptr);
+
             ctx->VSGetConstantBuffers(0, 1, &vsConstantBuffer);
             ctx->PSGetConstantBuffers(0, 1, &psConstantBuffer);
             ctx->PSGetShaderResources(0, 1, &psSRV);
@@ -88,6 +98,11 @@ namespace OverlayOSD::DX11 {
             ctx->IASetIndexBuffer(indexBuffer, indexFormat, indexOffset);
             ctx->VSSetShader(vs, nullptr, 0);
             ctx->PSSetShader(ps, nullptr, 0);
+            ctx->GSSetShader(gs, nullptr, 0);
+            ctx->HSSetShader(hs, nullptr, 0);
+            ctx->DSSetShader(ds, nullptr, 0);
+            ctx->CSSetShader(cs, nullptr, 0);
+
             ctx->VSSetConstantBuffers(0, 1, &vsConstantBuffer);
             ctx->PSSetConstantBuffers(0, 1, &psConstantBuffer);
             ctx->PSSetShaderResources(0, 1, &psSRV);
@@ -105,6 +120,10 @@ namespace OverlayOSD::DX11 {
             if (indexBuffer) indexBuffer->Release();
             if (vs) vs->Release();
             if (ps) ps->Release();
+            if (gs) gs->Release();
+            if (hs) hs->Release();
+            if (ds) ds->Release();
+            if (cs) cs->Release();
             if (vsConstantBuffer) vsConstantBuffer->Release();
             if (psConstantBuffer) psConstantBuffer->Release();
             if (psSRV) psSRV->Release();
