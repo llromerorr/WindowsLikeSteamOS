@@ -16,8 +16,12 @@ namespace Hooking {
     }
 
     inline void Shutdown() {
-        MH_DisableHook(MH_ALL_HOOKS);
-        MH_Uninitialize();
+        // Intencionalmente NO llamamos a MH_DisableHook ni MH_Uninitialize aquí.
+        // Dado que somos un proxy dxgi.dll que vive todo el ciclo de vida del juego,
+        // intentar desinstalar hooks expone a:
+        // 1. Romper la cadena de trampolines de RTSS (si se inyectó después de nosotros).
+        // 2. Use-After-Free (UAF) si el hilo de render está dentro de oPresent() al uninitialize.
+        Logger::Log("Hooking::Shutdown() -> Omitiendo desinstalación de hooks por seguridad (evita UAF y chain breaks).");
     }
 
     // Hook genérico por dirección (usado para vtable de DXGI)
