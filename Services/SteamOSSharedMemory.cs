@@ -217,6 +217,15 @@ namespace WindowsLikeSteamOS.Services
             WriteParamsInternal(_current);
         }
 
+        public (IntPtr handle, uint width, uint height) ReadSharedTextureInfo()
+        {
+            EffectParams p = ReadCurrentParams();
+            ulong hLow = p.reserved0;
+            ulong hHigh = p.reserved1;
+            ulong handleVal = hLow | (hHigh << 32);
+            return ((IntPtr)handleVal, p.reserved2, p.reserved3);
+        }
+
         public EffectParams ReadCurrentParams()
         {
             if (!EnsureIPCConnected() || _view == null) return _current;

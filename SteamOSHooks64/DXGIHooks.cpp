@@ -39,10 +39,53 @@ namespace DXGIHooks {
 
     ID3D11Device*           g_pDevice        = nullptr;
     ID3D11DeviceContext*    g_pContext       = nullptr;
-    ID3D11RenderTargetView* g_pBackBufferRTV = nullptr;
     ID3D11Texture2D*        g_pBackBufferTex = nullptr;
+    ID3D11RenderTargetView* g_pBackBufferRTV = nullptr;
     ID3D11Texture2D*        g_pFakeBackBufferTex = nullptr;
     bool                    g_ResourcesReady = false;
+
+    static ID3D11Texture2D* g_pSharedTexture     = nullptr;
+    static IDXGIKeyedMutex* g_pSharedKeyedMutex = nullptr;
+    static HANDLE           g_hSharedHandle      = nullptr;
+    static UINT             g_SharedWidth        = 0;
+    static UINT             g_SharedHeight       = 0;
+
+    static void EnsureSharedTexture(ID3D11Device* pDevice, UINT width, UINT height, DXGI_FORMAT format) {
+        if (g_pSharedTexture && g_SharedWidth == width && g_SharedHeight == height) return;
+
+        if (g_pSharedKeyedMutex) { g_pSharedKeyedMutex->Release(); g_pSharedKeyedMutex = nullptr; }
+        if (g_pSharedTexture)     { g_pSharedTexture->Release();     g_pSharedTexture = nullptr; }
+        if (g_hSharedHandle)      { CloseHandle(g_hSharedHandle);    g_hSharedHandle = nullptr; }
+
+        D3D11_TEXTURE2D_DESC desc = {};
+        desc.Width              = width;
+        desc.Height             = height;
+        desc.MipLevels          = 1;
+        desc.ArraySize          = 1;
+        desc.Format             = format;
+        desc.SampleDesc.Count   = 1;
+        desc.SampleDesc.Quality = 0;
+        desc.Usage              = D3D11_USAGE_DEFAULT;
+        desc.BindFlags          = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+        desc.MiscFlags          = D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+
+        HRESULT hr = pDevice->CreateTexture2D(&desc, nullptr, &g_pSharedTexture);
+        if (SUCCEEDED(hr) && g_pSharedTexture) {
+            g_pSharedTexture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void**)&g_pSharedKeyedMutex);
+
+            IDXGIResource1* pRes1 = nullptr;
+            if (SUCCEEDED(g_pSharedTexture->QueryInterface(__uuidof(IDXGIResource1), (void**)&pRes1))) {
+                pRes1->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE,
+                    L"SteamOS_SharedBackbuffer", &g_hSharedHandle);
+                pRes1->Release();
+            }
+            g_SharedWidth  = width;
+            g_SharedHeight = height;
+            Logger::Log("[SharedTexture] Creada textura compartida nombrada 'SteamOS_SharedBackbuffer' %ux%u", width, height);
+        } else {
+            Logger::Log("[SharedTexture] ERROR 0x%08X al crear textura compartida NTHANDLE", hr);
+        }
+    }
 
     HRESULT STDMETHODCALLTYPE hkGetBuffer(IDXGISwapChain* pSwapChain, UINT Buffer, REFIID riid, void** ppSurface) {
         if (!g_pDevice) {
@@ -196,8 +239,27 @@ namespace DXGIHooks {
             DXGI_SWAP_CHAIN_DESC desc;
             pSwapChain->GetDesc(&desc);
             
-            ShaderPipelineDX11::Render(g_pContext, g_pBackBufferTex, g_pBackBufferRTV,
-                desc.BufferDesc.Width, desc.BufferDesc.Height, params);
+            if (params.enableResolutionSpoof) {
+                ID3D11Texture2D* pCurBackBuffer = nullptr;
+                if (SUCCEEDED(oGetBuffer(pSwapChain, 0, __uuidof(ID3D11Texture2D), (void**)&pCurBackBuffer)) && pCurBackBuffer) {
+                    D3D11_TEXTURE2D_DESC bbDesc;
+                    pCurBackBuffer->GetDesc(&bbDesc);
+
+                    EnsureSharedTexture(g_pDevice, bbDesc.Width, bbDesc.Height, bbDesc.Format);
+
+                    if (g_pSharedTexture && g_pSharedKeyedMutex) {
+                        if (SUCCEEDED(g_pSharedKeyedMutex->AcquireSync(0, 16))) {
+                            if (bbDesc.SampleDesc.Count > 1) {
+                                g_pContext->ResolveSubresource(g_pSharedTexture, 0, pCurBackBuffer, 0, bbDesc.Format);
+                            } else {
+                                g_pContext->CopyResource(g_pSharedTexture, pCurBackBuffer);
+                            }
+                            g_pSharedKeyedMutex->ReleaseSync(1);
+                        }
+                    }
+                    pCurBackBuffer->Release();
+                }
+            }
                 
             OverlayOSD::DX11::Render(g_pContext, g_pBackBufferRTV);
         }
