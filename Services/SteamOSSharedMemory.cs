@@ -79,7 +79,7 @@ namespace WindowsLikeSteamOS.Services
 
     public sealed class SteamOSSharedMemory : IDisposable
     {
-        private const string MMF_NAME       = "Local\\SteamOSHooks_IPC_v1";
+        private const string MMF_NAME       = "Local\\SteamOSHooks_IPC_v2";
         private const int    MMF_SIZE       = 4096;
         private const uint   IPC_MAGIC      = 0x53544D53;
         private const uint   LAYOUT_VERSION = 2;
@@ -217,13 +217,18 @@ namespace WindowsLikeSteamOS.Services
             WriteParamsInternal(_current);
         }
 
-        public (IntPtr handle, uint width, uint height) ReadSharedTextureInfo()
+        public (IntPtr handle, uint width, uint height, long adapterLuid) ReadSharedTextureInfo()
         {
             EffectParams p = ReadCurrentParams();
             ulong hLow = p.reserved0;
             ulong hHigh = p.reserved1;
             ulong handleVal = hLow | (hHigh << 32);
-            return ((IntPtr)handleVal, p.reserved2, p.reserved3);
+            
+            ulong luidLow = p.reserved4;
+            ulong luidHigh = p.reserved5;
+            long luid = (long)(luidLow | (luidHigh << 32));
+            
+            return ((IntPtr)handleVal, p.reserved2, p.reserved3, luid);
         }
 
         public EffectParams ReadCurrentParams()

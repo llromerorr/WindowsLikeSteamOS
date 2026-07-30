@@ -10,13 +10,6 @@
 
 // Forward declarations de los módulos
 bool InitWin32Hooks();
-using GetClientRect_t = BOOL(WINAPI*)(HWND, LPRECT);
-extern GetClientRect_t oGetClientRect;
-BOOL WINAPI hkGetClientRect(HWND, LPRECT);
-
-using GetWindowRect_t = BOOL(WINAPI*)(HWND, LPRECT);
-extern GetWindowRect_t oGetWindowRect;
-BOOL WINAPI hkGetWindowRect(HWND, LPRECT);
 
 HMODULE g_hModule = nullptr;
 HANDLE  g_hMainThread = nullptr;
@@ -32,10 +25,6 @@ DWORD WINAPI InitializeThread(LPVOID lpParam) {
 
     bool dx12Ok = D3D12Hooks::Initialize();
     bool win32Ok = InitWin32Hooks();
-    bool gcrOk = Hooking::CreateHookApi(L"user32.dll", "GetClientRect",
-        &hkGetClientRect, &oGetClientRect);
-    bool gwrOk = Hooking::CreateHookApi(L"user32.dll", "GetWindowRect",
-        &hkGetWindowRect, &oGetWindowRect);
 
     IPCReader::Initialize();
     bool xinputOk = XInputHooks::Initialize();

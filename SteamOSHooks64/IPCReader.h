@@ -8,4 +8,5 @@ namespace IPCReader {
     bool ReadParams(EffectParams& out);
     bool WriteParams(const EffectParams& in);
     void WriteTelemetry(uint32_t backend, uint32_t framesRendered, float lastFrameMs);
+    void WriteSharedHandle(HANDLE handle, uint32_t width, uint32_t height, LUID adapterLuid);
 }

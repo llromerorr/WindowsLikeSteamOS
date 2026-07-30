@@ -390,6 +390,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\XInputHooks.cpp" />
     <ClCompile Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\dllmain.cpp" />
     <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\D3D12Hooks.h" />
+    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\DXGIHooks.h" />
     <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\Hooking.h" />
     <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\IPCLayout.h" />
     <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\IPCReader.h" />

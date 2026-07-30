@@ -142,4 +142,19 @@ namespace IPCReader {
         g_LastValidParams = in;
         return true;
     }
+
+    void WriteSharedHandle(HANDLE handle, uint32_t width, uint32_t height, LUID adapterLuid) {
+        if (!g_pBlock) return;
+        EffectParams p;
+        if (ReadParams(p)) {
+            uint64_t hVal = reinterpret_cast<uint64_t>(handle);
+            p.reserved0 = static_cast<uint32_t>(hVal & 0xFFFFFFFF);
+            p.reserved1 = static_cast<uint32_t>((hVal >> 32) & 0xFFFFFFFF);
+            p.reserved2 = width;
+            p.reserved3 = height;
+            p.reserved4 = adapterLuid.LowPart;
+            p.reserved5 = static_cast<uint32_t>(adapterLuid.HighPart);
+            WriteParams(p);
+        }
+    }
 }

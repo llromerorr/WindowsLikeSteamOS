@@ -78,6 +78,9 @@
     <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\D3D12Hooks.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\DXGIHooks.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\Hooking.h">
       <Filter>Header Files</Filter>
     </ClInclude>

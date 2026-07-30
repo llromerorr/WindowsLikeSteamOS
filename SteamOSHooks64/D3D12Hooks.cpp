@@ -153,10 +153,6 @@ namespace D3D12Hooks {
         ctx.hFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 
         ResolutionSpoofer::InstallOn(scDesc.OutputWindow);
-        if (scDesc.BufferDesc.Width > 0 && scDesc.BufferDesc.Height > 0) {
-            ResolutionSpoofer::g_State.fakeWidth = scDesc.BufferDesc.Width;
-            ResolutionSpoofer::g_State.fakeHeight = scDesc.BufferDesc.Height;
-        }
         ShaderPipelineDX12::Initialize(ctx.pDevice, scDesc.BufferDesc.Format);
 
         ctx.ready = true;

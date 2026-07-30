@@ -997,6 +997,7 @@ namespace SteamOSConfigurator
 
         public static bool VentanaRecuperacionAbierta = false;
 
+
         private VentanaRecuperacion? _ventanaRecuperacion;
 
         private void CrearVentanaRecuperacionSiEsNecesario()

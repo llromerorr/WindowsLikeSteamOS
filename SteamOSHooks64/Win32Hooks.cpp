@@ -3,56 +3,34 @@
 #include "Logger.h"
 #include "ResolutionSpoofer.h"
 
-using ChangeDisplaySettingsExW_t = LONG(WINAPI*)(LPCWSTR, DEVMODEW*, HWND, DWORD, LPVOID);
-ChangeDisplaySettingsExW_t oChangeDisplaySettingsExW = nullptr;
+using ClipCursor_t = BOOL(WINAPI*)(const RECT*);
+ClipCursor_t oClipCursor = nullptr;
 
-LONG WINAPI hkChangeDisplaySettingsExW(LPCWSTR lpszDeviceName, DEVMODEW* lpDevMode,
-    HWND hwnd, DWORD dwflags, LPVOID lParam) {
-
+BOOL WINAPI hkClipCursor(const RECT* lpRect) {
     if (ResolutionSpoofer::g_State.spoofEnabled.load()) {
-        Logger::Log("[Hook] ChangeDisplaySettingsExW interceptado -> Bloqueado.");
-        return DISP_CHANGE_SUCCESSFUL;
+        // Ignoramos el clip para que el ratón físico pueda moverse por el monitor completo
+        // y llegar a la ventana WPF superpuesta
+        return TRUE;
     }
-    
-    return oChangeDisplaySettingsExW(lpszDeviceName, lpDevMode, hwnd, dwflags, lParam);
+    return oClipCursor(lpRect);
 }
 
-using GetClientRect_t = BOOL(WINAPI*)(HWND, LPRECT);
-GetClientRect_t oGetClientRect = nullptr;
+using SetCursorPos_t = BOOL(WINAPI*)(int, int);
+SetCursorPos_t oSetCursorPos = nullptr;
 
-BOOL WINAPI hkGetClientRect(HWND hWnd, LPRECT lpRect) {
-    BOOL result = oGetClientRect(hWnd, lpRect);
-
-    using namespace ResolutionSpoofer;
-    if (result && g_State.spoofEnabled.load() && hWnd == g_State.hGameWindow) {
-        lpRect->left   = 0;
-        lpRect->top    = 0;
-        lpRect->right  = g_State.fakeWidth;
-        lpRect->bottom = g_State.fakeHeight;
+BOOL WINAPI hkSetCursorPos(int X, int Y) {
+    if (ResolutionSpoofer::g_State.spoofEnabled.load()) {
+        // Evitamos que el juego intente recentrar el cursor físico
+        return TRUE;
     }
-    return result;
-}
-
-using GetWindowRect_t = BOOL(WINAPI*)(HWND, LPRECT);
-GetWindowRect_t oGetWindowRect = nullptr;
-
-BOOL WINAPI hkGetWindowRect(HWND hWnd, LPRECT lpRect) {
-    BOOL result = oGetWindowRect(hWnd, lpRect);
-
-    using namespace ResolutionSpoofer;
-    if (result && g_State.spoofEnabled.load() && hWnd == g_State.hGameWindow) {
-        lpRect->left   = 0;
-        lpRect->top    = 0;
-        lpRect->right  = g_State.fakeWidth;
-        lpRect->bottom = g_State.fakeHeight;
-    }
-    return result;
+    return oSetCursorPos(X, Y);
 }
 
 bool InitWin32Hooks() {
     bool ok = true;
-    ok &= Hooking::CreateHookApi(L"user32.dll", "ChangeDisplaySettingsExW",
-        &hkChangeDisplaySettingsExW, &oChangeDisplaySettingsExW);
-    // Nota: El de GetClientRect se inicializa en dllmain.cpp según la arquitectura de la IA
+    ok &= Hooking::CreateHookApi(L"user32.dll", "ClipCursor",
+        (void*)&hkClipCursor, (void**)&oClipCursor);
+    ok &= Hooking::CreateHookApi(L"user32.dll", "SetCursorPos",
+        (void*)&hkSetCursorPos, (void**)&oSetCursorPos);
     return ok;
 }

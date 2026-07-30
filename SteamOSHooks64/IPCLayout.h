@@ -17,7 +17,13 @@ struct EffectParams {
     uint32_t fakeWidth;
     uint32_t fakeHeight;
     uint32_t showOverlay;
-    uint8_t  reserved[60];
+    uint32_t reserved0; // Handle Low
+    uint32_t reserved1; // Handle High
+    uint32_t reserved2; // Texture Width
+    uint32_t reserved3; // Texture Height
+    uint32_t reserved4; // Adapter LUID Low
+    uint32_t reserved5; // Adapter LUID High
+    uint8_t  reserved[36];
 };
 
 struct IPCSharedBlock {
@@ -34,5 +40,5 @@ struct IPCSharedBlock {
 
 #pragma pack(pop)
 
-constexpr const wchar_t* IPC_MMF_NAME = L"Local\\SteamOSHooks_IPC_v1";
+constexpr const wchar_t* IPC_MMF_NAME = L"Local\\SteamOSHooks_IPC_v2";
 constexpr size_t         IPC_MMF_SIZE = 4096;

@@ -530,11 +530,20 @@ namespace SteamOSConfigurator
                 bool isFSR = _indexEscalado > 0;
                 uint width = 0;
                 uint height = 0;
-                
                 if (_indexEscalado == 1) { width = 1280; height = 720; }
                 else if (_indexEscalado == 2) { width = 1600; height = 900; }
                 
                 SteamOSSharedMemory.Instance.SetResolutionSpoof(isFSR, width, height);
+
+                if (isFSR)
+                {
+                    WindowsLikeSteamOS.Services.ExternalScalerService.Instance.StartScaling();
+                }
+                else
+                {
+                    WindowsLikeSteamOS.Services.ExternalScalerService.Instance.StopScaling();
+                }
+
                 GuardarEstadoActual();
             }
         }

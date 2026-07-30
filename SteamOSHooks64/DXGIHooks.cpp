@@ -66,7 +66,7 @@ namespace DXGIHooks {
 
         if (g_pSharedKeyedMutex) { g_pSharedKeyedMutex->Release(); g_pSharedKeyedMutex = nullptr; }
         if (g_pSharedTexture)     { g_pSharedTexture->Release();     g_pSharedTexture = nullptr; }
-        if (g_hSharedHandle)      { CloseHandle(g_hSharedHandle);    g_hSharedHandle = nullptr; }
+        g_hSharedHandle = nullptr; // GetSharedHandle handles don't need CloseHandle
 
         D3D11_TEXTURE2D_DESC desc = {};
         desc.Width              = width;
@@ -78,23 +78,39 @@ namespace DXGIHooks {
         desc.SampleDesc.Quality = 0;
         desc.Usage              = D3D11_USAGE_DEFAULT;
         desc.BindFlags          = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-        desc.MiscFlags          = D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+        desc.MiscFlags          = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
 
         HRESULT hr = pDevice->CreateTexture2D(&desc, nullptr, &g_pSharedTexture);
         if (SUCCEEDED(hr) && g_pSharedTexture) {
             g_pSharedTexture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void**)&g_pSharedKeyedMutex);
 
-            IDXGIResource1* pRes1 = nullptr;
-            if (SUCCEEDED(g_pSharedTexture->QueryInterface(__uuidof(IDXGIResource1), (void**)&pRes1))) {
-                pRes1->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE,
-                    L"SteamOS_SharedBackbuffer", &g_hSharedHandle);
-                pRes1->Release();
+            IDXGIResource* pRes = nullptr;
+            if (SUCCEEDED(g_pSharedTexture->QueryInterface(__uuidof(IDXGIResource), (void**)&pRes))) {
+                pRes->GetSharedHandle(&g_hSharedHandle);
+                pRes->Release();
             }
             g_SharedWidth  = width;
             g_SharedHeight = height;
-            Logger::Log("[SharedTexture] Creada textura compartida nombrada 'SteamOS_SharedBackbuffer' %ux%u", width, height);
+            
+            LUID luid = {};
+            IDXGIDevice* pDXGIDevice = nullptr;
+            if (SUCCEEDED(pDevice->QueryInterface(__uuidof(IDXGIDevice), (void**)&pDXGIDevice))) {
+                IDXGIAdapter* pAdapter = nullptr;
+                if (SUCCEEDED(pDXGIDevice->GetAdapter(&pAdapter))) {
+                    DXGI_ADAPTER_DESC adesc;
+                    if (SUCCEEDED(pAdapter->GetDesc(&adesc))) {
+                        luid = adesc.AdapterLuid;
+                    }
+                    pAdapter->Release();
+                }
+                pDXGIDevice->Release();
+            }
+
+            IPCReader::WriteSharedHandle(g_hSharedHandle, width, height, luid);
+
+            Logger::Log("[SharedTexture] Creada textura compartida %ux%u (Handle=0x%llX)", width, height, (uint64_t)g_hSharedHandle);
         } else {
-            Logger::Log("[SharedTexture] ERROR 0x%08X al crear textura compartida NTHANDLE", hr);
+            Logger::Log("[SharedTexture] ERROR 0x%08X al crear textura compartida KEYEDMUTEX", hr);
         }
     }
 
@@ -118,7 +134,10 @@ namespace DXGIHooks {
     }
 
     HRESULT STDMETHODCALLTYPE hkSetFullscreenState(IDXGISwapChain* pSwapChain, BOOL Fullscreen, IDXGIOutput* pTarget) {
-        Logger::Log("[Hook] SetFullscreenState solicitado: %d", Fullscreen);
+        if (ResolutionSpoofer::g_State.spoofEnabled.load()) {
+            Logger::Log("[Hook] SetFullscreenState bloqueado (DXGI_ERROR_NOT_CURRENTLY_AVAILABLE).");
+            return DXGI_ERROR_NOT_CURRENTLY_AVAILABLE;
+        }
         return oSetFullscreen(pSwapChain, Fullscreen, pTarget);
     }
 
@@ -131,12 +150,6 @@ namespace DXGIHooks {
     HRESULT STDMETHODCALLTYPE hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT BufferCount,
         UINT Width, UINT Height, DXGI_FORMAT Format, UINT Flags) {
         Logger::Log("[Hook] ResizeBuffers solicitado: %ux%u", Width, Height);
-
-        if (Width > 0 && Height > 0) {
-            ResolutionSpoofer::g_State.fakeWidth = Width;
-            ResolutionSpoofer::g_State.fakeHeight = Height;
-        }
-        
         if (g_pContext) {
             ID3D11RenderTargetView* nullViews[] = { nullptr };
             g_pContext->OMSetRenderTargets(1, nullViews, nullptr);
@@ -165,8 +178,6 @@ namespace DXGIHooks {
     HRESULT STDMETHODCALLTYPE hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags) {
         EffectParams params;
         IPCReader::ReadParams(params);
-        
-        ResolutionSpoofer::g_State.spoofEnabled.store(params.enableResolutionSpoof != 0);
 
         if (D3D12Hooks::OnPreDx12Present(pSwapChain, params)) {
             return oPresent(pSwapChain, SyncInterval, Flags);
@@ -185,10 +196,7 @@ namespace DXGIHooks {
                 pSwapChain->GetDesc(&desc);
                 ResolutionSpoofer::InstallOn(desc.OutputWindow);
 
-                if (desc.BufferDesc.Width > 0 && desc.BufferDesc.Height > 0) {
-                    ResolutionSpoofer::g_State.fakeWidth = desc.BufferDesc.Width;
-                    ResolutionSpoofer::g_State.fakeHeight = desc.BufferDesc.Height;
-                }
+        // Ya no actualizamos fakeWidth/fakeHeight aquí
 
                 ShaderPipelineDX11::Initialize(g_pDevice);
                 OverlayOSD::InitializeCommon(desc.OutputWindow);
@@ -205,16 +213,27 @@ namespace DXGIHooks {
                 D3D11_TEXTURE2D_DESC texDesc;
                 pBackBuffer->GetDesc(&texDesc);
 
-                DXGI_SWAP_CHAIN_DESC scDesc;
-                if (SUCCEEDED(pSwapChain->GetDesc(&scDesc))) {
-                    if (texDesc.Width == scDesc.BufferDesc.Width && texDesc.Height == scDesc.BufferDesc.Height && scDesc.BufferDesc.Width > 0) {
-                        ID3D11RenderTargetView* pRTV = nullptr;
-                        if (SUCCEEDED(g_pDevice->CreateRenderTargetView(pBackBuffer, nullptr, &pRTV)) && pRTV) {
-                            OverlayOSD::DX11::Render(g_pContext, pRTV);
-                            pRTV->Release();
+                EnsureSharedTexture(g_pDevice, texDesc.Width, texDesc.Height, texDesc.Format);
+
+                // Dibujar el OSD in-process (opcional)
+                ID3D11RenderTargetView* pRTV = nullptr;
+                if (SUCCEEDED(g_pDevice->CreateRenderTargetView(pBackBuffer, nullptr, &pRTV)) && pRTV) {
+                    OverlayOSD::DX11::Render(g_pContext, pRTV);
+                    pRTV->Release();
+                }
+
+                // Copiar a la textura compartida para FSR externo
+                if (g_pSharedTexture && g_pSharedKeyedMutex) {
+                    if (SUCCEEDED(g_pSharedKeyedMutex->AcquireSync(0, 16))) {
+                        if (texDesc.SampleDesc.Count > 1) {
+                            g_pContext->ResolveSubresource(g_pSharedTexture, 0, pBackBuffer, 0, texDesc.Format);
+                        } else {
+                            g_pContext->CopyResource(g_pSharedTexture, pBackBuffer);
                         }
+                        g_pSharedKeyedMutex->ReleaseSync(1);
                     }
                 }
+
                 pBackBuffer->Release();
             }
         }
