@@ -82,7 +82,7 @@ namespace WindowsLikeSteamOS.Services
         private const string MMF_NAME       = "Local\\SteamOSHooks_IPC_v1";
         private const int    MMF_SIZE       = 4096;
         private const uint   IPC_MAGIC      = 0x53544D53;
-        private const uint   LAYOUT_VERSION = 1;
+        private const uint   LAYOUT_VERSION = 2;
 
         private static readonly Lazy<SteamOSSharedMemory> _lazyInstance = new Lazy<SteamOSSharedMemory>(() => new SteamOSSharedMemory());
         public static SteamOSSharedMemory Instance => _lazyInstance.Value;
