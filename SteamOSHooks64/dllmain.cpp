@@ -61,19 +61,24 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reasonForCall, LPVOID lpReserved) {
     }
 
     case DLL_PROCESS_DETACH: {
-        Logger::Log("=== Descargando SteamOSHooks64.dll ===");
-        XInputHooks::Shutdown();
-        OverlayOSD::DX11::Shutdown();
-        OverlayOSD::DX12::Shutdown();
-        OverlayOSD::ShutdownCommon();
-        IPCReader::Shutdown();
-        ShaderPipelineDX11::Shutdown();
-        ShaderPipelineDX12::Shutdown();
-        ResolutionSpoofer::Uninstall();
-        Hooking::Shutdown();
+        if (lpReserved == nullptr) {
+            Logger::Log("=== Descargando SteamOSHooks64.dll (FreeLibrary) ===");
+            XInputHooks::Shutdown();
+            OverlayOSD::DX11::Shutdown();
+            OverlayOSD::DX12::Shutdown();
+            OverlayOSD::ShutdownCommon();
+            IPCReader::Shutdown();
+            ShaderPipelineDX11::Shutdown();
+            ShaderPipelineDX12::Shutdown();
+            ResolutionSpoofer::Uninstall();
+            Hooking::Shutdown();
+        } else {
+            Logger::Log("=== Proceso en terminación (lpReserved != null). Omitiendo desinicialización defensiva. ===");
+        }
 
         if (g_hMainThread) {
             CloseHandle(g_hMainThread);
+            g_hMainThread = nullptr;
         }
         break;
     }
