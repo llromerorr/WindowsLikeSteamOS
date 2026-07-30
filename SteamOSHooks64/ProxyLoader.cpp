@@ -103,21 +103,6 @@ HRESULT WINAPI dxgi_proxy_CreateDXGIFactory2(UINT Flags, REFIID riid, void** ppF
     return hr;
 }
 
-void WINAPI dxgi_proxy_ApplyCompatResolutionQuirking() {
-    auto proc = ProxyLoader::GetRealProcAddress("ApplyCompatResolutionQuirking");
-    if (proc) ((void(WINAPI*)())proc)();
-}
-
-void WINAPI dxgi_proxy_CompatString() {
-    auto proc = ProxyLoader::GetRealProcAddress("CompatString");
-    if (proc) ((void(WINAPI*)())proc)();
-}
-
-void WINAPI dxgi_proxy_CompatValue() {
-    auto proc = ProxyLoader::GetRealProcAddress("CompatValue");
-    if (proc) ((void(WINAPI*)())proc)();
-}
-
 void WINAPI dxgi_proxy_DXGID3D10CreateDevice() {
     auto proc = ProxyLoader::GetRealProcAddress("DXGID3D10CreateDevice");
     if (proc) ((void(WINAPI*)())proc)();

@@ -1,7 +1,4 @@
 EXPORTS
-    ApplyCompatResolutionQuirking=dxgi_proxy_ApplyCompatResolutionQuirking
-    CompatString=dxgi_proxy_CompatString
-    CompatValue=dxgi_proxy_CompatValue
     CreateDXGIFactory=dxgi_proxy_CreateDXGIFactory
     CreateDXGIFactory1=dxgi_proxy_CreateDXGIFactory1
     CreateDXGIFactory2=dxgi_proxy_CreateDXGIFactory2
