@@ -173,6 +173,8 @@ namespace DXGIHooks {
                 oGetBuffer(pSwapChain, 0, __uuidof(ID3D11Texture2D), (void**)&g_pBackBufferTex);
                 if (g_pBackBufferTex) {
                     g_pDevice->CreateRenderTargetView(g_pBackBufferTex, nullptr, &g_pBackBufferRTV);
+                    g_pBackBufferTex->Release();
+                    g_pBackBufferTex = nullptr;
 
                     DXGI_SWAP_CHAIN_DESC desc;
                     pSwapChain->GetDesc(&desc);
