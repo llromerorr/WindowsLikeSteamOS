@@ -113,6 +113,11 @@
     <CustomBuild Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="C:\Users\Luis Romero\GitHub\WindowsLikeSteamOS\SteamOSHooks64\dxgi.def">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
     <Filter Include="Header Files">
       <UniqueIdentifier>{5591AA52-F342-3E91-A37C-5AF9A91EAA76}</UniqueIdentifier>
     </Filter>

@@ -1,5 +1,6 @@
 #include <d3d11.h>
 #include <dxgi1_4.h>
+#include <atomic>
 #include "Hooking.h"
 #include "Logger.h"
 #include "ResolutionSpoofer.h"
@@ -27,6 +28,9 @@ namespace DXGIHooks {
     using SetFullscreen_t    = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, BOOL, IDXGIOutput*);
     using ResizeTarget_t     = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, const DXGI_MODE_DESC*);
     using ResizeBuffers_t    = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
+    
+    using CreateSwapChain_t = HRESULT(STDMETHODCALLTYPE*)(IDXGIFactory*, IUnknown*, DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**);
+    using CreateSwapChainForHwnd_t = HRESULT(STDMETHODCALLTYPE*)(IDXGIFactory2*, IUnknown*, HWND, const DXGI_SWAP_CHAIN_DESC1*, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC*, IDXGIOutput*, IDXGISwapChain1**);
 
     Present_t       oPresent       = nullptr;
     GetBuffer_t     oGetBuffer     = nullptr;
@@ -34,6 +38,13 @@ namespace DXGIHooks {
     SetFullscreen_t oSetFullscreen = nullptr;
     ResizeTarget_t  oResizeTarget  = nullptr;
     ResizeBuffers_t oResizeBuffers = nullptr;
+    
+    CreateSwapChain_t oCreateSwapChain = nullptr;
+    CreateSwapChainForHwnd_t oCreateSwapChainForHwnd = nullptr;
+
+    std::atomic<bool> g_FactoryHooked{false};
+    std::atomic<bool> g_SwapChainHooked{false};
+    uint8_t g_expectedPresentBytes[16] = {0};
 
     bool g_FakeFullscreen = false;
 
@@ -211,59 +222,82 @@ namespace DXGIHooks {
         static uint32_t frameCounter = 0;
         frameCounter++;
 
+        if (frameCounter % 60 == 0) {
+            void** vtable = *reinterpret_cast<void***>(pSwapChain);
+            if (memcmp(vtable[VT_PRESENT], g_expectedPresentBytes, 16) != 0) {
+                Logger::Log("[Hook] ADVERTENCIA: Present() re-hookeado externamente (posible superposición como RTSS).");
+            }
+        }
+
         IPCReader::WriteTelemetry(11, frameCounter, 0.0f);
 
         return oPresent(pSwapChain, SyncInterval, Flags);
     }
 
-    bool Initialize() {
-        WNDCLASSEXW wc = { sizeof(WNDCLASSEXW), CS_CLASSDC, DefWindowProcW,
-            0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr,
-            L"SteamOSHooksDummy", nullptr };
-        RegisterClassExW(&wc);
-        HWND hDummyWnd = CreateWindowW(wc.lpszClassName, L"Dummy", WS_OVERLAPPEDWINDOW,
-            0, 0, 100, 100, nullptr, nullptr, wc.hInstance, nullptr);
+    HRESULT STDMETHODCALLTYPE hkCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SWAP_CHAIN_DESC* pDesc, IDXGISwapChain** ppSwapChain) {
+        HRESULT hr = oCreateSwapChain(pFactory, pDevice, pDesc, ppSwapChain);
+        if (SUCCEEDED(hr) && ppSwapChain && *ppSwapChain) {
+            bool expected = false;
+            if (g_SwapChainHooked.compare_exchange_strong(expected, true)) {
+                void** vtable = *reinterpret_cast<void***>(*ppSwapChain);
+                bool ok = true;
+                ok &= Hooking::CreateHook(vtable[VT_PRESENT],       &hkPresent,          &oPresent);
+                if (ok) {
+                    memcpy(g_expectedPresentBytes, vtable[VT_PRESENT], sizeof(g_expectedPresentBytes));
+                }
+                ok &= Hooking::CreateHook(vtable[VT_GETBUFFER],     &hkGetBuffer,        &oGetBuffer);
+                ok &= Hooking::CreateHook(vtable[11],               &hkGetFullscreenState, &oGetFullscreenState);
+                ok &= Hooking::CreateHook(vtable[VT_SETFULLSCREEN], &hkSetFullscreenState, &oSetFullscreen);
+                ok &= Hooking::CreateHook(vtable[VT_RESIZETARGET],  &hkResizeTarget,     &oResizeTarget);
+                ok &= Hooking::CreateHook(vtable[VT_RESIZEBUFFERS], &hkResizeBuffers,    &oResizeBuffers);
+                Logger::Log("[Hook] IDXGISwapChain hooks installed successfully from CreateSwapChain");
+            }
+        }
+        return hr;
+    }
 
-        DXGI_SWAP_CHAIN_DESC sd = {};
-        sd.BufferCount = 1;
-        sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        sd.OutputWindow = hDummyWnd;
-        sd.SampleDesc.Count = 1;
-        sd.Windowed = TRUE;
+    HRESULT STDMETHODCALLTYPE hkCreateSwapChainForHwnd(IDXGIFactory2* pFactory, IUnknown* pDevice, HWND hWnd, const DXGI_SWAP_CHAIN_DESC1* pDesc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* pFullscreenDesc, IDXGIOutput* pRestrictToOutput, IDXGISwapChain1** ppSwapChain) {
+        HRESULT hr = oCreateSwapChainForHwnd(pFactory, pDevice, hWnd, pDesc, pFullscreenDesc, pRestrictToOutput, ppSwapChain);
+        if (SUCCEEDED(hr) && ppSwapChain && *ppSwapChain) {
+            bool expected = false;
+            if (g_SwapChainHooked.compare_exchange_strong(expected, true)) {
+                void** vtable = *reinterpret_cast<void***>(*ppSwapChain);
+                bool ok = true;
+                ok &= Hooking::CreateHook(vtable[VT_PRESENT],       &hkPresent,          &oPresent);
+                if (ok) {
+                    memcpy(g_expectedPresentBytes, vtable[VT_PRESENT], sizeof(g_expectedPresentBytes));
+                }
+                ok &= Hooking::CreateHook(vtable[VT_GETBUFFER],     &hkGetBuffer,        &oGetBuffer);
+                ok &= Hooking::CreateHook(vtable[11],               &hkGetFullscreenState, &oGetFullscreenState);
+                ok &= Hooking::CreateHook(vtable[VT_SETFULLSCREEN], &hkSetFullscreenState, &oSetFullscreen);
+                ok &= Hooking::CreateHook(vtable[VT_RESIZETARGET],  &hkResizeTarget,     &oResizeTarget);
+                ok &= Hooking::CreateHook(vtable[VT_RESIZEBUFFERS], &hkResizeBuffers,    &oResizeBuffers);
+                Logger::Log("[Hook] IDXGISwapChain hooks installed successfully from CreateSwapChainForHwnd");
+            }
+        }
+        return hr;
+    }
 
-        IDXGISwapChain* pTempSwapChain = nullptr;
-        ID3D11Device* pTempDevice = nullptr;
-        ID3D11DeviceContext* pTempContext = nullptr;
-        D3D_FEATURE_LEVEL fl;
+    void InstallFactoryHooks(IUnknown* pFactoryUnk) {
+        if (!pFactoryUnk) return;
 
-        HRESULT hr = D3D11CreateDeviceAndSwapChain(
-            nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0,
-            nullptr, 0, D3D11_SDK_VERSION, &sd,
-            &pTempSwapChain, &pTempDevice, &fl, &pTempContext);
-
-        if (FAILED(hr)) {
-            Logger::Log("Fallo al crear dummy device/swapchain: 0x%08X", hr);
-            DestroyWindow(hDummyWnd);
-            return false;
+        bool expected = false;
+        if (!g_FactoryHooked.compare_exchange_strong(expected, true)) {
+            return;
         }
 
-        void** vtable = *reinterpret_cast<void***>(pTempSwapChain);
+        IDXGIFactory* pFactory = nullptr;
+        if (SUCCEEDED(pFactoryUnk->QueryInterface(__uuidof(IDXGIFactory), (void**)&pFactory))) {
+            void** vtable = *reinterpret_cast<void***>(pFactory);
+            Hooking::CreateHook(vtable[10], &hkCreateSwapChain, &oCreateSwapChain);
+            pFactory->Release();
+        }
 
-        bool ok = true;
-        ok &= Hooking::CreateHook(vtable[VT_PRESENT],       &hkPresent,          &oPresent);
-        ok &= Hooking::CreateHook(vtable[VT_GETBUFFER],     &hkGetBuffer,        &oGetBuffer);
-        ok &= Hooking::CreateHook(vtable[11],               &hkGetFullscreenState, &oGetFullscreenState);
-        ok &= Hooking::CreateHook(vtable[VT_SETFULLSCREEN], &hkSetFullscreenState, &oSetFullscreen);
-        ok &= Hooking::CreateHook(vtable[VT_RESIZETARGET],  &hkResizeTarget,     &oResizeTarget);
-        ok &= Hooking::CreateHook(vtable[VT_RESIZEBUFFERS], &hkResizeBuffers,    &oResizeBuffers);
-
-        pTempSwapChain->Release();
-        pTempContext->Release();
-        pTempDevice->Release();
-        DestroyWindow(hDummyWnd);
-        UnregisterClassW(wc.lpszClassName, wc.hInstance);
-
-        return ok;
+        IDXGIFactory2* pFactory2 = nullptr;
+        if (SUCCEEDED(pFactoryUnk->QueryInterface(__uuidof(IDXGIFactory2), (void**)&pFactory2))) {
+            void** vtable = *reinterpret_cast<void***>(pFactory2);
+            Hooking::CreateHook(vtable[15], &hkCreateSwapChainForHwnd, &oCreateSwapChainForHwnd);
+            pFactory2->Release();
+        }
     }
 }

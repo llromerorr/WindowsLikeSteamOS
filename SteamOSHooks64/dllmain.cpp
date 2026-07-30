@@ -9,7 +9,6 @@
 #include "XInputHooks.h"
 
 // Forward declarations de los módulos
-namespace DXGIHooks { bool Initialize(); }
 bool InitWin32Hooks();
 using GetClientRect_t = BOOL(WINAPI*)(HWND, LPRECT);
 extern GetClientRect_t oGetClientRect;
@@ -32,7 +31,6 @@ DWORD WINAPI InitializeThread(LPVOID lpParam) {
     }
 
     bool dx12Ok = D3D12Hooks::Initialize();
-    bool dxgiOk = DXGIHooks::Initialize();
     bool win32Ok = InitWin32Hooks();
     bool gcrOk = Hooking::CreateHookApi(L"user32.dll", "GetClientRect",
         &hkGetClientRect, &oGetClientRect);
@@ -42,10 +40,9 @@ DWORD WINAPI InitializeThread(LPVOID lpParam) {
     IPCReader::Initialize();
     bool xinputOk = XInputHooks::Initialize();
 
-    Logger::Log("XInput: %s | D3D12: %s | DXGI: %s | Win32: %s",
+    Logger::Log("XInput: %s | D3D12: %s | Win32: %s",
         xinputOk ? "OK" : "N/A",
         dx12Ok ? "OK" : "N/A",
-        dxgiOk ? "OK" : "FALLO",
         win32Ok ? "OK" : "FALLO");
 
     return 0;

@@ -28,12 +28,12 @@ namespace Hooking {
     template <typename T>
     inline bool CreateHook(void* target, void* detour, T** original) {
         MH_STATUS s1 = MH_CreateHook(target, detour, reinterpret_cast<void**>(original));
-        if (s1 != MH_OK) {
+        if (s1 != MH_OK && s1 != MH_ERROR_ALREADY_CREATED) {
             Logger::Log("MH_CreateHook failed at %p: %d", target, s1);
             return false;
         }
         MH_STATUS s2 = MH_EnableHook(target);
-        if (s2 != MH_OK) {
+        if (s2 != MH_OK && s2 != MH_ERROR_ENABLED) {
             Logger::Log("MH_EnableHook failed at %p: %d", target, s2);
             return false;
         }

@@ -50,8 +50,8 @@ set(IMGUI_SOURCES
 file(GLOB SOURCES "*.cpp")
 file(GLOB HEADERS "*.h")
 
-# Crear la DLL combinando nuestro código + ImGui + MinHook
-add_library(SteamOSHooks64 SHARED ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} ${MINHOOK_SOURCES})
+# Crear la DLL combinando nuestro código + ImGui + MinHook + Exportaciones Proxy
+add_library(SteamOSHooks64 SHARED ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} ${MINHOOK_SOURCES} dxgi.def)
 
 # Configurar directorios de inclusión (para que #include <imgui.h> funcione)
 target_include_directories(SteamOSHooks64 PRIVATE 
