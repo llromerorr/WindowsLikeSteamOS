@@ -115,7 +115,9 @@ namespace ShaderPipelineDX11 {
     void Render(ID3D11DeviceContext* pContext, ID3D11Texture2D* pBackBufferTex,
         ID3D11RenderTargetView* pOutputRTV, UINT width, UINT height, const EffectParams& params) {
 
-        if (!g_Initialized || !pBackBufferTex || !pOutputRTV) return;
+        // Desactivado el dibujado in-process para no corromper el estado del D3D11 DeviceContext del juego.
+        // Toda la composición y escalado FSR se realiza a través de la capa externa de textura compartida / WGC.
+        return;
         
         bool needsScaling = ResolutionSpoofer::g_State.spoofEnabled.load();
         bool needsCRT = (params.enablePostProcess && params.enableCRT);
