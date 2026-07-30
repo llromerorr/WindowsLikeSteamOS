@@ -189,21 +189,22 @@ namespace DXGIHooks {
         }
 
         if (g_ResourcesReady && g_pDevice && g_pContext) {
-            ID3D11RenderTargetView* pCurrentRTV = nullptr;
-            g_pContext->OMGetRenderTargets(1, &pCurrentRTV, nullptr);
-            if (pCurrentRTV) {
-                OverlayOSD::DX11::Render(g_pContext, pCurrentRTV);
-                pCurrentRTV->Release();
-            } else {
-                ID3D11Texture2D* pCurBackBuffer = nullptr;
-                if (SUCCEEDED(oGetBuffer(pSwapChain, 0, __uuidof(ID3D11Texture2D), (void**)&pCurBackBuffer)) && pCurBackBuffer) {
-                    ID3D11RenderTargetView* pCurRTV = nullptr;
-                    if (SUCCEEDED(g_pDevice->CreateRenderTargetView(pCurBackBuffer, nullptr, &pCurRTV)) && pCurRTV) {
-                        OverlayOSD::DX11::Render(g_pContext, pCurRTV);
-                        pCurRTV->Release();
+            ID3D11Texture2D* pBackBuffer = nullptr;
+            if (SUCCEEDED(oGetBuffer(pSwapChain, 0, __uuidof(ID3D11Texture2D), (void**)&pBackBuffer)) && pBackBuffer) {
+                D3D11_TEXTURE2D_DESC texDesc;
+                pBackBuffer->GetDesc(&texDesc);
+
+                DXGI_SWAP_CHAIN_DESC scDesc;
+                if (SUCCEEDED(pSwapChain->GetDesc(&scDesc))) {
+                    if (texDesc.Width == scDesc.BufferDesc.Width && texDesc.Height == scDesc.BufferDesc.Height && scDesc.BufferDesc.Width > 0) {
+                        ID3D11RenderTargetView* pRTV = nullptr;
+                        if (SUCCEEDED(g_pDevice->CreateRenderTargetView(pBackBuffer, nullptr, &pRTV)) && pRTV) {
+                            OverlayOSD::DX11::Render(g_pContext, pRTV);
+                            pRTV->Release();
+                        }
                     }
-                    pCurBackBuffer->Release();
                 }
+                pBackBuffer->Release();
             }
         }
 
