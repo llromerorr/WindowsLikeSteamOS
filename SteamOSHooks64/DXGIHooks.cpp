@@ -119,47 +119,11 @@ namespace DXGIHooks {
 
     HRESULT STDMETHODCALLTYPE hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT BufferCount,
         UINT Width, UINT Height, DXGI_FORMAT Format, UINT Flags) {
-        
-        static bool g_inResize = false;
-        if (g_inResize) {
-            return oResizeBuffers(pSwapChain, BufferCount, Width, Height, Format, Flags);
-        }
-        g_inResize = true;
-
         Logger::Log("[Hook] ResizeBuffers solicitado: %ux%u", Width, Height);
 
-        EffectParams params;
-        IPCReader::ReadParams(params);
-
-        UINT targetWidth = Width;
-        UINT targetHeight = Height;
-
-        if (params.enableResolutionSpoof && params.fakeWidth > 0 && params.fakeHeight > 0) {
-            targetWidth = params.fakeWidth;
-            targetHeight = params.fakeHeight;
-            Logger::Log("[Hook] ResizeBuffers spoofing activo: %ux%u -> %ux%u", Width, Height, targetWidth, targetHeight);
-
-            DXGI_SWAP_CHAIN_DESC desc;
-            if (SUCCEEDED(pSwapChain->GetDesc(&desc)) && desc.OutputWindow) {
-                HWND hGameWindow = desc.OutputWindow;
-                RECT rcClient = { 0, 0, (LONG)targetWidth, (LONG)targetHeight };
-                DWORD style = GetWindowLongW(hGameWindow, GWL_STYLE);
-                DWORD exStyle = GetWindowLongW(hGameWindow, GWL_EXSTYLE);
-                AdjustWindowRectEx(&rcClient, style, FALSE, exStyle);
-
-                int winW = rcClient.right - rcClient.left;
-                int winH = rcClient.bottom - rcClient.top;
-
-                SetWindowPos(hGameWindow, nullptr, 0, 0, winW, winH,
-                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-                Logger::Log("[Hook] HWND redimensionado sincrónicamente: HWND=%p -> %dx%d (Cliente %ux%u)",
-                    hGameWindow, winW, winH, targetWidth, targetHeight);
-            }
-        }
-        
-        if (targetWidth > 0 && targetHeight > 0) {
-            ResolutionSpoofer::g_State.fakeWidth = targetWidth;
-            ResolutionSpoofer::g_State.fakeHeight = targetHeight;
+        if (Width > 0 && Height > 0) {
+            ResolutionSpoofer::g_State.fakeWidth = Width;
+            ResolutionSpoofer::g_State.fakeHeight = Height;
         }
         
         if (g_pContext) {
@@ -177,19 +141,13 @@ namespace DXGIHooks {
             g_pBackBufferRTV = nullptr;
             g_ResourcesReady = false;
         }
-        if (g_pFakeBackBufferTex) {
-            g_pFakeBackBufferTex->Release();
-            g_pFakeBackBufferTex = nullptr;
-        }
         
         D3D12Hooks::OnResizeBuffers(pSwapChain);
         
-        HRESULT hr = oResizeBuffers(pSwapChain, BufferCount, targetWidth, targetHeight, Format, Flags);
+        HRESULT hr = oResizeBuffers(pSwapChain, BufferCount, Width, Height, Format, Flags);
         if (FAILED(hr)) {
-            Logger::Log("[Hook] ERROR FATAL oResizeBuffers fallo con hr=0x%08X", hr);
+            Logger::Log("[Hook] ERROR oResizeBuffers fallo con hr=0x%08X", hr);
         }
-        
-        g_inResize = false;
         return hr;
     }
 
@@ -236,43 +194,11 @@ namespace DXGIHooks {
         }
 
         if (g_ResourcesReady) {
-            DXGI_SWAP_CHAIN_DESC desc;
-            pSwapChain->GetDesc(&desc);
-            
-            if (params.enableResolutionSpoof) {
-                ID3D11Texture2D* pCurBackBuffer = nullptr;
-                if (SUCCEEDED(oGetBuffer(pSwapChain, 0, __uuidof(ID3D11Texture2D), (void**)&pCurBackBuffer)) && pCurBackBuffer) {
-                    D3D11_TEXTURE2D_DESC bbDesc;
-                    pCurBackBuffer->GetDesc(&bbDesc);
-
-                    EnsureSharedTexture(g_pDevice, bbDesc.Width, bbDesc.Height, bbDesc.Format);
-
-                    if (g_pSharedTexture && g_pSharedKeyedMutex) {
-                        if (SUCCEEDED(g_pSharedKeyedMutex->AcquireSync(0, 16))) {
-                            if (bbDesc.SampleDesc.Count > 1) {
-                                g_pContext->ResolveSubresource(g_pSharedTexture, 0, pCurBackBuffer, 0, bbDesc.Format);
-                            } else {
-                                g_pContext->CopyResource(g_pSharedTexture, pCurBackBuffer);
-                            }
-                            g_pSharedKeyedMutex->ReleaseSync(1);
-                        }
-                    }
-                    pCurBackBuffer->Release();
-                }
-            }
-                
             OverlayOSD::DX11::Render(g_pContext, g_pBackBufferRTV);
         }
 
         static uint32_t frameCounter = 0;
         frameCounter++;
-        static uint32_t lastSpoofState = 999;
-        if (params.enableResolutionSpoof != lastSpoofState || (frameCounter % 300 == 0)) {
-            lastSpoofState = params.enableResolutionSpoof;
-            Logger::Log("[Diagnostic] Present #%u | spoofEnabled=%u | fakeWxH=%ux%u | pSourceTex=%s | g_ResourcesReady=%d",
-                frameCounter, params.enableResolutionSpoof, params.fakeWidth, params.fakeHeight,
-                g_pFakeBackBufferTex ? "FakeBackBuffer" : "RealBackBuffer", g_ResourcesReady ? 1 : 0);
-        }
 
         IPCReader::WriteTelemetry(11, frameCounter, 0.0f);
 
