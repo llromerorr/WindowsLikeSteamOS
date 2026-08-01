@@ -534,9 +534,12 @@ namespace SteamOSConfigurator
                 else if (_indexEscalado == 2) { width = 1600; height = 900; }
                 
                 SteamOSSharedMemory.Instance.SetResolutionSpoof(isFSR, width, height);
+                SteamOSSharedMemory.Instance.SetFSR(isFSR, 0.5f);
 
                 if (isFSR)
                 {
+                    var panelHandle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                    WindowsLikeSteamOS.Services.ExternalScalerService.OverlayHandlesToKeepOnTop = new[] { panelHandle };
                     WindowsLikeSteamOS.Services.ExternalScalerService.Instance.StartScaling();
                 }
                 else

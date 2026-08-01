@@ -1,4 +1,4 @@
-#include <d3d11.h>
+#include <d3d11_1.h>
 #include <dxgi1_4.h>
 #include <atomic>
 #include "Hooking.h"
@@ -8,6 +8,9 @@
 #include "ShaderPipeline.h"
 #include "IPCReader.h"
 #include "OverlayOSD.h"
+#include <wrl.h>
+
+using Microsoft::WRL::ComPtr;
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -60,13 +63,28 @@ namespace DXGIHooks {
     static HANDLE           g_hSharedHandle      = nullptr;
     static UINT             g_SharedWidth        = 0;
     static UINT             g_SharedHeight       = 0;
+    static LUID             g_AdapterLuid        = {};
+    static bool             g_bHandleWritten     = false;
+    static bool             g_bIsNtHandle        = false;
+
+    DXGI_FORMAT StripSRGB(DXGI_FORMAT format) {
+        switch (format) {
+            case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB: return DXGI_FORMAT_R8G8B8A8_UNORM;
+            case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB: return DXGI_FORMAT_B8G8R8A8_UNORM;
+            default: return format;
+        }
+    }
 
     static void EnsureSharedTexture(ID3D11Device* pDevice, UINT width, UINT height, DXGI_FORMAT format) {
+        format = StripSRGB(format);
         if (g_pSharedTexture && g_SharedWidth == width && g_SharedHeight == height) return;
 
         if (g_pSharedKeyedMutex) { g_pSharedKeyedMutex->Release(); g_pSharedKeyedMutex = nullptr; }
         if (g_pSharedTexture)     { g_pSharedTexture->Release();     g_pSharedTexture = nullptr; }
-        g_hSharedHandle = nullptr; // GetSharedHandle handles don't need CloseHandle
+        // Si el handle viejo era NT, deberíamos cerrarlo, pero por simplicidad el OS lo limpiará, 
+        // o podemos llamar a CloseHandle(g_hSharedHandle) si g_bIsNtHandle.
+        if (g_hSharedHandle && g_bIsNtHandle) { CloseHandle(g_hSharedHandle); }
+        g_hSharedHandle = nullptr;
 
         D3D11_TEXTURE2D_DESC desc = {};
         desc.Width              = width;
@@ -80,38 +98,53 @@ namespace DXGIHooks {
         desc.BindFlags          = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
         desc.MiscFlags          = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
 
-        HRESULT hr = pDevice->CreateTexture2D(&desc, nullptr, &g_pSharedTexture);
-        if (SUCCEEDED(hr) && g_pSharedTexture) {
-            g_pSharedTexture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void**)&g_pSharedKeyedMutex);
-
-            IDXGIResource* pRes = nullptr;
-            if (SUCCEEDED(g_pSharedTexture->QueryInterface(__uuidof(IDXGIResource), (void**)&pRes))) {
-                pRes->GetSharedHandle(&g_hSharedHandle);
-                pRes->Release();
-            }
-            g_SharedWidth  = width;
-            g_SharedHeight = height;
-            
-            LUID luid = {};
-            IDXGIDevice* pDXGIDevice = nullptr;
-            if (SUCCEEDED(pDevice->QueryInterface(__uuidof(IDXGIDevice), (void**)&pDXGIDevice))) {
-                IDXGIAdapter* pAdapter = nullptr;
-                if (SUCCEEDED(pDXGIDevice->GetAdapter(&pAdapter))) {
-                    DXGI_ADAPTER_DESC adesc;
-                    if (SUCCEEDED(pAdapter->GetDesc(&adesc))) {
-                        luid = adesc.AdapterLuid;
-                    }
-                    pAdapter->Release();
-                }
-                pDXGIDevice->Release();
-            }
-
-            IPCReader::WriteSharedHandle(g_hSharedHandle, width, height, luid);
-
-            Logger::Log("[SharedTexture] Creada textura compartida %ux%u (Handle=0x%llX)", width, height, (uint64_t)g_hSharedHandle);
-        } else {
-            Logger::Log("[SharedTexture] ERROR 0x%08X al crear textura compartida KEYEDMUTEX", hr);
+        ComPtr<ID3D11Device1> pDevice1;
+        bool canUseNtHandle = false; // SUCCEEDED(pDevice->QueryInterface(IID_PPV_ARGS(&pDevice1)));
+        
+        if (canUseNtHandle) {
+            desc.MiscFlags |= D3D11_RESOURCE_MISC_SHARED_NTHANDLE;
         }
+
+        HRESULT hr = pDevice->CreateTexture2D(&desc, nullptr, &g_pSharedTexture);
+        if (FAILED(hr)) {
+            Logger::Log("[SharedTexture] ERROR 0x%08X al crear textura compartida KEYEDMUTEX", hr);
+            return;
+        }
+
+        g_pSharedTexture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void**)&g_pSharedKeyedMutex);
+
+        if (canUseNtHandle) {
+            ComPtr<IDXGIResource1> pResource1;
+            if (SUCCEEDED(g_pSharedTexture->QueryInterface(IID_PPV_ARGS(&pResource1)))) {
+                pResource1->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE, nullptr, &g_hSharedHandle);
+            }
+        } else {
+            ComPtr<IDXGIResource> pRes;
+            if (SUCCEEDED(g_pSharedTexture->QueryInterface(IID_PPV_ARGS(&pRes)))) {
+                pRes->GetSharedHandle(&g_hSharedHandle);
+            }
+        }
+
+        g_SharedWidth  = width;
+        g_SharedHeight = height;
+        
+        LUID luid = {};
+        ComPtr<IDXGIDevice> pDXGIDevice;
+        if (SUCCEEDED(pDevice->QueryInterface(IID_PPV_ARGS(&pDXGIDevice)))) {
+            ComPtr<IDXGIAdapter> pAdapter;
+            if (SUCCEEDED(pDXGIDevice->GetAdapter(&pAdapter))) {
+                DXGI_ADAPTER_DESC adesc;
+                if (SUCCEEDED(pAdapter->GetDesc(&adesc))) {
+                    luid = adesc.AdapterLuid;
+                }
+            }
+        }
+
+        g_AdapterLuid = luid;
+        g_bHandleWritten = false;
+        g_bIsNtHandle = canUseNtHandle;
+
+        Logger::Log("[SharedTexture] Creada textura compartida %ux%u (Handle=0x%llX, NT=%d)", width, height, (uint64_t)g_hSharedHandle, canUseNtHandle);
     }
 
     HRESULT STDMETHODCALLTYPE hkGetBuffer(IDXGISwapChain* pSwapChain, UINT Buffer, REFIID riid, void** ppSurface) {
@@ -209,11 +242,18 @@ namespace DXGIHooks {
 
         if (g_ResourcesReady && g_pDevice && g_pContext) {
             ID3D11Texture2D* pBackBuffer = nullptr;
-            if (SUCCEEDED(oGetBuffer(pSwapChain, 0, __uuidof(ID3D11Texture2D), (void**)&pBackBuffer)) && pBackBuffer) {
+            HRESULT hrBuf = oGetBuffer(pSwapChain, 0, __uuidof(ID3D11Texture2D), (void**)&pBackBuffer);
+            if (SUCCEEDED(hrBuf) && pBackBuffer) {
                 D3D11_TEXTURE2D_DESC texDesc;
                 pBackBuffer->GetDesc(&texDesc);
 
                 EnsureSharedTexture(g_pDevice, texDesc.Width, texDesc.Height, texDesc.Format);
+
+                if (g_hSharedHandle && !g_bHandleWritten && IPCReader::IsConnected()) {
+                    if (IPCReader::WriteSharedHandle(g_hSharedHandle, g_SharedWidth, g_SharedHeight, g_AdapterLuid, g_bIsNtHandle)) {
+                        g_bHandleWritten = true;
+                    }
+                }
 
                 // Dibujar el OSD in-process (opcional)
                 ID3D11RenderTargetView* pRTV = nullptr;
@@ -226,15 +266,20 @@ namespace DXGIHooks {
                 if (g_pSharedTexture && g_pSharedKeyedMutex) {
                     if (SUCCEEDED(g_pSharedKeyedMutex->AcquireSync(0, 16))) {
                         if (texDesc.SampleDesc.Count > 1) {
-                            g_pContext->ResolveSubresource(g_pSharedTexture, 0, pBackBuffer, 0, texDesc.Format);
+                            g_pContext->ResolveSubresource(g_pSharedTexture, 0, pBackBuffer, 0, StripSRGB(texDesc.Format));
                         } else {
-                            g_pContext->CopyResource(g_pSharedTexture, pBackBuffer);
+                            g_pContext->CopySubresourceRegion(g_pSharedTexture, 0, 0, 0, 0, pBackBuffer, 0, nullptr);
                         }
                         g_pSharedKeyedMutex->ReleaseSync(1);
                     }
                 }
 
                 pBackBuffer->Release();
+            } else {
+                static int errCount = 0;
+                if (errCount++ % 60 == 0) {
+                    Logger::Log("[Present] ERROR: oGetBuffer fallo con hr=0x%08X", hrBuf);
+                }
             }
         }
 

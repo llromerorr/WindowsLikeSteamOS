@@ -72,7 +72,7 @@ namespace SteamOSConfigurator.Helpers
         public static string GetSourceDll()
         {
             // Prioridad 1: ProgramData (ya desplegado por el instalador)
-            string deployed = Path.Combine(@"C:\ProgramData\SteamOS", "dxgi.dll");
+            string deployed = Path.Combine(@"C:\ProgramData\SteamOS", "SteamOSHooks64.dll");
             if (File.Exists(deployed)) return deployed;
 
             // Prioridad 2: dxgi.dll junto al exe de la app

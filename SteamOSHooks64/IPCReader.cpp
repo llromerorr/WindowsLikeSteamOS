@@ -20,6 +20,10 @@ namespace IPCReader {
         p.fakeHeight        = 1080;
     }
 
+    bool IsConnected() {
+        return g_pBlock != nullptr;
+    }
+
     bool Initialize() {
         if (g_pBlock) return true;
 
@@ -143,8 +147,8 @@ namespace IPCReader {
         return true;
     }
 
-    void WriteSharedHandle(HANDLE handle, uint32_t width, uint32_t height, LUID adapterLuid) {
-        if (!g_pBlock) return;
+    bool WriteSharedHandle(HANDLE handle, uint32_t width, uint32_t height, LUID adapterLuid, bool isNtHandle) {
+        if (!g_pBlock) return false;
         EffectParams p;
         if (ReadParams(p)) {
             uint64_t hVal = reinterpret_cast<uint64_t>(handle);
@@ -154,7 +158,9 @@ namespace IPCReader {
             p.reserved3 = height;
             p.reserved4 = adapterLuid.LowPart;
             p.reserved5 = static_cast<uint32_t>(adapterLuid.HighPart);
-            WriteParams(p);
+            p.isNtHandle = isNtHandle ? 1 : 0;
+            return WriteParams(p);
         }
+        return false;
     }
 }

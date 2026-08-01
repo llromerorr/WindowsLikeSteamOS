@@ -39,3 +39,9 @@ Desktop.ini
 ## Runtime files (build outputs)
 *.deps.json
 *.runtimeconfig.json
+
+## C++ Build artifacts
+SteamOSHooks64/build/
+*.obj
+*.tlog
+

@@ -1,3 +1,0 @@
-C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/_deps/minhook-subbuild/CMakeFiles/minhook-populate.dir
-C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/_deps/minhook-subbuild/CMakeFiles/ALL_BUILD.dir
-C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/_deps/minhook-subbuild/CMakeFiles/ZERO_CHECK.dir

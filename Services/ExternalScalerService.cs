@@ -25,6 +25,7 @@ namespace WindowsLikeSteamOS.Services
 
         private Device? _d3dDevice;
         private SwapChain? _swapChain;
+        private IntPtr _waitableObject = IntPtr.Zero;
         private RenderTargetView? _rtv;
         private Texture2D? _sharedTexture;
         private KeyedMutex? _keyedMutex;
@@ -33,6 +34,16 @@ namespace WindowsLikeSteamOS.Services
         private PixelShader? _ps;
         private SharpDX.Direct3D11.Buffer? _constantBuffer;
         private SamplerState? _samplerState;
+
+        private VertexShader? _fsrVs;
+        private PixelShader? _fsrEasuPs;
+        private PixelShader? _fsrRcasPs;
+        private SharpDX.Direct3D11.Buffer? _fsrEasuBuffer;
+        private SharpDX.Direct3D11.Buffer? _fsrRcasBuffer;
+        
+        private Texture2D? _intermediateTexture;
+        private RenderTargetView? _intermediateRtv;
+        private ShaderResourceView? _intermediateSrv;
 
         private long _lastAdapterLuid;
         private IntPtr _lastHandle = IntPtr.Zero;
@@ -100,6 +111,23 @@ namespace WindowsLikeSteamOS.Services
         [DllImport("kernel32.dll")]
         private static extern IntPtr GetModuleHandle(string? lpModuleName);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        // Handles que deben quedar SIEMPRE por encima del compositor FSR (panel WPF, OSD, etc.).
+        // Asignar desde fuera (p.ej. desde el ViewModel/Window principal) ANTES de llamar a StartScaling().
+        public static IntPtr[] OverlayHandlesToKeepOnTop = Array.Empty<IntPtr>();
+
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOACTIVATE = 0x0010;
+
         private ExternalScalerService()
         {
             _screenWidth = System.Windows.SystemParameters.PrimaryScreenWidth > 0 ? (int)System.Windows.SystemParameters.PrimaryScreenWidth : 1920;
@@ -129,6 +157,8 @@ namespace WindowsLikeSteamOS.Services
             Logger.Log("[ExternalScalerService] Hilo de renderizado detenido.");
         }
 
+        private WndProcDelegate? _wndProcDelegate;
+
         private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
         {
             const uint WM_NCHITTEST = 0x0084;
@@ -138,8 +168,6 @@ namespace WindowsLikeSteamOS.Services
             }
             return DefWindowProc(hWnd, msg, wParam, lParam);
         }
-
-        private WndProcDelegate? _wndProcDelegate;
 
         private void RenderThreadProc()
         {
@@ -159,6 +187,18 @@ namespace WindowsLikeSteamOS.Services
                 0, 0, _screenWidth, _screenHeight, IntPtr.Zero, IntPtr.Zero, hInstance, IntPtr.Zero);
 
             ShowWindow(_hwnd, SW_SHOW);
+
+            // BUG FIX: al crearse con WS_EX_TOPMOST, esta ventana se inserta en la CIMA
+            // de la banda "topmost", tapando cualquier ventana topmost previa (panel WPF, OSD).
+            // Reafirmamos esas ventanas por encima de la nuestra inmediatamente después de mostrarla.
+            IntPtr HWND_TOPMOST = new IntPtr(-1);
+            foreach (var overlayHandle in OverlayHandlesToKeepOnTop)
+            {
+                if (overlayHandle != IntPtr.Zero)
+                {
+                    SetWindowPos(overlayHandle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                }
+            }
 
             // Bucle principal
             while (_isRunning)
@@ -191,12 +231,13 @@ namespace WindowsLikeSteamOS.Services
         {
             CleanupD3D();
             _lastAdapterLuid = adapterLuid;
+            _waitableObject = IntPtr.Zero;
 
             try
             {
-                using var factory = new Factory1();
+                using var factory2 = new Factory2();
                 Adapter1? targetAdapter = null;
-                foreach (var adapter in factory.Adapters1)
+                foreach (var adapter in factory2.Adapters1)
                 {
                     if (adapter.Description.Luid == adapterLuid)
                     {
@@ -206,22 +247,46 @@ namespace WindowsLikeSteamOS.Services
                 }
 
                 if (targetAdapter == null)
-                    targetAdapter = factory.GetAdapter1(0);
+                    targetAdapter = factory2.GetAdapter1(0);
 
-                _d3dDevice = new Device(targetAdapter, DeviceCreationFlags.BgraSupport | DeviceCreationFlags.Debug, FeatureLevel.Level_11_0);
-                
-                var desc = new SwapChainDescription
+                DeviceCreationFlags creationFlags = DeviceCreationFlags.BgraSupport;
+#if DEBUG
+                creationFlags |= DeviceCreationFlags.Debug;
+#endif
+
+                try
                 {
-                    BufferCount = 2,
-                    ModeDescription = new ModeDescription(_screenWidth, _screenHeight, new Rational(0, 1), Format.B8G8R8A8_UNorm), // Match format with DXGI hooks usually BGRA or RGBA
-                    IsWindowed = true,
-                    OutputHandle = _hwnd,
+                    _d3dDevice = new Device(targetAdapter, creationFlags, FeatureLevel.Level_11_0);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[ExternalScalerService] Falló creación de D3D11 Device con flags '{creationFlags}': {ex.Message}. Reintentando con BgraSupport solamente.");
+                    _d3dDevice = new Device(targetAdapter, DeviceCreationFlags.BgraSupport, FeatureLevel.Level_11_0);
+                }
+                
+                var desc1 = new SwapChainDescription1
+                {
+                    Width = _screenWidth,
+                    Height = _screenHeight,
+                    Format = Format.B8G8R8A8_UNorm,
+                    Stereo = false,
                     SampleDescription = new SampleDescription(1, 0),
+                    Usage = Usage.RenderTargetOutput,
+                    BufferCount = 2,
+                    Scaling = Scaling.Stretch,
                     SwapEffect = SwapEffect.FlipDiscard,
-                    Usage = Usage.RenderTargetOutput
+                    AlphaMode = AlphaMode.Unspecified,
+                    Flags = SwapChainFlags.FrameLatencyWaitAbleObject
                 };
 
-                _swapChain = new SwapChain(factory, _d3dDevice, desc);
+                _swapChain = new SwapChain1(factory2, _d3dDevice, _hwnd, ref desc1, null, null);
+
+                using var swapChain2 = _swapChain.QueryInterface<SwapChain2>();
+                if (swapChain2 != null)
+                {
+                    swapChain2.MaximumFrameLatency = 1;
+                    _waitableObject = swapChain2.FrameLatencyWaitableObject;
+                }
 
                 using (var backBuffer = Texture2D.FromSwapChain<Texture2D>(_swapChain, 0))
                 {
@@ -238,6 +303,34 @@ namespace WindowsLikeSteamOS.Services
             }
         }
 
+        private void UpdateIntermediateTexture(int width, int height)
+        {
+            if (_intermediateTexture != null && _intermediateTexture.Description.Width == width && _intermediateTexture.Description.Height == height)
+                return;
+            
+            _intermediateSrv?.Dispose();
+            _intermediateRtv?.Dispose();
+            _intermediateTexture?.Dispose();
+            
+            var desc = new Texture2DDescription
+            {
+                Width = width,
+                Height = height,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = Format.R8G8B8A8_UNorm,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
+                CpuAccessFlags = CpuAccessFlags.None,
+                OptionFlags = ResourceOptionFlags.None
+            };
+            
+            _intermediateTexture = new Texture2D(_d3dDevice, desc);
+            _intermediateRtv = new RenderTargetView(_d3dDevice, _intermediateTexture);
+            _intermediateSrv = new ShaderResourceView(_d3dDevice, _intermediateTexture);
+        }
+
         private void LoadShaders()
         {
             if (_d3dDevice == null) return;
@@ -246,14 +339,20 @@ namespace WindowsLikeSteamOS.Services
             {
                 var assembly = Assembly.GetExecutingAssembly();
                 string[] resNames = assembly.GetManifestResourceNames();
-                string vsName = "", psName = "";
+                string crtVsName = "", crtPsName = "";
+                string fsrVsName = "", fsrEasuName = "", fsrRcasName = "";
+                
                 foreach(var n in resNames) {
-                    if (n.EndsWith("CRT_VS.cso")) vsName = n;
-                    if (n.EndsWith("CRT_PS.cso")) psName = n;
+                    if (n.EndsWith("CRT_VS.cso")) crtVsName = n;
+                    if (n.EndsWith("CRT_PS.cso")) crtPsName = n;
+                    if (n.EndsWith("FSR_VS.cso")) fsrVsName = n;
+                    if (n.EndsWith("FSR_EASU_PS.cso")) fsrEasuName = n;
+                    if (n.EndsWith("FSR_RCAS_PS.cso")) fsrRcasName = n;
                 }
 
-                using (var vsStream = assembly.GetManifestResourceStream(vsName))
-                using (var psStream = assembly.GetManifestResourceStream(psName))
+                // CRT
+                using (var vsStream = string.IsNullOrEmpty(crtVsName) ? null : assembly.GetManifestResourceStream(crtVsName))
+                using (var psStream = string.IsNullOrEmpty(crtPsName) ? null : assembly.GetManifestResourceStream(crtPsName))
                 {
                     if (vsStream != null && psStream != null)
                     {
@@ -267,7 +366,24 @@ namespace WindowsLikeSteamOS.Services
                     }
                 }
 
+                // FSR
+                using (var fvs = string.IsNullOrEmpty(fsrVsName) ? null : assembly.GetManifestResourceStream(fsrVsName))
+                using (var easu = string.IsNullOrEmpty(fsrEasuName) ? null : assembly.GetManifestResourceStream(fsrEasuName))
+                using (var rcas = string.IsNullOrEmpty(fsrRcasName) ? null : assembly.GetManifestResourceStream(fsrRcasName))
+                {
+                    if (fvs != null) { var b = new byte[fvs.Length]; fvs.Read(b, 0, b.Length); _fsrVs = new VertexShader(_d3dDevice, b); }
+                    if (easu != null) { var b = new byte[easu.Length]; easu.Read(b, 0, b.Length); _fsrEasuPs = new PixelShader(_d3dDevice, b); }
+                    if (rcas != null) { var b = new byte[rcas.Length]; rcas.Read(b, 0, b.Length); _fsrRcasPs = new PixelShader(_d3dDevice, b); }
+                }
+
+                Logger.Log($"[ExternalScalerService] Shaders cargados. CRT VS: {_vs != null}, CRT PS: {_ps != null}, FSR VS: {_fsrVs != null}, FSR EASU: {_fsrEasuPs != null}, FSR RCAS: {_fsrRcasPs != null}");
+
+
                 _constantBuffer = new SharpDX.Direct3D11.Buffer(_d3dDevice, 32, ResourceUsage.Dynamic, BindFlags.ConstantBuffer, CpuAccessFlags.Write, ResourceOptionFlags.None, 0);
+                
+                // FSR Constants: EASU needs 64 bytes (4 uint4), RCAS needs 16 bytes (1 uint4)
+                _fsrEasuBuffer = new SharpDX.Direct3D11.Buffer(_d3dDevice, 64, ResourceUsage.Dynamic, BindFlags.ConstantBuffer, CpuAccessFlags.Write, ResourceOptionFlags.None, 0);
+                _fsrRcasBuffer = new SharpDX.Direct3D11.Buffer(_d3dDevice, 16, ResourceUsage.Dynamic, BindFlags.ConstantBuffer, CpuAccessFlags.Write, ResourceOptionFlags.None, 0);
 
                 var sampDesc = new SamplerStateDescription
                 {
@@ -285,9 +401,30 @@ namespace WindowsLikeSteamOS.Services
             }
         }
 
+        private int _zOrderReassertCounter = 0;
+
+        private void ReassertOverlaysOnTop()
+        {
+            IntPtr HWND_TOPMOST = new IntPtr(-1);
+            foreach (var overlayHandle in OverlayHandlesToKeepOnTop)
+            {
+                if (overlayHandle != IntPtr.Zero)
+                {
+                    SetWindowPos(overlayHandle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                }
+            }
+        }
+
         private void RenderFrame()
         {
-            var (hShared, width, height, luid) = SteamOSSharedMemory.Instance.ReadSharedTextureInfo();
+            // Reafirma cada ~120 frames (2s a 60fps) que el panel/OSD sigan por encima del compositor.
+            if (++_zOrderReassertCounter >= 120)
+            {
+                _zOrderReassertCounter = 0;
+                ReassertOverlaysOnTop();
+            }
+
+            var (hShared, width, height, luid, isNtHandle) = SteamOSSharedMemory.Instance.ReadSharedTextureInfo();
             if (hShared == IntPtr.Zero)
             {
                 Thread.Sleep(5);
@@ -306,19 +443,22 @@ namespace WindowsLikeSteamOS.Services
                 _lastHandle = hShared;
                 try
                 {
-                    _sharedTexture = _d3dDevice.OpenSharedResource<Texture2D>(hShared);
+                    if (isNtHandle)
+                    {
+                        using (var device1 = _d3dDevice.QueryInterface<SharpDX.Direct3D11.Device1>())
+                        {
+                            _sharedTexture = device1.OpenSharedResource1<Texture2D>(hShared);
+                        }
+                    }
+                    else
+                    {
+                        _sharedTexture = _d3dDevice.OpenSharedResource<Texture2D>(hShared);
+                    }
+                    
                     if (_sharedTexture != null)
                     {
                         _keyedMutex = _sharedTexture.QueryInterface<KeyedMutex>();
-                        var desc = _sharedTexture.Description;
-                        Logger.Log($"[ExternalScalerService] Conectado a textura compartida {width}x{height} (Handle=0x{hShared.ToInt64():X}). Formato real: {desc.Format}");
-                        
-                        try {
-                           using var testSrv = new ShaderResourceView(_d3dDevice, _sharedTexture);
-                           Logger.Log($"[ExternalScalerService] SRV creado exitosamente. Formato: {testSrv.Description.Format}");
-                        } catch (Exception ex) {
-                           Logger.Log($"[ExternalScalerService] Falla crítica al crear SRV: {ex.Message}");
-                        }
+                        Logger.Log($"[ExternalScalerService] Conectado a textura compartida {width}x{height} (Handle=0x{hShared.ToInt64():X}, NT={isNtHandle}).");
                     }
                 }
                 catch (SharpDX.SharpDXException ex) when (ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceRemoved || ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceReset)
@@ -337,6 +477,11 @@ namespace WindowsLikeSteamOS.Services
             {
                 try
                 {
+                    if (_waitableObject != IntPtr.Zero)
+                    {
+                        WaitForSingleObject(_waitableObject, 1000); // Wait up to 1s for the swapchain to be ready to accept a new frame
+                    }
+
                     // C++ adquiere 0, libera 1. C# adquiere 1, libera 0. Timeout 16ms para evitar cuelgues.
                     var res = _keyedMutex.Acquire(1, 16);
                     if (res == SharpDX.Result.Ok)
@@ -373,7 +518,7 @@ namespace WindowsLikeSteamOS.Services
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"[ExternalScalerService] Error en ciclo de render: {ex.Message}");
+                    Logger.Log($"[ExternalScalerService] Error en ciclo de render: {ex}");
                 }
             }
         }
@@ -381,34 +526,102 @@ namespace WindowsLikeSteamOS.Services
         private void DrawD3DFrame()
         {
             var ctx = _d3dDevice!.ImmediateContext;
-            ctx.OutputMerger.SetRenderTargets(_rtv);
-            ctx.Rasterizer.SetViewport(new SharpDX.Mathematics.Interop.RawViewportF { X = 0, Y = 0, Width = _screenWidth, Height = _screenHeight, MinDepth = 0, MaxDepth = 1 });
+            var p = SteamOSSharedMemory.Instance.ReadCurrentParams();
+            int sourceWidth = (int)_sharedTexture!.Description.Width;
+            int sourceHeight = (int)_sharedTexture!.Description.Height;
             
-            using (var srv = new ShaderResourceView(_d3dDevice, _sharedTexture))
-            {
-                var p = SteamOSSharedMemory.Instance.ReadCurrentParams();
-                
-                SharpDX.DataStream mappedResource;
-                ctx.MapSubresource(_constantBuffer, MapMode.WriteDiscard, SharpDX.Direct3D11.MapFlags.None, out mappedResource);
-                mappedResource.Write((float)_screenWidth);
-                mappedResource.Write((float)_screenHeight);
-                mappedResource.Write(p.curvature);
-                mappedResource.Write(p.scanlineIntensity);
-                mappedResource.Write(0.0f); // Time
-                mappedResource.Write((float)p.enableCRT);
-                mappedResource.Write(0.0f); // padding
-                mappedResource.Write(0.0f); // padding
-                ctx.UnmapSubresource(_constantBuffer, 0);
+            bool useFSR = p.enableFSR == 1;
 
-                ctx.InputAssembler.InputLayout = null;
-                ctx.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-                ctx.VertexShader.Set(_vs);
-                ctx.PixelShader.Set(_ps);
-                ctx.PixelShader.SetConstantBuffer(0, _constantBuffer);
-                ctx.PixelShader.SetShaderResource(0, srv);
-                ctx.PixelShader.SetSampler(0, _samplerState);
+            if (useFSR && _fsrVs != null && _fsrEasuPs != null && _fsrRcasPs != null)
+            {
+                UpdateIntermediateTexture(_screenWidth, _screenHeight);
+                
+                // 1. Pass 1: EASU
+                ctx.OutputMerger.SetRenderTargets(_intermediateRtv);
+                ctx.Rasterizer.SetViewport(new SharpDX.Mathematics.Interop.RawViewportF { X = 0, Y = 0, Width = _screenWidth, Height = _screenHeight, MinDepth = 0, MaxDepth = 1 });
+                
+                using (var srv = new ShaderResourceView(_d3dDevice, _sharedTexture))
+                {
+                    var easuCon = SteamOSConfigurator.Helpers.FsrConstants.CalculateEasu(
+                        sourceWidth, sourceHeight,
+                        sourceWidth, sourceHeight,
+                        _screenWidth, _screenHeight);
+                    
+                    SharpDX.DataStream mapped;
+                    ctx.MapSubresource(_fsrEasuBuffer, MapMode.WriteDiscard, SharpDX.Direct3D11.MapFlags.None, out mapped);
+                    mapped.Write(easuCon);
+                    ctx.UnmapSubresource(_fsrEasuBuffer, 0);
+
+                    ctx.InputAssembler.InputLayout = null;
+                    ctx.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+                    ctx.VertexShader.Set(_fsrVs);
+                    ctx.PixelShader.Set(_fsrEasuPs);
+                    ctx.PixelShader.SetConstantBuffer(0, _fsrEasuBuffer);
+                    ctx.PixelShader.SetShaderResource(0, srv);
+                    ctx.PixelShader.SetSampler(0, _samplerState);
+
+                    ctx.Draw(3, 0);
+                    
+                    // Unbind SRV/RTV
+                    ctx.OutputMerger.SetRenderTargets((RenderTargetView?)null);
+                    ctx.PixelShader.SetShaderResource(0, null);
+                }
+
+                // 2. Pass 2: RCAS
+                ctx.OutputMerger.SetRenderTargets(_rtv);
+                
+                // Clamp sharpness between 0.0 (sharpest) and 2.0 (softest) to prevent extreme artifacts (white dots)
+                float clampedSharpness = Math.Max(0.0f, Math.Min(2.0f, p.fsrSharpness));
+                var rcasCon = SteamOSConfigurator.Helpers.FsrConstants.CalculateRcas(clampedSharpness);
+                SharpDX.DataStream mappedRcas;
+                ctx.MapSubresource(_fsrRcasBuffer, MapMode.WriteDiscard, SharpDX.Direct3D11.MapFlags.None, out mappedRcas);
+                mappedRcas.Write(rcasCon);
+                ctx.UnmapSubresource(_fsrRcasBuffer, 0);
+
+                ctx.VertexShader.Set(_fsrVs);
+                ctx.PixelShader.Set(_fsrRcasPs);
+                ctx.PixelShader.SetConstantBuffer(0, _fsrRcasBuffer);
+                ctx.PixelShader.SetShaderResource(0, _intermediateSrv);
+                ctx.PixelShader.SetSampler(0, null);
 
                 ctx.Draw(3, 0);
+                
+                // Unbind
+                ctx.OutputMerger.SetRenderTargets((RenderTargetView?)null);
+                ctx.PixelShader.SetShaderResource(0, null);
+            }
+            else
+            {
+                ctx.OutputMerger.SetRenderTargets(_rtv);
+                ctx.Rasterizer.SetViewport(new SharpDX.Mathematics.Interop.RawViewportF { X = 0, Y = 0, Width = _screenWidth, Height = _screenHeight, MinDepth = 0, MaxDepth = 1 });
+                
+                using (var srv = new ShaderResourceView(_d3dDevice, _sharedTexture))
+                {
+                    SharpDX.DataStream mappedResource;
+                    ctx.MapSubresource(_constantBuffer, MapMode.WriteDiscard, SharpDX.Direct3D11.MapFlags.None, out mappedResource);
+                    mappedResource.Write((float)_screenWidth);
+                    mappedResource.Write((float)_screenHeight);
+                    mappedResource.Write(p.curvature);
+                    mappedResource.Write(p.scanlineIntensity);
+                    mappedResource.Write(0.0f); // Time
+                    mappedResource.Write((float)p.enableCRT);
+                    mappedResource.Write(0.0f); // padding
+                    mappedResource.Write(0.0f); // padding
+                    ctx.UnmapSubresource(_constantBuffer, 0);
+
+                    ctx.InputAssembler.InputLayout = null;
+                    ctx.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+                    ctx.VertexShader.Set(_vs);
+                    ctx.PixelShader.Set(_ps);
+                    ctx.PixelShader.SetConstantBuffer(0, _constantBuffer);
+                    ctx.PixelShader.SetShaderResource(0, srv);
+                    ctx.PixelShader.SetSampler(0, _samplerState);
+
+                    ctx.Draw(3, 0);
+                    
+                    ctx.OutputMerger.SetRenderTargets((RenderTargetView?)null);
+                    ctx.PixelShader.SetShaderResource(0, null);
+                }
             }
         }
 
@@ -428,6 +641,17 @@ namespace WindowsLikeSteamOS.Services
             _ps?.Dispose(); _ps = null;
             _constantBuffer?.Dispose(); _constantBuffer = null;
             _samplerState?.Dispose(); _samplerState = null;
+            
+            _fsrVs?.Dispose(); _fsrVs = null;
+            _fsrEasuPs?.Dispose(); _fsrEasuPs = null;
+            _fsrRcasPs?.Dispose(); _fsrRcasPs = null;
+            _fsrEasuBuffer?.Dispose(); _fsrEasuBuffer = null;
+            _fsrRcasBuffer?.Dispose(); _fsrRcasBuffer = null;
+            
+            _intermediateSrv?.Dispose(); _intermediateSrv = null;
+            _intermediateRtv?.Dispose(); _intermediateRtv = null;
+            _intermediateTexture?.Dispose(); _intermediateTexture = null;
+
             _rtv?.Dispose(); _rtv = null;
             _swapChain?.Dispose(); _swapChain = null;
             _d3dDevice?.Dispose(); _d3dDevice = null;

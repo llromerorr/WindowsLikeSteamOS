@@ -35,6 +35,9 @@
     </None>
     <EmbeddedResource Include="WindowsLikeSteamOS\Shaders\CRT_VS.cso" />
     <EmbeddedResource Include="WindowsLikeSteamOS\Shaders\CRT_PS.cso" />
+    <EmbeddedResource Include="WindowsLikeSteamOS\Shaders\FSR_VS.cso" />
+    <EmbeddedResource Include="WindowsLikeSteamOS\Shaders\FSR_EASU_PS.cso" />
+    <EmbeddedResource Include="WindowsLikeSteamOS\Shaders\FSR_RCAS_PS.cso" />
   </ItemGroup>
 
 </Project>

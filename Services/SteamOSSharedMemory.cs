@@ -26,7 +26,7 @@ namespace WindowsLikeSteamOS.Services
         public uint reserved3;
         public uint reserved4;
         public uint reserved5;
-        public uint reserved6;
+        public uint isNtHandle;
         public uint reserved7;
         public uint reserved8;
         public uint reserved9;
@@ -217,7 +217,7 @@ namespace WindowsLikeSteamOS.Services
             WriteParamsInternal(_current);
         }
 
-        public (IntPtr handle, uint width, uint height, long adapterLuid) ReadSharedTextureInfo()
+        public (IntPtr handle, uint width, uint height, long adapterLuid, bool isNtHandle) ReadSharedTextureInfo()
         {
             EffectParams p = ReadCurrentParams();
             ulong hLow = p.reserved0;
@@ -228,7 +228,7 @@ namespace WindowsLikeSteamOS.Services
             ulong luidHigh = p.reserved5;
             long luid = (long)(luidLow | (luidHigh << 32));
             
-            return ((IntPtr)handleVal, p.reserved2, p.reserved3, luid);
+            return ((IntPtr)handleVal, p.reserved2, p.reserved3, luid, p.isNtHandle != 0);
         }
 
         public EffectParams ReadCurrentParams()

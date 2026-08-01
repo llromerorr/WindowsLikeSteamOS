@@ -23,7 +23,8 @@ struct EffectParams {
     uint32_t reserved3; // Texture Height
     uint32_t reserved4; // Adapter LUID Low
     uint32_t reserved5; // Adapter LUID High
-    uint8_t  reserved[36];
+    uint32_t isNtHandle;
+    uint8_t  reserved[32];
 };
 
 struct IPCSharedBlock {
@@ -39,6 +40,8 @@ struct IPCSharedBlock {
 };
 
 #pragma pack(pop)
+
+static_assert(sizeof(IPCSharedBlock) == 180, "IPCSharedBlock size mismatch! Must be exactly 180 bytes.");
 
 constexpr const wchar_t* IPC_MMF_NAME = L"Local\\SteamOSHooks_IPC_v2";
 constexpr size_t         IPC_MMF_SIZE = 4096;

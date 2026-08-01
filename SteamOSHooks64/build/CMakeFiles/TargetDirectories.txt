@@ -1,3 +1,0 @@
-C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/CMakeFiles/SteamOSHooks64.dir
-C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/Luis Romero/GitHub/WindowsLikeSteamOS/SteamOSHooks64/build/CMakeFiles/ZERO_CHECK.dir
