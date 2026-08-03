@@ -34,6 +34,7 @@ namespace WindowsLikeSteamOS.Services
         private PixelShader? _ps;
         private SharpDX.Direct3D11.Buffer? _constantBuffer;
         private SamplerState? _samplerState;
+        private BlendState? _opaqueBlendState;
 
         private VertexShader? _fsrVs;
         private PixelShader? _fsrEasuPs;
@@ -394,6 +395,11 @@ namespace WindowsLikeSteamOS.Services
                     ComparisonFunction = Comparison.Never
                 };
                 _samplerState = new SamplerState(_d3dDevice, sampDesc);
+
+                var blendDesc = new BlendStateDescription();
+                blendDesc.RenderTarget[0].IsBlendEnabled = false;
+                blendDesc.RenderTarget[0].RenderTargetWriteMask = ColorWriteMaskFlags.All;
+                _opaqueBlendState = new BlendState(_d3dDevice, blendDesc);
             }
             catch (Exception ex)
             {
@@ -484,19 +490,7 @@ namespace WindowsLikeSteamOS.Services
 
                     // C++ adquiere 0, libera 1. C# adquiere 1, libera 0. Timeout 16ms para evitar cuelgues.
                     var res = _keyedMutex.Acquire(1, 16);
-                    if (res == SharpDX.Result.Ok)
-                    {
-                        _timeoutSpamCounter = 0;
-                        try
-                        {
-                            DrawD3DFrame();
-                        }
-                        finally
-                        {
-                            _keyedMutex.Release(0);
-                        }
-                    }
-                    else
+                    if (res != SharpDX.Result.Ok)
                     {
                         // TIMEOUT
                         _timeoutSpamCounter++;
@@ -504,16 +498,27 @@ namespace WindowsLikeSteamOS.Services
                         {
                             Logger.Log($"[ExternalScalerService] WAIT_TIMEOUT ({_timeoutSpamCounter} veces). Reusando último frame.");
                         }
+                        return; // FIX: Salir inmediatamente. No tocar la textura, no renderizar, no presentar.
                     }
 
-                    // Present(1) para VSync.
-                    try {
-                        _swapChain.Present(1, PresentFlags.None);
-                    } 
-                    catch (SharpDX.SharpDXException ex) when (ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceRemoved || ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceReset) 
+                    _timeoutSpamCounter = 0;
+                    try
                     {
-                        Logger.Log("[ExternalScalerService] DEVICE LOST en Present(). Recreando D3D11...");
-                        RecreateD3D(_lastAdapterLuid);
+                        DrawD3DFrame();
+
+                        // Present(1) para VSync.
+                        try {
+                            _swapChain.Present(1, PresentFlags.None);
+                        } 
+                        catch (SharpDX.SharpDXException ex) when (ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceRemoved || ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceReset) 
+                        {
+                            Logger.Log("[ExternalScalerService] DEVICE LOST en Present(). Recreando D3D11...");
+                            RecreateD3D(_lastAdapterLuid);
+                        }
+                    }
+                    finally
+                    {
+                        _keyedMutex?.Release(0);
                     }
                 }
                 catch (Exception ex)
@@ -526,6 +531,13 @@ namespace WindowsLikeSteamOS.Services
         private void DrawD3DFrame()
         {
             var ctx = _d3dDevice!.ImmediateContext;
+            
+            // Forzar opacidad antes de dibujar (Fase 1.3)
+            if (_opaqueBlendState != null)
+            {
+                ctx.OutputMerger.SetBlendState(_opaqueBlendState);
+            }
+
             var p = SteamOSSharedMemory.Instance.ReadCurrentParams();
             int sourceWidth = (int)_sharedTexture!.Description.Width;
             int sourceHeight = (int)_sharedTexture!.Description.Height;
@@ -540,7 +552,20 @@ namespace WindowsLikeSteamOS.Services
                 ctx.OutputMerger.SetRenderTargets(_intermediateRtv);
                 ctx.Rasterizer.SetViewport(new SharpDX.Mathematics.Interop.RawViewportF { X = 0, Y = 0, Width = _screenWidth, Height = _screenHeight, MinDepth = 0, MaxDepth = 1 });
                 
-                using (var srv = new ShaderResourceView(_d3dDevice, _sharedTexture))
+                var texDesc = _sharedTexture.Description;
+                var srvFormat = texDesc.Format;
+                if (srvFormat == SharpDX.DXGI.Format.R8G8B8A8_Typeless) srvFormat = SharpDX.DXGI.Format.R8G8B8A8_UNorm;
+                else if (srvFormat == SharpDX.DXGI.Format.B8G8R8A8_Typeless) srvFormat = SharpDX.DXGI.Format.B8G8R8A8_UNorm;
+                else if (srvFormat == SharpDX.DXGI.Format.R10G10B10A2_Typeless) srvFormat = SharpDX.DXGI.Format.R10G10B10A2_UNorm;
+
+                var srvDesc = new SharpDX.Direct3D11.ShaderResourceViewDescription
+                {
+                    Format = srvFormat,
+                    Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Texture2D,
+                    Texture2D = new SharpDX.Direct3D11.ShaderResourceViewDescription.Texture2DResource { MipLevels = 1, MostDetailedMip = 0 }
+                };
+                
+                using (var srv = new ShaderResourceView(_d3dDevice, _sharedTexture, srvDesc))
                 {
                     var easuCon = SteamOSConfigurator.Helpers.FsrConstants.CalculateEasu(
                         sourceWidth, sourceHeight,
@@ -641,6 +666,7 @@ namespace WindowsLikeSteamOS.Services
             _ps?.Dispose(); _ps = null;
             _constantBuffer?.Dispose(); _constantBuffer = null;
             _samplerState?.Dispose(); _samplerState = null;
+            _opaqueBlendState?.Dispose(); _opaqueBlendState = null;
             
             _fsrVs?.Dispose(); _fsrVs = null;
             _fsrEasuPs?.Dispose(); _fsrEasuPs = null;

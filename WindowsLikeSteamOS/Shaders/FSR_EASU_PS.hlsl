@@ -14,9 +14,9 @@ Texture2D<float4> InputTexture : register(t0);
 SamplerState LinearSampler : register(s0);
 
 #define FSR_EASU_F 1
-AF4 FsrEasuRF(AF2 p) { return InputTexture.SampleLevel(LinearSampler, p, 0); }
-AF4 FsrEasuGF(AF2 p) { return InputTexture.SampleLevel(LinearSampler, p, 0); }
-AF4 FsrEasuBF(AF2 p) { return InputTexture.SampleLevel(LinearSampler, p, 0); }
+AF4 FsrEasuRF(AF2 p) { return InputTexture.GatherRed(LinearSampler, p); }
+AF4 FsrEasuGF(AF2 p) { return InputTexture.GatherGreen(LinearSampler, p); }
+AF4 FsrEasuBF(AF2 p) { return InputTexture.GatherBlue(LinearSampler, p); }
 
 #include "ffx_fsr1.h"
 

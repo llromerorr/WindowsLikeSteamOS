@@ -67,17 +67,31 @@ namespace DXGIHooks {
     static bool             g_bHandleWritten     = false;
     static bool             g_bIsNtHandle        = false;
 
-    DXGI_FORMAT StripSRGB(DXGI_FORMAT format) {
+    DXGI_FORMAT GetTypelessFormat(DXGI_FORMAT format) {
         switch (format) {
-            case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB: return DXGI_FORMAT_R8G8B8A8_UNORM;
-            case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB: return DXGI_FORMAT_B8G8R8A8_UNORM;
+            case DXGI_FORMAT_R8G8B8A8_UNORM:
+            case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+            case DXGI_FORMAT_R8G8B8A8_UINT:
+            case DXGI_FORMAT_R8G8B8A8_SNORM:
+            case DXGI_FORMAT_R8G8B8A8_SINT:
+                return DXGI_FORMAT_R8G8B8A8_TYPELESS;
+            case DXGI_FORMAT_B8G8R8A8_UNORM:
+            case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+                return DXGI_FORMAT_B8G8R8A8_TYPELESS;
+            case DXGI_FORMAT_R10G10B10A2_UNORM:
+            case DXGI_FORMAT_R10G10B10A2_UINT:
+                return DXGI_FORMAT_R10G10B10A2_TYPELESS;
             default: return format;
         }
     }
 
     static void EnsureSharedTexture(ID3D11Device* pDevice, UINT width, UINT height, DXGI_FORMAT format) {
-        format = StripSRGB(format);
-        if (g_pSharedTexture && g_SharedWidth == width && g_SharedHeight == height) return;
+        DXGI_FORMAT typelessFormat = GetTypelessFormat(format);
+        if (g_pSharedTexture && g_SharedWidth == width && g_SharedHeight == height) {
+            D3D11_TEXTURE2D_DESC exDesc;
+            g_pSharedTexture->GetDesc(&exDesc);
+            if (exDesc.Format == typelessFormat) return;
+        }
 
         if (g_pSharedKeyedMutex) { g_pSharedKeyedMutex->Release(); g_pSharedKeyedMutex = nullptr; }
         if (g_pSharedTexture)     { g_pSharedTexture->Release();     g_pSharedTexture = nullptr; }
@@ -91,7 +105,7 @@ namespace DXGIHooks {
         desc.Height             = height;
         desc.MipLevels          = 1;
         desc.ArraySize          = 1;
-        desc.Format             = format;
+        desc.Format             = typelessFormat;
         desc.SampleDesc.Count   = 1;
         desc.SampleDesc.Quality = 0;
         desc.Usage              = D3D11_USAGE_DEFAULT;
@@ -266,7 +280,7 @@ namespace DXGIHooks {
                 if (g_pSharedTexture && g_pSharedKeyedMutex) {
                     if (SUCCEEDED(g_pSharedKeyedMutex->AcquireSync(0, 16))) {
                         if (texDesc.SampleDesc.Count > 1) {
-                            g_pContext->ResolveSubresource(g_pSharedTexture, 0, pBackBuffer, 0, StripSRGB(texDesc.Format));
+                            g_pContext->ResolveSubresource(g_pSharedTexture, 0, pBackBuffer, 0, texDesc.Format);
                         } else {
                             g_pContext->CopySubresourceRegion(g_pSharedTexture, 0, 0, 0, 0, pBackBuffer, 0, nullptr);
                         }
