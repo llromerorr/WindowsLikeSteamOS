@@ -1,0 +1,12 @@
+[INPUT]
+KeyOverlay=135,0,0,0
+
+[OVERLAY]
+TutorialProgress=4
+ShowFPS=0
+ShowClock=0
+ShowPresetName=0
+
+[GENERAL]
+NoReloadOnInit=1
+AddonPath=.\reshade-addons

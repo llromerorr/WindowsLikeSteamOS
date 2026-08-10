@@ -414,7 +414,7 @@ namespace SteamOSConfigurator
 
         // ── SERVICIOS EXTRAÍDOS ──
         private readonly IAudioService _audioService = new AudioService();
-        private readonly ISteamService _steamService = new SteamService();
+        public readonly ISteamService SteamServiceInstance = new SteamService();
         private readonly IDisplayService _displayService = new DisplayService();
         private readonly IKeyboardHookService _keyboardHookService = new KeyboardHookService();
         private readonly IGpuScalingService _gpuScalingService = new NvidiaGpuScalingService();
@@ -560,7 +560,7 @@ namespace SteamOSConfigurator
 
         private void WinEventCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime) 
         {
-            if (hwnd == IntPtr.Zero || _modoEscritorio || _steamService.JuegoActivoHwnd == IntPtr.Zero) return;
+            if (hwnd == IntPtr.Zero || _modoEscritorio || SteamServiceInstance.JuegoActivoHwnd == IntPtr.Zero) return;
             GetWindowThreadProcessId(hwnd, out uint pid); 
             if (pid == 0) return;
             
@@ -581,8 +581,8 @@ namespace SteamOSConfigurator
                         }
                         Logger.Log($"[WinEventCallback] Ocultando ventana de Steam en segundo plano durante juego: HWND={hwnd.ToInt64():X}, Title=\"{titulo}\", PID={pid}");
                         ShowWindow(hwnd, SW_HIDE); 
-                        _steamService.AddVentanaSteamOculta(hwnd); 
-                        SetForegroundWindow(_steamService.JuegoActivoHwnd); 
+                        SteamServiceInstance.AddVentanaSteamOculta(hwnd); 
+                        SetForegroundWindow(SteamServiceInstance.JuegoActivoHwnd); 
                     } 
                 } 
             } 
@@ -617,7 +617,10 @@ namespace SteamOSConfigurator
                 _powerService.PrevenirSuspensionAutomatica();
                 Logger.Log("[EjecutarModoConsolaAsync] Plan de máximo rendimiento y suspensión configurados.");
 
-                // Exorcismo previo
+                // Exorcismo previo y limpieza de memoria
+                Logger.Log("[EjecutarModoConsolaAsync] Limpiando estado de memoria IPC...");
+                SteamServiceInstance.ReiniciarEstadoIPC();
+
                 Logger.Log("[EjecutarModoConsolaAsync] Limpiando procesos de Steam previos...");
                 foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); Logger.Log($"[EjecutarModoConsolaAsync] Proceso 'steam' (PID {p.Id}) terminado."); } catch (Exception ex) { Logger.Log($"[EjecutarModoConsolaAsync] Error al matar 'steam': {ex.Message}"); } }
                 foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); Logger.Log($"[EjecutarModoConsolaAsync] Proceso 'steamwebhelper' (PID {p.Id}) terminado."); } catch (Exception ex) { Logger.Log($"[EjecutarModoConsolaAsync] Error al matar 'steamwebhelper': {ex.Message}"); } }
@@ -693,7 +696,7 @@ namespace SteamOSConfigurator
                 _keyboardHookService.IniciarHook(() => !_modoEscritorio);
                 Logger.Log("[EjecutarModoConsolaAsync] Hook de teclado activado.");
 
-                string rutaSteam = _steamService.ObtenerRutaSteam(); 
+                string rutaSteam = SteamServiceInstance.ObtenerRutaSteam(); 
                 if (string.IsNullOrEmpty(rutaSteam)) 
                 { 
                     Logger.Log("[EjecutarModoConsolaAsync] ERROR: No se encontró la ruta de Steam. Cerrando sesión.");
@@ -702,7 +705,7 @@ namespace SteamOSConfigurator
                 }
                 
                 Logger.Log($"[EjecutarModoConsolaAsync] Ruta de Steam: {rutaSteam}. Limpiando registro de ventana...");
-                _steamService.LimpiarPosicionVentanaSteam();
+                SteamServiceInstance.LimpiarPosicionVentanaSteam();
 
                 Logger.Log("[EjecutarModoConsolaAsync] Iniciando proceso de Steam con '-gamepadui'...");
                 using (Process? steam = Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true }))
@@ -710,7 +713,7 @@ namespace SteamOSConfigurator
                     if (steam != null) 
                     {
                         Logger.Log($"[EjecutarModoConsolaAsync] Proceso de Steam iniciado (PID={steam.Id}).");
-                        _steamService.MoverVentanaSteamAlMonitorPrincipal(steam.Id, 25);
+                        SteamServiceInstance.MoverVentanaSteamAlMonitorPrincipal(steam.Id, 25);
                     }
                     else
                     {
@@ -719,7 +722,7 @@ namespace SteamOSConfigurator
                 }
  
                 Logger.Log("[EjecutarModoConsolaAsync] Esperando a que Steam esté listo...");
-                bool steamListo = await _steamService.EsperarSteamListoAsync(() => _modoEscritorio);
+                bool steamListo = await SteamServiceInstance.EsperarSteamListoAsync(() => _modoEscritorio);
                 
                 if (!steamListo && !_modoEscritorio)
                 {
@@ -737,7 +740,7 @@ namespace SteamOSConfigurator
                         _winEventDelegate = new WinEventDelegate(WinEventCallback); 
                         _hWinEventHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _winEventDelegate, 0, 0, WINEVENT_OUTOFCONTEXT); 
                     }); 
-                    _ = Task.Run(() => _steamService.MonitorDeJuegosAsync(() => _modoEscritorio, _keyboardHookService)); 
+                    _ = Task.Run(() => SteamServiceInstance.MonitorDeJuegosAsync(() => _modoEscritorio, _keyboardHookService)); 
                 }
                 
                 while (!_modoEscritorio) 
@@ -758,7 +761,7 @@ namespace SteamOSConfigurator
                         if (seReinicio || ReinstalandoOReinicioSteam)
                         {
                             Logger.Log("[EjecutarModoConsolaAsync] Steam se reinició (actualización/cambio/reinstalación). Reconectando...");
-                            await _steamService.EsperarSteamListoAsync(() => _modoEscritorio);
+                            await SteamServiceInstance.EsperarSteamListoAsync(() => _modoEscritorio);
                             ReinstalandoOReinicioSteam = false;
                             continue;
                         }
@@ -985,7 +988,7 @@ namespace SteamOSConfigurator
                             var procs = Process.GetProcessesByName("steam");
                             if (procs.Length > 0)
                             {
-                                _steamService.MoverVentanaSteamAlMonitorPrincipal(procs[0].Id, 1);
+                                SteamServiceInstance.MoverVentanaSteamAlMonitorPrincipal(procs[0].Id, 1);
                             }
                         }
                         catch { }
@@ -996,6 +999,7 @@ namespace SteamOSConfigurator
         }
 
         public static bool VentanaRecuperacionAbierta = false;
+        public static VentanaRecuperacion? VentanaRecuperacionInstancia => (System.Windows.Application.Current as App)?._ventanaRecuperacion;
 
 
         private VentanaRecuperacion? _ventanaRecuperacion;
@@ -1011,6 +1015,8 @@ namespace SteamOSConfigurator
                 {
                     // ── LIMPIEZA POST-DIÁLOGO (siempre se ejecuta al cerrar) ──
                     TraductorMando.IsQAMOpen = false;
+                    _ventanaRecuperacion.ActivarModoInGame(false);
+                    SteamServiceInstance.SetOverlayVisible(false);
                     Logger.Log("[AbrirVentanaRecuperacionUI] QAM cerrado. IsQAMOpen = false");
 
                     if (_ventanaRecuperacion.AccionResultante == AccionRecuperacion.ReintentarSteam)
@@ -1027,7 +1033,7 @@ namespace SteamOSConfigurator
                             _keyboardHookService.IniciarHook(() => !_modoEscritorio);
                             _ = TraductorMando.IniciarAsync();
 
-                            string rutaSteam = _steamService.ObtenerRutaSteam();
+                            string rutaSteam = SteamServiceInstance.ObtenerRutaSteam();
                             if (!string.IsNullOrEmpty(rutaSteam))
                             {
                                 Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true });
@@ -1078,6 +1084,10 @@ namespace SteamOSConfigurator
                     App.VentanaRecuperacionAbierta = true;
                     _keyboardHookService.DetenerHook();
                     
+                    bool juegoActivo = (SteamServiceInstance.JuegoActivoHwnd != IntPtr.Zero);
+                    _ventanaRecuperacion.ActivarModoInGame(juegoActivo);
+
+                    SteamServiceInstance.SetOverlayVisible(true);
                     _ventanaRecuperacion.MostrarPanel();
                     TraductorMando.IsQAMOpen = true;
                 }

@@ -80,6 +80,22 @@ namespace SteamOSConfigurator.Services
             return 100;
         }
 
+        public void EstablecerVolumen(int nuevoVolumen)
+        {
+            try
+            {
+                var defaultDev = _ctrl.DefaultPlaybackDevice;
+                if (defaultDev != null)
+                {
+                    defaultDev.Volume = Math.Clamp(nuevoVolumen, 0, 100);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[AudioService] Error estableciendo volumen: {ex.Message}");
+            }
+        }
+
         public bool AlternarSilencio()
         {
             try

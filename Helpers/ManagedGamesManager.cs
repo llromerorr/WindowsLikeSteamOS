@@ -20,43 +20,19 @@ namespace SteamOSConfigurator.Helpers
         public string AppId { get; set; } = "";
 
         /// <summary>
-        /// Determina si nuestro dxgi.dll está instalado en la carpeta del juego.
+        /// Determina si nuestro entorno (ReShade + WLSOS.addon) está instalado en la carpeta del juego.
         /// </summary>
         public bool IsPluginInstalled
         {
             get
             {
                 if (string.IsNullOrEmpty(GameDir) || !Directory.Exists(GameDir)) return false;
+                
                 string dxgiPath = Path.Combine(GameDir, "dxgi.dll");
+                string addonPath = Path.Combine(GameDir, "reshade-addons", "WLSOS.addon");
 
-                if (!File.Exists(dxgiPath)) return false;
-
-                // Verificar que el dxgi.dll es el nuestro comparando tamaño con el source
-                try
-                {
-                    string ourDxgi = GetSourceDllPath();
-                    if (string.IsNullOrEmpty(ourDxgi) || !File.Exists(ourDxgi)) return true; // Asumimos que sí
-
-                    return new FileInfo(dxgiPath).Length == new FileInfo(ourDxgi).Length;
-                }
-                catch
-                {
-                    return false;
-                }
+                return File.Exists(dxgiPath) && File.Exists(addonPath);
             }
-        }
-
-        private static string GetSourceDllPath()
-        {
-            // Primero buscamos en ProgramData (post-deploy)
-            string deployed = Path.Combine(@"C:\ProgramData\SteamOS", "dxgi.dll");
-            if (File.Exists(deployed)) return deployed;
-
-            // Luego en el directorio de la app
-            string local = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SteamOSHooks64.dll");
-            if (File.Exists(local)) return local;
-
-            return "";
         }
     }
 
@@ -67,17 +43,43 @@ namespace SteamOSConfigurator.Helpers
             "SteamOS", "managed_games.json");
 
         /// <summary>
-        /// Obtiene la ruta al dxgi.dll fuente que copiamos a los juegos.
+        /// Busca el archivo oficial ReShade64.dll en el repositorio local.
         /// </summary>
-        public static string GetSourceDll()
+        public static string GetSourceReShadeDll()
         {
-            // Prioridad 1: ProgramData (ya desplegado por el instalador)
-            string deployed = Path.Combine(@"C:\ProgramData\SteamOS", "SteamOSHooks64.dll");
-            if (File.Exists(deployed)) return deployed;
+            string repoFile = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "files", "ReShade64.dll"));
+            if (File.Exists(repoFile)) return repoFile;
 
-            // Prioridad 2: dxgi.dll junto al exe de la app
-            string localDxgi = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SteamOSHooks64.dll");
-            if (File.Exists(localDxgi)) return localDxgi;
+            string local = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ReShade64.dll");
+            if (File.Exists(local)) return local;
+
+            return "";
+        }
+
+        /// <summary>
+        /// Busca el addon WLSOS.addon.
+        /// </summary>
+        public static string GetSourceAddon()
+        {
+            string buildPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "SteamOSHooks64", "build_addon", "Release", "WLSOS.addon"));
+            if (File.Exists(buildPath)) return buildPath;
+
+            string local = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WLSOS.addon");
+            if (File.Exists(local)) return local;
+
+            return "";
+        }
+
+        /// <summary>
+        /// Busca la plantilla ReShade.ini.template.
+        /// </summary>
+        public static string GetSourceIniTemplate()
+        {
+            string repoFile = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "files", "ReShade.ini.template"));
+            if (File.Exists(repoFile)) return repoFile;
+
+            string local = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ReShade.ini.template");
+            if (File.Exists(local)) return local;
 
             return "";
         }
@@ -197,77 +199,91 @@ namespace SteamOSConfigurator.Helpers
             return newGame;
         }
 
-        private static bool IsOurProxy(string dllPath)
-        {
-            try
-            {
-                var fileInfo = new FileInfo(dllPath);
-                if (fileInfo.Length > 1024 * 1024) return false; // Nuesto proxy es de < 500KB. ReShade/DXVK son de varios MB.
-
-                var bytes = File.ReadAllBytes(dllPath);
-                string content = System.Text.Encoding.ASCII.GetString(bytes);
-                return content.Contains("SteamOSHooks");
-            }
-            catch { return false; }
-        }
-
         /// <summary>
-        /// Instala nuestro dxgi.dll proxy en la carpeta del juego.
-        /// Si hay un dxgi.dll de terceros (ReShade, DXVK), lanza una excepción para bloquear la instalación.
+        /// Instala ReShade + Addon en la carpeta del juego.
         /// </summary>
         public static bool InstallPlugin(ManagedGame game)
         {
             if (string.IsNullOrEmpty(game.GameDir) || !Directory.Exists(game.GameDir))
                 return false;
 
-            string sourceDll = GetSourceDll();
-            if (string.IsNullOrEmpty(sourceDll))
+            string sourceReshade = GetSourceReShadeDll();
+            if (string.IsNullOrEmpty(sourceReshade))
             {
-                Logger.Log("[ManagedGamesManager] No se encontró SteamOSHooks64.dll fuente para copiar.");
-                return false;
+                throw new FileNotFoundException("Falta ReShade64.dll. Debes colocar el DLL oficial de ReShade en la carpeta 'files' del repositorio o en la misma carpeta del ejecutable de la app para que funcione el auto-despliegue.");
             }
 
-            string targetDll = Path.Combine(game.GameDir, "dxgi.dll");
+            string sourceAddon = GetSourceAddon();
+            if (string.IsNullOrEmpty(sourceAddon))
+            {
+                throw new FileNotFoundException("Falta WLSOS.addon. Asegúrate de compilar el addon antes de intentar instalarlo.");
+            }
+
+            string sourceIni = GetSourceIniTemplate();
+            
+            string targetDxgi = Path.Combine(game.GameDir, "dxgi.dll");
+            string targetAddonsDir = Path.Combine(game.GameDir, "reshade-addons");
+            string targetAddon = Path.Combine(targetAddonsDir, "WLSOS.addon");
+            string targetIni = Path.Combine(game.GameDir, "ReShade.ini");
 
             try
             {
-                // Si ya hay un dxgi.dll y NO es nuestro, bloquear la instalación.
-                if (File.Exists(targetDll) && !IsOurProxy(targetDll))
+                // Copiar ReShade64.dll como dxgi.dll
+                File.Copy(sourceReshade, targetDxgi, true);
+
+                // Copiar el Addon WLSOS.addon
+                if (!Directory.Exists(targetAddonsDir))
                 {
-                    Logger.Log($"[ManagedGamesManager] dxgi.dll de terceros detectado en {game.Name}. Instalación bloqueada por seguridad.");
-                    throw new InvalidOperationException("Ya existe otra modificación (ReShade, DXVK, etc) instalada en este juego. Debes desinstalarla manualmente antes de activar el DLL Proxy.");
+                    Directory.CreateDirectory(targetAddonsDir);
+                }
+                File.Copy(sourceAddon, targetAddon, true);
+
+                // Copiar plantilla INI (solo si no existe, o forzamos sobrescritura parcial? Mejor forzamos para aplicar reglas)
+                if (!string.IsNullOrEmpty(sourceIni) && File.Exists(sourceIni))
+                {
+                    // Si ya existe un ReShade.ini, podríamos no querer romper los shaders del usuario,
+                    // pero si estamos instalando nuestro sistema por primera vez o re-aplicando, forzamos:
+                    File.Copy(sourceIni, targetIni, true);
+                }
+                else
+                {
+                    // Fallback minimal
+                    File.WriteAllText(targetIni, "[INPUT]\r\nKeyOverlay=0,0,0,0\r\n[OVERLAY]\r\nTutorialProgress=4\r\nShowFPS=0\r\nShowClock=0\r\nShowPresetName=0\r\n");
                 }
 
-                File.Copy(sourceDll, targetDll, true);
-                Logger.Log($"[ManagedGamesManager] Plugin instalado exitosamente en {game.Name}");
+                Logger.Log($"[ManagedGamesManager] Plugin y ReShade instalados exitosamente en {game.Name}");
                 return true;
             }
             catch (Exception ex)
             {
                 Logger.Log($"[ManagedGamesManager] Error instalando plugin en {game.Name}: {ex.Message}");
-                throw; // Rethrow para que la UI lo maneje
+                throw; 
             }
         }
 
         /// <summary>
-        /// Desinstala nuestro proxy.
+        /// Desinstala nuestro entorno (Elimina dxgi.dll y el addon).
         /// </summary>
         public static bool UninstallPlugin(ManagedGame game)
         {
             if (string.IsNullOrEmpty(game.GameDir) || !Directory.Exists(game.GameDir))
                 return false;
 
-            string targetDll = Path.Combine(game.GameDir, "dxgi.dll");
+            string targetDxgi = Path.Combine(game.GameDir, "dxgi.dll");
+            string targetAddon = Path.Combine(game.GameDir, "reshade-addons", "WLSOS.addon");
 
             try
             {
-                // Solo borrar si es nuestro
-                if (game.IsPluginInstalled && File.Exists(targetDll))
-                {
-                    File.Delete(targetDll);
-                    Logger.Log($"[ManagedGamesManager] Plugin desinstalado de {game.Name}");
-                }
+                if (File.Exists(targetAddon))
+                    File.Delete(targetAddon);
 
+                // Si eliminamos el addon, probablemente también queremos quitar el dxgi.dll para limpiar ReShade.
+                // Ojo: si el usuario usaba ReShade por su cuenta, esto lo borrará.
+                // Podríamos ser conservadores, pero nuestro QAM asume el control del DXGI.
+                if (File.Exists(targetDxgi))
+                    File.Delete(targetDxgi);
+
+                Logger.Log($"[ManagedGamesManager] Plugin desinstalado de {game.Name}");
                 return true;
             }
             catch (Exception ex)

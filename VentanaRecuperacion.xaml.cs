@@ -11,6 +11,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.Diagnostics;
 using SteamOSConfigurator.Services;
@@ -53,7 +54,7 @@ namespace SteamOSConfigurator
         private readonly IDisplayService _displayService = new DisplayService();
         private readonly IAudioService _audioService;
         private readonly IGpuScalingService _gpuScalingService = new NvidiaGpuScalingService();
-        private readonly SteamService _steamService = new();
+        private ISteamService _steamService => ((App)Application.Current).SteamServiceInstance;
 
         private List<Button> _botonesNavegables = new();
         private int _focusedIndex = 0;
@@ -76,6 +77,11 @@ namespace SteamOSConfigurator
         private bool _modoConfirmacion = false;
         private List<Button> _botonesOriginales = new();
         private int _indiceOriginal = 0;
+        
+        // ── IN-GAME CAPTURE ──
+        private bool _isInGameMode = false;
+        private bool _dirty = false;
+        private DispatcherTimer _timerCapture;
 
         public static VentanaRecuperacion? Instancia { get; private set; }
 
@@ -85,6 +91,12 @@ namespace SteamOSConfigurator
             Instancia = this;
             _audioService = new AudioService();
             
+            _timerCapture = new DispatcherTimer();
+            _timerCapture.Interval = TimeSpan.FromMilliseconds(33); // ~30 fps max
+            _timerCapture.Tick += TimerCapture_Tick;
+            
+            LayoutUpdated += (s, e) => MarcarSucio();
+
             _timerDashboard = new DispatcherTimer();
             _timerDashboard.Interval = TimeSpan.FromSeconds(1);
             _timerDashboard.Tick += TimerDashboard_Tick;
@@ -128,6 +140,34 @@ namespace SteamOSConfigurator
                 Top = 0;
                 Width = SystemParameters.PrimaryScreenWidth;
                 Height = SystemParameters.PrimaryScreenHeight;
+            }
+        }
+
+        public void ActivarModoInGame(bool active)
+        {
+            _isInGameMode = active;
+            if (active)
+            {
+                // En modo in-game ocultamos el fondo transparente del escritorio para no oscurecer Windows,
+                // manteniendo la ventana Opacity = 1.0 para que RenderTargetBitmap capture con 100% opacidad.
+                AreaTransparente.Visibility = Visibility.Collapsed;
+                Background = System.Windows.Media.Brushes.Transparent;
+                Opacity = 1.0;
+                IsHitTestVisible = false;
+                Visibility = Visibility.Visible;
+                AjustarTamanioPantalla();
+                _timerCapture.Start();
+                MarcarSucio();
+            }
+            else
+            {
+                AreaTransparente.Visibility = Visibility.Visible;
+                Background = System.Windows.Media.Brushes.Transparent;
+                Opacity = 1.0;
+                IsHitTestVisible = true;
+                Visibility = Visibility.Visible;
+                AjustarTamanioPantalla();
+                _timerCapture.Stop();
             }
         }
 
@@ -201,6 +241,56 @@ namespace SteamOSConfigurator
         }
 
         // ══════════════════════════════════════════════════════════════
+        //  IN-GAME OVERLAY (TEXTURE EXPORT)
+        // ══════════════════════════════════════════════════════════════
+
+
+
+        public void MarcarSucio()
+        {
+            if (_isInGameMode)
+                _dirty = true;
+        }
+
+        private void TimerCapture_Tick(object? sender, EventArgs e)
+        {
+            if (!_isInGameMode) return;
+
+            try
+            {
+                int width = 360;
+                int height = 800;
+
+                CaptureContainer.Measure(new System.Windows.Size(width, height));
+                CaptureContainer.Arrange(new System.Windows.Rect(0, 0, width, height));
+                CaptureContainer.UpdateLayout();
+
+                var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(CaptureContainer);
+
+                var writeableBmp = new WriteableBitmap(rtb);
+                int stride = writeableBmp.BackBufferStride;
+                int numBytes = stride * height;
+                byte[] pixels = new byte[numBytes];
+                writeableBmp.CopyPixels(pixels, stride, 0);
+
+                // Intercambiar R y B
+                for (int i = 0; i < pixels.Length; i += 4)
+                {
+                    byte b = pixels[i];
+                    pixels[i] = pixels[i + 2]; // B = R
+                    pixels[i + 2] = b;         // R = B
+                }
+
+                _steamService.WriteOverlayTexture(pixels, width, height, true);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[VentanaRecuperacion] Error al capturar UI: {ex.Message}");
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
         //  VISIBILIDAD Y TABS
         // ══════════════════════════════════════════════════════════════
 
@@ -209,8 +299,15 @@ namespace SteamOSConfigurator
             _isClosing = false;
             AjustarTamanioPantalla();
             OcultarConfirmacion();
-            Opacity = 1;
-            IsHitTestVisible = true;
+            Opacity = 1.0;
+            if (!_isInGameMode)
+            {
+                IsHitTestVisible = true;
+            }
+            else
+            {
+                IsHitTestVisible = false;
+            }
             CargarEstadosIniciales();
             
             // Iniciar en pestaña Configuración
@@ -348,8 +445,16 @@ namespace SteamOSConfigurator
             anim.EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn };
             anim.Completed += (s, ev) => 
             {
-                Opacity = 0;
-                IsHitTestVisible = false;
+                if (!_isInGameMode)
+                {
+                    Opacity = 0;
+                    IsHitTestVisible = false;
+                }
+                else
+                {
+                    Opacity = 0.001;
+                    IsHitTestVisible = false;
+                }
                 _timerDashboard.Stop();
                 App.VentanaRecuperacionAbierta = false;
                 PanelOcultado?.Invoke(this, EventArgs.Empty);

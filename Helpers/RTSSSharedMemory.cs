@@ -14,6 +14,7 @@ namespace SteamOSConfigurator.Helpers
         public string Resolution { get; set; } = string.Empty;
         public string GameName { get; set; } = string.Empty;
         public string ProcessPath { get; set; } = string.Empty;
+        public uint ProcessId { get; set; } = 0;
         public bool DatosValidos { get; set; } = false;
     }
 
@@ -127,6 +128,7 @@ namespace SteamOSConfigurator.Helpers
                                     Resolution = resultado.Resolution,
                                     GameName = gameName,
                                     ProcessPath = rawName,
+                                    ProcessId = processId,
                                     DatosValidos = true
                                 };
 

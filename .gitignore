@@ -42,6 +42,8 @@ Desktop.ini
 
 ## C++ Build artifacts
 SteamOSHooks64/build/
+SteamOSHooks64/build_addon/
+scratch/
 *.obj
 *.tlog
 

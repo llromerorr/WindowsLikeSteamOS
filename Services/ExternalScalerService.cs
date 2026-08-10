@@ -128,11 +128,25 @@ namespace WindowsLikeSteamOS.Services
         private const uint SWP_NOMOVE = 0x0002;
         private const uint SWP_NOSIZE = 0x0001;
         private const uint SWP_NOACTIVATE = 0x0010;
+        [DllImport("gdi32.dll")]
+        private static extern int GetDeviceCaps(IntPtr hdc, int nIndex);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetDC(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
 
         private ExternalScalerService()
         {
-            _screenWidth = System.Windows.SystemParameters.PrimaryScreenWidth > 0 ? (int)System.Windows.SystemParameters.PrimaryScreenWidth : 1920;
-            _screenHeight = System.Windows.SystemParameters.PrimaryScreenHeight > 0 ? (int)System.Windows.SystemParameters.PrimaryScreenHeight : 1080;
+            IntPtr hdc = GetDC(IntPtr.Zero);
+            int cx = GetDeviceCaps(hdc, 118); // DESKTOPHORZRES
+            int cy = GetDeviceCaps(hdc, 117); // DESKTOPVERTRES
+            ReleaseDC(IntPtr.Zero, hdc);
+
+            _screenWidth = cx > 0 ? cx : 3840;
+            _screenHeight = cy > 0 ? cy : 2160;
+            Logger.Log($"[ExternalScalerService] Physical Screen Size detected: {_screenWidth}x{_screenHeight}");
         }
 
         public void StartScaling()
@@ -502,11 +516,20 @@ namespace WindowsLikeSteamOS.Services
                     }
 
                     _timeoutSpamCounter = 0;
+                    bool mutexReleased = false;
                     try
                     {
                         DrawD3DFrame();
 
-                        // Present(1) para VSync.
+                        // LIBERAR MUTEX INMEDIATAMENTE DESPUES DE DIBUJAR Y ANTES DE PRESENT
+                        // Esto evita que el juego se cuelgue esperando a que termine nuestro VSync (Present)
+                        if (_keyedMutex != null)
+                        {
+                            _keyedMutex.Release(0);
+                            mutexReleased = true;
+                        }
+
+                        // Present(1) para VSync. Puede bloquear hasta 16ms!
                         try {
                             _swapChain.Present(1, PresentFlags.None);
                         } 
@@ -518,7 +541,11 @@ namespace WindowsLikeSteamOS.Services
                     }
                     finally
                     {
-                        _keyedMutex?.Release(0);
+                        // ASEGURAR QUE SIEMPRE LIBERAMOS LA LLAVE A C++ AUN SI HAY ERROR ANTES DE LLEGAR AL RELEASE
+                        if (!mutexReleased)
+                        {
+                            try { _keyedMutex?.Release(0); } catch { }
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -554,18 +581,28 @@ namespace WindowsLikeSteamOS.Services
                 
                 var texDesc = _sharedTexture.Description;
                 var srvFormat = texDesc.Format;
-                if (srvFormat == SharpDX.DXGI.Format.R8G8B8A8_Typeless) srvFormat = SharpDX.DXGI.Format.R8G8B8A8_UNorm;
-                else if (srvFormat == SharpDX.DXGI.Format.B8G8R8A8_Typeless) srvFormat = SharpDX.DXGI.Format.B8G8R8A8_UNorm;
-                else if (srvFormat == SharpDX.DXGI.Format.R10G10B10A2_Typeless) srvFormat = SharpDX.DXGI.Format.R10G10B10A2_UNorm;
+                bool isTypeless = false;
+                if (srvFormat == SharpDX.DXGI.Format.R8G8B8A8_Typeless) { srvFormat = SharpDX.DXGI.Format.R8G8B8A8_UNorm; isTypeless = true; }
+                else if (srvFormat == SharpDX.DXGI.Format.B8G8R8A8_Typeless) { srvFormat = SharpDX.DXGI.Format.B8G8R8A8_UNorm; isTypeless = true; }
+                else if (srvFormat == SharpDX.DXGI.Format.R10G10B10A2_Typeless) { srvFormat = SharpDX.DXGI.Format.R10G10B10A2_UNorm; isTypeless = true; }
 
-                var srvDesc = new SharpDX.Direct3D11.ShaderResourceViewDescription
+                ShaderResourceView srv;
+                if (isTypeless)
                 {
-                    Format = srvFormat,
-                    Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Texture2D,
-                    Texture2D = new SharpDX.Direct3D11.ShaderResourceViewDescription.Texture2DResource { MipLevels = 1, MostDetailedMip = 0 }
-                };
+                    var srvDesc = new SharpDX.Direct3D11.ShaderResourceViewDescription
+                    {
+                        Format = srvFormat,
+                        Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Texture2D,
+                        Texture2D = new SharpDX.Direct3D11.ShaderResourceViewDescription.Texture2DResource { MipLevels = 1, MostDetailedMip = 0 }
+                    };
+                    srv = new ShaderResourceView(_d3dDevice, _sharedTexture, srvDesc);
+                }
+                else
+                {
+                    srv = new ShaderResourceView(_d3dDevice, _sharedTexture);
+                }
                 
-                using (var srv = new ShaderResourceView(_d3dDevice, _sharedTexture, srvDesc))
+                using (srv)
                 {
                     var easuCon = SteamOSConfigurator.Helpers.FsrConstants.CalculateEasu(
                         sourceWidth, sourceHeight,

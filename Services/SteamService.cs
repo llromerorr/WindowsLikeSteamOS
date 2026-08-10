@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 using SteamOSConfigurator.Helpers;
+using WindowsLikeSteamOS.Services;
 
 namespace SteamOSConfigurator.Services
 {
@@ -20,6 +21,9 @@ namespace SteamOSConfigurator.Services
         void MoverVentanaSteamAlMonitorPrincipal(int steamPid, int intentos);
         IntPtr JuegoActivoHwnd { get; }
         void AddVentanaSteamOculta(IntPtr hwnd);
+        void SetOverlayVisible(bool visible);
+        void WriteOverlayTexture(byte[] pixels, int width, int height, bool visible);
+        void ReiniciarEstadoIPC();
     }
 
     public class SteamService : ISteamService
@@ -108,8 +112,102 @@ namespace SteamOSConfigurator.Services
         private HashSet<IntPtr> _ventanasSteamOcultas = new HashSet<IntPtr>();
         private readonly object _lockVentanas = new object();
         private IntPtr _juegoActivoHwnd = IntPtr.Zero;
+        private WlsosIpc? _currentIpc = null;
+        private int _currentIpcPid = 0;
+        private readonly object _ipcLock = new object();
 
         public IntPtr JuegoActivoHwnd => _juegoActivoHwnd;
+
+        private void EnsureIpcForProcess(int pid)
+        {
+            lock (_ipcLock)
+            {
+                if (_currentIpc != null && _currentIpcPid == pid) return;
+
+                DisposeIpcInternal();
+
+                _currentIpcPid = pid;
+                Logger.Log($"[SteamService] Creating IPC for PID {pid}: H2A=Local\\WLSOS_IPC_H2A_{pid} A2H=Local\\WLSOS_IPC_A2H_{pid}");
+                try
+                {
+                    _currentIpc = new WlsosIpc(pid);
+                    _currentIpc.OnFSRChanged += (enabled) => Logger.Log($"[IPC Event] FSR Changed: {enabled}");
+                    _currentIpc.OnFSRSharpnessChanged += (sharp) => Logger.Log($"[IPC Event] FSR Sharpness Changed: {sharp:F2}");
+                    _currentIpc.OnCRTChanged += (enabled) => Logger.Log($"[IPC Event] CRT Changed: {enabled}");
+                    _currentIpc.OnCRTIntensityChanged += (intensity) => Logger.Log($"[IPC Event] CRT Intensity Changed: {intensity:F2}");
+
+                    _currentIpc.OnVolumeRequested += (vol) => {
+                        try { new AudioService().EstablecerVolumen(vol); } catch { }
+                    };
+
+                    _currentIpc.OnPowerActionRequested += (action) => {
+                        try {
+                            var power = new PowerService();
+                            switch (action) {
+                                case PowerAction.Suspend: power.Suspend(); break;
+                                case PowerAction.Hibernate: power.Hibernate(); break;
+                                case PowerAction.Restart: power.Restart(); break;
+                                case PowerAction.Shutdown: power.Shutdown(); break;
+                                case PowerAction.Desktop:
+                                    System.Windows.Application.Current.Dispatcher.Invoke(() => {
+                                        if (App.VentanaRecuperacionInstancia != null) {
+                                            App.VentanaRecuperacionInstancia.AccionResultante = AccionRecuperacion.ModoEscritorio;
+                                            App.VentanaRecuperacionInstancia.OcultarPanel();
+                                        }
+                                    });
+                                    break;
+                            }
+                        } catch { }
+                    };
+
+                    _currentIpc.SetOverlayVisible(false);
+                    _currentIpc.SetFSR(false, 0.5f);
+                    _currentIpc.SetCRT(false, 0.15f);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[SteamService] Error al crear IPC para PID {pid}: {ex.Message}");
+                    _currentIpc = null;
+                    _currentIpcPid = 0;
+                }
+            }
+        }
+
+        public void SetOverlayVisible(bool visible)
+        {
+            lock (_ipcLock)
+            {
+                _currentIpc?.SetOverlayVisible(visible);
+            }
+        }
+
+        public void WriteOverlayTexture(byte[] pixels, int width, int height, bool visible)
+        {
+            lock (_ipcLock)
+            {
+                _currentIpc?.WriteOverlayTexture(pixels, width, height, visible);
+            }
+        }
+
+        public void ReiniciarEstadoIPC()
+        {
+            Logger.Log("[SteamService] Reiniciando y limpiando estado de memoria IPC...");
+            DisposeIpcInternal();
+        }
+
+        private void DisposeIpcInternal()
+        {
+            lock (_ipcLock)
+            {
+                if (_currentIpc != null)
+                {
+                    Logger.Log($"[SteamService] Disposing IPC for PID {_currentIpcPid}");
+                    try { _currentIpc.Dispose(); } catch { }
+                    _currentIpc = null;
+                    _currentIpcPid = 0;
+                }
+            }
+        }
 
         public void AddVentanaSteamOculta(IntPtr hwnd)
         {
@@ -342,6 +440,7 @@ namespace SteamOSConfigurator.Services
                         {
                             _juegoActivoHwnd = IntPtr.Zero;
                             Logger.Log($"[MonitorDeJuegosAsync] Juego finalizado: PID={juegoActivo.Id}. Reactivando hook de teclado y restaurando visibilidad de Steam.");
+                            DisposeIpcInternal();
                             CambiarVisibilidadSteam(false);
                             keyboardHookService.Suspendido = false;
                             juegoActivo.Dispose();
@@ -352,6 +451,7 @@ namespace SteamOSConfigurator.Services
                     {
                         Logger.Log($"[MonitorDeJuegosAsync] Error al consultar salida del juego: {ex.Message}");
                         _juegoActivoHwnd = IntPtr.Zero;
+                        DisposeIpcInternal();
                         CambiarVisibilidadSteam(false);
                         keyboardHookService.Suspendido = false;
                         juegoActivo?.Dispose();
@@ -360,13 +460,35 @@ namespace SteamOSConfigurator.Services
                 }
                 else
                 {
+                    // 1. Intentar detección perfecta mediante RivaTuner (RTSS)
+                    var rtssInfo = RTSSSharedMemory.ObtenerRendimientoJuegoActual();
                     IntPtr fgHwnd = GetForegroundWindow();
-                    if (fgHwnd != IntPtr.Zero)
+                    GetWindowThreadProcessId(fgHwnd, out uint fgPid);
+
+                    if (rtssInfo != null && rtssInfo.DatosValidos && rtssInfo.ProcessId > 0 && rtssInfo.ProcessId == fgPid)
                     {
-                        GetWindowThreadProcessId(fgHwnd, out uint pid);
                         try
                         {
-                            var proc = Process.GetProcessById((int)pid);
+                            var proc = Process.GetProcessById((int)rtssInfo.ProcessId);
+                            string pName = proc.ProcessName.ToLower();
+
+                            juegoActivo = proc;
+                            _juegoActivoHwnd = fgHwnd;
+
+                            Logger.Log($"[MonitorDeJuegosAsync] Juego detectado vía RTSS: '{pName}' (PID={rtssInfo.ProcessId}). Ocultando ventanas secundarias de Steam.");
+                            EnsureIpcForProcess((int)rtssInfo.ProcessId);
+                            CambiarVisibilidadSteam(true);
+                            continue;
+                        }
+                        catch { }
+                    }
+
+                    // 2. Fallback heurístico si RTSS no detecta o no está en foreground
+                    if (fgHwnd != IntPtr.Zero && fgPid > 0)
+                    {
+                        try
+                        {
+                            var proc = Process.GetProcessById((int)fgPid);
                             string pName = proc.ProcessName.ToLower();
 
                             var ignoreList = new HashSet<string>
@@ -380,24 +502,15 @@ namespace SteamOSConfigurator.Services
 
                             if (!ignoreList.Contains(pName))
                             {
-                                int length = GetWindowTextLength(fgHwnd);
-                                if (length > 0)
-                                {
-                                    StringBuilder sb = new StringBuilder(length + 1);
-                                    GetWindowText(fgHwnd, sb, sb.Capacity);
-                                    string titulo = sb.ToString();
+                                // Aquí quitamos la estricta comprobación de GetWindowTextLength > 0
+                                // porque juegos como Dark Souls 3 a veces no tienen título en ciertas API.
+                                // Ya que hemos filtrado los procesos de sistema, asumiremos que es un juego.
+                                juegoActivo = proc;
+                                _juegoActivoHwnd = fgHwnd;
 
-                                    juegoActivo = proc;
-                                    _juegoActivoHwnd = fgHwnd;
-
-                                    // Mantener el hook de teclado activo durante el juego para bloquear Alt+Tab, Alt+F4 y Tecla Windows
-                                    Logger.Log($"[MonitorDeJuegosAsync] Juego detectado en primer plano: '{pName}' (PID={pid}, Title=\"{titulo}\"). Ocultando ventanas secundarias de Steam.");
-                                    CambiarVisibilidadSteam(true);
-                                }
-                                else
-                                {
-                                    proc.Dispose();
-                                }
+                                Logger.Log($"[MonitorDeJuegosAsync] Juego detectado por heurística (Fallback): '{pName}' (PID={fgPid}).");
+                                EnsureIpcForProcess((int)fgPid);
+                                CambiarVisibilidadSteam(true);
                             }
                             else
                             {
@@ -408,6 +521,7 @@ namespace SteamOSConfigurator.Services
                     }
                 }
             }
+            DisposeIpcInternal();
             juegoActivo?.Dispose();
             Logger.Log("[MonitorDeJuegosAsync] Monitor de juegos finalizado.");
         }

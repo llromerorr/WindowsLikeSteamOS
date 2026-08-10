@@ -100,490 +100,492 @@
 
     <Grid>
         <!-- AREA TRANSPARENTE: click aquí = cerrar -->
-        <Border Background="#01000000" MouseLeftButtonDown="AreaTransparente_MouseDown"/>
+        <Border x:Name="AreaTransparente" Background="#01000000" MouseLeftButtonDown="AreaTransparente_MouseDown"/>
 
-        <!-- CAJÓN LATERAL DERECHO (Ancho ampliado para Tabs) -->
-        <Border x:Name="CajonLateral" HorizontalAlignment="Right" Width="360" 
-                BorderThickness="0" Margin="0,0,0,0">
-            <Border.RenderTransform>
-                <TranslateTransform x:Name="CajonTranslate" X="360" />
-            </Border.RenderTransform>
-            <Border.Background>
-                <SolidColorBrush Color="#E60A0A0A"/>
-            </Border.Background>
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="40" ShadowDepth="0" Color="#000000" Opacity="0.5"/>
-            </Border.Effect>
+        <!-- CONTENEDOR DE CAPTURA (Estático 360x800) -->
+        <Grid x:Name="CaptureContainer" HorizontalAlignment="Right" VerticalAlignment="Center" Width="360" Height="800" ClipToBounds="True">
+            <!-- CAJÓN LATERAL DERECHO (Ancho ampliado para Tabs) -->
+            <Border x:Name="CajonLateral" Width="360" 
+                    BorderThickness="0" Margin="0,0,0,0">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="CajonTranslate" X="360" />
+                </Border.RenderTransform>
+                <Border.Background>
+                    <SolidColorBrush Color="#E60A0A0A"/>
+                </Border.Background>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="40" ShadowDepth="0" Color="#000000" Opacity="0.5"/>
+                </Border.Effect>
 
-            <!-- CONTENIDO PRINCIPAL: Barra de Pestañas + Área Central -->
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="60"/> <!-- Tab Bar -->
-                    <ColumnDefinition Width="*"/> <!-- Main Panel -->
-                </Grid.ColumnDefinitions>
+                <!-- CONTENIDO PRINCIPAL: Barra de Pestañas + Área Central -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="60"/> <!-- Tab Bar -->
+                        <ColumnDefinition Width="*"/> <!-- Main Panel -->
+                    </Grid.ColumnDefinitions>
 
-                <!-- TAB BAR IZQUIERDA -->
-                <Border Grid.Column="0" Background="#111111" BorderThickness="0,0,1,0" BorderBrush="#202A475E">
-                    <StackPanel Margin="10,24,10,20">
-                        <Button x:Name="btnTabConfig" Style="{StaticResource TabBtn}" Click="BtnTabConfig_Click" Background="#2A3F5E" Foreground="#FFFFFF">
-                            <Viewbox Width="22" Height="22">
-                                <Path Data="{StaticResource IconSettings}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
-                            </Viewbox>
-                        </Button>
-                        <Button x:Name="btnTabRed" Style="{StaticResource TabBtn}" Click="BtnTabRed_Click">
-                            <Viewbox Width="22" Height="22">
-                                <Path Data="{StaticResource IconNetwork}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
-                            </Viewbox>
-                        </Button>
-                        <Button x:Name="btnTabRendimiento" Style="{StaticResource TabBtn}" Click="BtnTabRendimiento_Click">
-                            <Viewbox Width="22" Height="22">
-                                <Path Data="{StaticResource IconPerf}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
-                            </Viewbox>
-                        </Button>
-                        <Button x:Name="btnTabJuegos" Style="{StaticResource TabBtn}" Click="BtnTabJuegos_Click">
-                            <TextBlock Text="🎮" FontSize="18" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Button>
-                        <Button x:Name="btnTabMando" Style="{StaticResource TabBtn}" Click="BtnTabMando_Click">
-                            <Viewbox Width="22" Height="22">
-                                <Path Data="{StaticResource IconController}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
-                            </Viewbox>
-                        </Button>
-                        <Button x:Name="btnTabEnergia" Style="{StaticResource TabBtn}" Click="BtnTabEnergia_Click">
-                            <Viewbox Width="22" Height="22">
-                                <Path Data="{StaticResource IconPower}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
-                            </Viewbox>
-                        </Button>
-                    </StackPanel>
-                </Border>
-
-                <!-- ÁREA CENTRAL -->
-                <Grid Grid.Column="1" Margin="20,24,20,20">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/> <!-- Header -->
-                        <RowDefinition Height="*"/>    <!-- Tabs Content -->
-                        <RowDefinition Height="Auto"/> <!-- Overlays -->
-                    </Grid.RowDefinitions>
-
-                    <!-- ═══ HEADER SIMPLIFICADO ═══ -->
-                    <StackPanel Grid.Row="0" Margin="0,0,0,14">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Border x:Name="borderGameIcon" CornerRadius="4" ClipToBounds="True" Width="24" Height="24" Margin="0,0,8,0" VerticalAlignment="Center" Visibility="Collapsed">
-                                <Image x:Name="imgGameIcon" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            </Border>
-                            <TextBlock x:Name="lblHeaderTitle" Text="WindowsLikeSteamOS" FontSize="16" FontWeight="Bold" Foreground="#F3F4F6" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                        </StackPanel>
-                        
-                        <DockPanel Margin="0,8,0,0">
-                            <!-- Batería -->
-                            <StackPanel x:Name="panelBateriaHeader" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
-                                <TextBlock Text="🔋 " FontSize="12" Foreground="#10B981" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="lblBateriaHeader" Text="100%" FontSize="12" FontWeight="Bold" Foreground="#10B981" VerticalAlignment="Center"/>
-                            </StackPanel>
-                            <!-- Reloj -->
-                            <TextBlock x:Name="lblHora" Text="12:00" FontFamily="Consolas" FontSize="14" FontWeight="Bold" Foreground="#3B82F6" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        </DockPanel>
-                        
-                        <Rectangle Height="1" Margin="0,14,0,0" Fill="#202A475E"/>
-                    </StackPanel>
-
-                    <!-- ═══ CONTENIDO DE LAS PESTAÑAS ═══ -->
-
-                    <!-- PESTAÑA 1: CONFIGURACIÓN -->
-                    <ScrollViewer x:Name="Grid_TabConfig" Grid.Row="1" VerticalScrollBarVisibility="Hidden" Visibility="Visible">
-                        <StackPanel>
-                            <TextBlock Text="CONFIGURACIÓN RÁPIDA" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
-                            
-                            <!-- VOLUMEN -->
-                            <Button x:Name="btnVolumen" Style="{StaticResource QamBtn}" Click="BtnVolumen_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="30"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconVolume}" Fill="#8F98A0" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Volumen Principal" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="lblValVolumen" Grid.Column="2" Text="100%" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
+                    <!-- TAB BAR IZQUIERDA -->
+                    <Border Grid.Column="0" Background="#111111" BorderThickness="0,0,1,0" BorderBrush="#202A475E">
+                        <StackPanel Margin="10,24,10,20">
+                            <Button x:Name="btnTabConfig" Style="{StaticResource TabBtn}" Click="BtnTabConfig_Click" Background="#2A3F5E" Foreground="#FFFFFF">
+                                <Viewbox Width="22" Height="22">
+                                    <Path Data="{StaticResource IconSettings}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
+                                </Viewbox>
                             </Button>
-
-                            <!-- SALIDA DE AUDIO 🚧 -->
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="30"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="🎧" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Salida de Audio" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
+                            <Button x:Name="btnTabRed" Style="{StaticResource TabBtn}" Click="BtnTabRed_Click">
+                                <Viewbox Width="22" Height="22">
+                                    <Path Data="{StaticResource IconNetwork}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
+                                </Viewbox>
                             </Button>
-
-                            <!-- BRILLO 🚧 -->
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="30"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="☀️" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Brillo de Pantalla" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
+                            <Button x:Name="btnTabRendimiento" Style="{StaticResource TabBtn}" Click="BtnTabRendimiento_Click">
+                                <Viewbox Width="22" Height="22">
+                                    <Path Data="{StaticResource IconPerf}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
+                                </Viewbox>
                             </Button>
-                            
-                            <!-- MODO NOCHE 🚧 -->
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="30"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="🌙" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Modo Noche (Filtro Azul)" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
+                            <Button x:Name="btnTabJuegos" Style="{StaticResource TabBtn}" Click="BtnTabJuegos_Click">
+                                <TextBlock Text="🎮" FontSize="18" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Button>
+                            <Button x:Name="btnTabMando" Style="{StaticResource TabBtn}" Click="BtnTabMando_Click">
+                                <Viewbox Width="22" Height="22">
+                                    <Path Data="{StaticResource IconController}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
+                                </Viewbox>
+                            </Button>
+                            <Button x:Name="btnTabEnergia" Style="{StaticResource TabBtn}" Click="BtnTabEnergia_Click">
+                                <Viewbox Width="22" Height="22">
+                                    <Path Data="{StaticResource IconPower}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
+                                </Viewbox>
                             </Button>
                         </StackPanel>
-                    </ScrollViewer>
+                    </Border>
 
-                    <!-- PESTAÑA 2: RED 🚧 -->
-                    <ScrollViewer x:Name="Grid_TabRed" Grid.Row="1" VerticalScrollBarVisibility="Hidden" Visibility="Collapsed">
-                        <StackPanel>
-                            <TextBlock Text="RED Y CONECTIVIDAD" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="📶" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Wi-Fi" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="ᛒ" FontSize="14" Foreground="#3B82F6" FontWeight="Bold" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Bluetooth" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="✈️" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Modo Avión" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!-- PESTAÑA 3: RENDIMIENTO -->
-                    <ScrollViewer x:Name="Grid_TabRendimiento" Grid.Row="1" VerticalScrollBarVisibility="Hidden" Visibility="Collapsed">
-                        <StackPanel>
-                            <TextBlock Text="RENDIMIENTO" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
-                            
-                            <!-- NIVEL OSD -->
-                            <Button x:Name="btnNivelOSD" Style="{StaticResource QamBtn}" Click="BtnNivelOSD_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconPerf}" Fill="#8F98A0" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Nivel OSD" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="lblValOSD" Grid.Column="2" Text="OFF" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <!-- MOTOR OSD -->
-                            <Button x:Name="btnMotorOSD" Style="{StaticResource QamBtn}" Click="BtnMotorOSD_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconPerf}" Fill="#8F98A0" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Motor OSD" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="lblValMotorOSD" Grid.Column="2" Text="WPF" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <!-- LIMITE FPS -->
-                            <Button x:Name="btnLimiteFPS" Style="{StaticResource QamBtn}" Click="BtnLimiteFPS_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconFPS}" Fill="#8F98A0" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Límite de Fotogramas" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="lblValFPS" Grid.Column="2" Text="OFF" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <!-- REFRESH RATE 🚧 -->
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconDisplay}" Fill="#8F98A0" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Frecuencia Pantalla (Hz)" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <!-- TDP LIMIT 🚧 -->
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="🔥" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Límite de TDP (Vatios)" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <!-- GPU CLOCK 🚧 -->
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="⚡" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Reloj Manual GPU" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <Rectangle Height="1" Margin="0,10,0,10" Fill="#2A475E"/>
-                            <TextBlock Text="ESCALADO AVANZADO" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
-
-                            <!-- SCALING FILTER -->
-                            <Button x:Name="btnFiltroEscalado" Style="{StaticResource QamBtn}" Click="BtnFiltroEscalado_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="🔎" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Resolución Falsa (FSR)" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="lblValFiltroEscalado" Grid.Column="2" Text="OFF" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <!-- GPU STRETCH (Mantiene funcionalidad pero muestra WIP icon per user feedback) -->
-                            <Button x:Name="btnGpuStretch" Style="{StaticResource QamBtn}" Click="BtnGpuStretch_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconStretch}" Fill="#8F98A0" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Sincronización (Modo GPU)" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="lblValStretch" Grid.Column="2" Text="🚧" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!-- PESTAÑA JUEGOS -->
-                    <Grid x:Name="Grid_TabJuegos" Grid.Row="1" Visibility="Collapsed">
+                    <!-- ÁREA CENTRAL -->
+                    <Grid Grid.Column="1" Margin="20,24,20,20">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/> <!-- Header -->
+                            <RowDefinition Height="*"/>    <!-- Tabs Content -->
+                            <RowDefinition Height="Auto"/> <!-- Overlays -->
                         </Grid.RowDefinitions>
-                        <TextBlock Text="GESTOR DE JUEGOS (DLL PROXY)" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
-                        
-                        <ListBox x:Name="lstJuegos" Grid.Row="1" Background="Transparent" BorderThickness="0" Foreground="#F3F3F3" 
-                                 ScrollViewer.VerticalScrollBarVisibility="Hidden" Margin="0,5" SelectionChanged="LstJuegos_SelectionChanged">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Margin="5">
+
+                        <!-- ═══ HEADER SIMPLIFICADO ═══ -->
+                        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border x:Name="borderGameIcon" CornerRadius="4" ClipToBounds="True" Width="24" Height="24" Margin="0,0,8,0" VerticalAlignment="Center" Visibility="Collapsed">
+                                    <Image x:Name="imgGameIcon" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                </Border>
+                                <TextBlock x:Name="lblHeaderTitle" Text="WindowsLikeSteamOS" FontSize="16" FontWeight="Bold" Foreground="#F3F4F6" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            
+                            <DockPanel Margin="0,8,0,0">
+                                <!-- Batería -->
+                                <StackPanel x:Name="panelBateriaHeader" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                                    <TextBlock Text="🔋 " FontSize="12" Foreground="#10B981" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="lblBateriaHeader" Text="100%" FontSize="12" FontWeight="Bold" Foreground="#10B981" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <!-- Reloj -->
+                                <TextBlock x:Name="lblHora" Text="12:00" FontFamily="Consolas" FontSize="14" FontWeight="Bold" Foreground="#3B82F6" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            
+                            <Rectangle Height="1" Margin="0,14,0,0" Fill="#202A475E"/>
+                        </StackPanel>
+
+                        <!-- ═══ CONTENIDO DE LAS PESTAÑAS ═══ -->
+
+                        <!-- PESTAÑA 1: CONFIGURACIÓN -->
+                        <ScrollViewer x:Name="Grid_TabConfig" Grid.Row="1" VerticalScrollBarVisibility="Hidden" Visibility="Visible">
+                            <StackPanel>
+                                <TextBlock Text="CONFIGURACIÓN RÁPIDA" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
+                                
+                                <!-- VOLUMEN -->
+                                <Button x:Name="btnVolumen" Style="{StaticResource QamBtn}" Click="BtnVolumen_Click">
+                                    <Grid>
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="30"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{Binding Name}" FontSize="13" VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="11" Foreground="{Binding StatusColor}" VerticalAlignment="Center" FontWeight="Bold"/>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconVolume}" Fill="#8F98A0" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Volumen Principal" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblValVolumen" Grid.Column="2" Text="100%" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
                                     </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                            <ListBox.ItemContainerStyle>
-                                <Style TargetType="ListBoxItem">
-                                    <Setter Property="Padding" Value="5"/>
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsSelected" Value="True">
-                                            <Setter Property="Background" Value="#2A475E"/>
-                                        </Trigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </ListBox.ItemContainerStyle>
-                        </ListBox>
+                                </Button>
 
-                        <Button x:Name="btnGestionarJuego" Grid.Row="2" Style="{StaticResource QamBtn}" Click="BtnGestionarJuego_Click" Margin="0,10,0,10" IsEnabled="False">
-                            <Grid>
-                                <TextBlock x:Name="txtAccionJuego" Text="Selecciona un juego..." FontSize="13" FontWeight="Bold" Foreground="#F3F3F3" HorizontalAlignment="Center"/>
-                            </Grid>
-                        </Button>
-                    </Grid>
+                                <!-- SALIDA DE AUDIO 🚧 -->
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="30"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="🎧" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Salida de Audio" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
 
-                    <!-- PESTAÑA 4: MANDO 🚧 -->
-                    <ScrollViewer x:Name="Grid_TabMando" Grid.Row="1" VerticalScrollBarVisibility="Hidden" Visibility="Collapsed">
-                        <StackPanel>
-                            <TextBlock Text="OPCIONES DE MANDO" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="📳" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Vibración" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="🕹️" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Probar Mando" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="🔌" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Apagar Mando" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-                            <Button Style="{StaticResource QamBtn}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="🎮" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Mapeo de Botones" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!-- PESTAÑA 5: ENERGÍA -->
-                    <ScrollViewer x:Name="Grid_TabEnergia" Grid.Row="1" VerticalScrollBarVisibility="Hidden" Visibility="Collapsed">
-                        <StackPanel>
-                            <TextBlock Text="ENERGÍA Y SISTEMA" FontSize="11" FontWeight="Bold" Foreground="#FF5252" Margin="6,4,0,6"/>
-                            
-                            <Button x:Name="btnSuspenderConsola" Style="{StaticResource QamBtn}" Click="BtnSuspenderConsola_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconSleep}" Fill="#8F98A0" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Suspender" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <Button x:Name="btnHibernarConsola" Style="{StaticResource QamBtn}" Click="BtnHibernarConsola_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconSleep}" Fill="#8F98A0" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Hibernar" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <Button x:Name="btnReiniciarConsola" Style="{StaticResource QamBtn}" Click="BtnReiniciarConsola_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconRefresh}" Fill="#FF5252" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Reiniciar" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <Button x:Name="btnApagarConsola" Style="{StaticResource QamBtn}" Click="BtnApagarConsola_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconPower}" Fill="#FF5252" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Apagar" FontSize="13" FontWeight="Bold" Foreground="#FF5252" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <Rectangle Height="1" Margin="0,10,0,10" Fill="#2A475E"/>
-                            
-                            <Button x:Name="btnModoEscritorio" Style="{StaticResource QamBtn}" Click="BtnModoEscritorio_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconExit}" Fill="#8F98A0" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Salir al Escritorio" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <Button x:Name="btnCerrarSesion" Style="{StaticResource QamBtn}" Click="BtnCerrarSesion_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconLock}" Fill="#FFC107" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Cerrar Sesión Windows" FontSize="13" FontWeight="SemiBold" Foreground="#FFC107" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                            <!-- Liberar RAM lo movemos aquí o a rendimiento, lo pondremos en Rendimiento extra o aquí -->
-                            <!-- Mantendremos Reiniciar Steam / Reinstalar aquí por limpieza -->
-                            <Rectangle Height="1" Margin="0,10,0,10" Fill="#2A475E"/>
-                            <TextBlock Text="MANTENIMIENTO" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
-                            <Button x:Name="btnReintentar" Style="{StaticResource QamBtn}" Click="BtnReintentar_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconRefresh}" Fill="#8F98A0" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Reiniciar Steam" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-                            <Button x:Name="btnReinstalarSteam" Style="{StaticResource QamBtn}" Click="BtnReinstalarSteam_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
-                                        <Path Data="{StaticResource IconDownload}" Fill="#8F98A0" Stretch="Uniform"/>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1" Text="Reinstalar Steam" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Button>
-
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!-- ═══ OVERLAY DE CONFIRMACIÓN ═══ -->
-                    <Grid x:Name="OverlayConfirmacion" Grid.RowSpan="3" Visibility="Collapsed" Background="#D9000000" Margin="-20,-24,-20,-20">
-                        <Border VerticalAlignment="Center" HorizontalAlignment="Center" Width="240" Background="#E60A0A0A" BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="12" Padding="20">
-                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch">
-                                <Border Background="#1AFF5252" CornerRadius="20" Width="40" Height="40" HorizontalAlignment="Center" Margin="0,0,0,12">
-                                    <Path Data="{StaticResource IconPower}" Fill="#FF5252" Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                                </Border>
-                                <TextBlock x:Name="txtTituloConfirmacion" Text="¿Confirmar acción?" FontSize="15" FontWeight="Bold" Foreground="#F3F4F6" TextAlignment="Center" TextWrapping="Wrap"/>
-                                <TextBlock x:Name="txtSubtituloConfirmacion" Text="Se cerrará cualquier juego." FontSize="11" Foreground="#9CA3AF" TextAlignment="Center" Margin="0,6,0,16" TextWrapping="Wrap"/>
-
-                                <StackPanel Orientation="Vertical">
-                                    <Button x:Name="btnConfirmarAccion" Style="{StaticResource QamBtn}" Click="BtnConfirmarAccion_Click" Height="36" Background="#FF5252" BorderThickness="0">
-                                        <TextBlock Text="Aceptar" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center"/>
-                                    </Button>
-                                    <Button x:Name="btnCancelarAccion" Style="{StaticResource QamBtn}" Click="BtnCancelarAccion_Click" Height="36" Margin="0,6,0,0">
-                                        <TextBlock Text="Cancelar" FontSize="12" FontWeight="SemiBold" Foreground="#9CA3AF" HorizontalAlignment="Center"/>
-                                    </Button>
-                                </StackPanel>
+                                <!-- BRILLO 🚧 -->
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="30"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="☀️" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Brillo de Pantalla" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                
+                                <!-- MODO NOCHE 🚧 -->
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="30"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="🌙" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Modo Noche (Filtro Azul)" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
                             </StackPanel>
-                        </Border>
-                    </Grid>
+                        </ScrollViewer>
 
+                        <!-- PESTAÑA 2: RED 🚧 -->
+                        <ScrollViewer x:Name="Grid_TabRed" Grid.Row="1" VerticalScrollBarVisibility="Hidden" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="RED Y CONECTIVIDAD" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="📶" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Wi-Fi" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="ᛒ" FontSize="14" Foreground="#3B82F6" FontWeight="Bold" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Bluetooth" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="✈️" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Modo Avión" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- PESTAÑA 3: RENDIMIENTO -->
+                        <ScrollViewer x:Name="Grid_TabRendimiento" Grid.Row="1" VerticalScrollBarVisibility="Hidden" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="RENDIMIENTO" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
+                                
+                                <!-- NIVEL OSD -->
+                                <Button x:Name="btnNivelOSD" Style="{StaticResource QamBtn}" Click="BtnNivelOSD_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconPerf}" Fill="#8F98A0" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Nivel OSD" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblValOSD" Grid.Column="2" Text="OFF" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <!-- MOTOR OSD -->
+                                <Button x:Name="btnMotorOSD" Style="{StaticResource QamBtn}" Click="BtnMotorOSD_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconPerf}" Fill="#8F98A0" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Motor OSD" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblValMotorOSD" Grid.Column="2" Text="WPF" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <!-- LIMITE FPS -->
+                                <Button x:Name="btnLimiteFPS" Style="{StaticResource QamBtn}" Click="BtnLimiteFPS_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconFPS}" Fill="#8F98A0" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Límite de Fotogramas" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblValFPS" Grid.Column="2" Text="OFF" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <!-- REFRESH RATE 🚧 -->
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconDisplay}" Fill="#8F98A0" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Frecuencia Pantalla (Hz)" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <!-- TDP LIMIT 🚧 -->
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="🔥" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Límite de TDP (Vatios)" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <!-- GPU CLOCK 🚧 -->
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="⚡" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Reloj Manual GPU" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <Rectangle Height="1" Margin="0,10,0,10" Fill="#2A475E"/>
+                                <TextBlock Text="ESCALADO AVANZADO" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
+
+                                <!-- SCALING FILTER -->
+                                <Button x:Name="btnFiltroEscalado" Style="{StaticResource QamBtn}" Click="BtnFiltroEscalado_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="🔎" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Resolución Falsa (FSR)" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblValFiltroEscalado" Grid.Column="2" Text="OFF" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <!-- GPU STRETCH (Mantiene funcionalidad pero muestra WIP icon per user feedback) -->
+                                <Button x:Name="btnGpuStretch" Style="{StaticResource QamBtn}" Click="BtnGpuStretch_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconStretch}" Fill="#8F98A0" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Sincronización (Modo GPU)" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblValStretch" Grid.Column="2" Text="🚧" FontSize="13" FontWeight="SemiBold" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- PESTAÑA JUEGOS -->
+                        <Grid x:Name="Grid_TabJuegos" Grid.Row="1" Visibility="Collapsed">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="GESTOR DE JUEGOS (DLL PROXY)" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
+                            
+                            <ListBox x:Name="lstJuegos" Grid.Row="1" Background="Transparent" BorderThickness="0" Foreground="#F3F3F3" 
+                                     ScrollViewer.VerticalScrollBarVisibility="Hidden" Margin="0,5" SelectionChanged="LstJuegos_SelectionChanged">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Name}" FontSize="13" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="11" Foreground="{Binding StatusColor}" VerticalAlignment="Center" FontWeight="Bold"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="5"/>
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="#2A475E"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
+
+                            <Button x:Name="btnGestionarJuego" Grid.Row="2" Style="{StaticResource QamBtn}" Click="BtnGestionarJuego_Click" Margin="0,10,0,10" IsEnabled="False">
+                                <Grid>
+                                    <TextBlock x:Name="txtAccionJuego" Text="Selecciona un juego..." FontSize="13" FontWeight="Bold" Foreground="#F3F3F3" HorizontalAlignment="Center"/>
+                                </Grid>
+                            </Button>
+                        </Grid>
+
+                        <!-- PESTAÑA 4: MANDO 🚧 -->
+                        <ScrollViewer x:Name="Grid_TabMando" Grid.Row="1" VerticalScrollBarVisibility="Hidden" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="OPCIONES DE MANDO" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="📳" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Vibración" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="🕹️" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Probar Mando" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="🔌" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Apagar Mando" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource QamBtn}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="🎮" FontSize="14" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="Mapeo de Botones" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="🚧" FontSize="13" Foreground="#66C0F4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- PESTAÑA 5: ENERGÍA -->
+                        <ScrollViewer x:Name="Grid_TabEnergia" Grid.Row="1" VerticalScrollBarVisibility="Hidden" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="ENERGÍA Y SISTEMA" FontSize="11" FontWeight="Bold" Foreground="#FF5252" Margin="6,4,0,6"/>
+                                
+                                <Button x:Name="btnSuspenderConsola" Style="{StaticResource QamBtn}" Click="BtnSuspenderConsola_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconSleep}" Fill="#8F98A0" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Suspender" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <Button x:Name="btnHibernarConsola" Style="{StaticResource QamBtn}" Click="BtnHibernarConsola_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconSleep}" Fill="#8F98A0" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Hibernar" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <Button x:Name="btnReiniciarConsola" Style="{StaticResource QamBtn}" Click="BtnReiniciarConsola_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconRefresh}" Fill="#FF5252" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Reiniciar" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <Button x:Name="btnApagarConsola" Style="{StaticResource QamBtn}" Click="BtnApagarConsola_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconPower}" Fill="#FF5252" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Apagar" FontSize="13" FontWeight="Bold" Foreground="#FF5252" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <Rectangle Height="1" Margin="0,10,0,10" Fill="#2A475E"/>
+                                
+                                <Button x:Name="btnModoEscritorio" Style="{StaticResource QamBtn}" Click="BtnModoEscritorio_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconExit}" Fill="#8F98A0" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Salir al Escritorio" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <Button x:Name="btnCerrarSesion" Style="{StaticResource QamBtn}" Click="BtnCerrarSesion_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconLock}" Fill="#FFC107" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Cerrar Sesión Windows" FontSize="13" FontWeight="SemiBold" Foreground="#FFC107" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <!-- Liberar RAM lo movemos aquí o a rendimiento, lo pondremos en Rendimiento extra o aquí -->
+                                <!-- Mantendremos Reiniciar Steam / Reinstalar aquí por limpieza -->
+                                <Rectangle Height="1" Margin="0,10,0,10" Fill="#2A475E"/>
+                                <TextBlock Text="MANTENIMIENTO" FontSize="11" FontWeight="Bold" Foreground="#66C0F4" Margin="6,4,0,6"/>
+                                <Button x:Name="btnReintentar" Style="{StaticResource QamBtn}" Click="BtnReintentar_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconRefresh}" Fill="#8F98A0" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Reiniciar Steam" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button x:Name="btnReinstalarSteam" Style="{StaticResource QamBtn}" Click="BtnReinstalarSteam_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Viewbox Width="16" Height="16" HorizontalAlignment="Left">
+                                            <Path Data="{StaticResource IconDownload}" Fill="#8F98A0" Stretch="Uniform"/>
+                                        </Viewbox>
+                                        <TextBlock Grid.Column="1" Text="Reinstalar Steam" FontSize="13" Foreground="#F3F3F3" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- ═══ OVERLAY DE CONFIRMACIÓN ═══ -->
+                        <Grid x:Name="OverlayConfirmacion" Grid.RowSpan="3" Visibility="Collapsed" Background="#D9000000" Margin="-20,-24,-20,-20">
+                            <Border VerticalAlignment="Center" HorizontalAlignment="Center" Width="240" Background="#E60A0A0A" BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="12" Padding="20">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch">
+                                    <Border Background="#1AFF5252" CornerRadius="20" Width="40" Height="40" HorizontalAlignment="Center" Margin="0,0,0,12">
+                                        <Path Data="{StaticResource IconPower}" Fill="#FF5252" Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock x:Name="txtTituloConfirmacion" Text="¿Confirmar acción?" FontSize="15" FontWeight="Bold" Foreground="#F3F4F6" TextAlignment="Center" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="txtSubtituloConfirmacion" Text="Se cerrará cualquier juego." FontSize="11" Foreground="#9CA3AF" TextAlignment="Center" Margin="0,6,0,16" TextWrapping="Wrap"/>
+
+                                    <StackPanel Orientation="Vertical">
+                                        <Button x:Name="btnConfirmarAccion" Style="{StaticResource QamBtn}" Click="BtnConfirmarAccion_Click" Height="36" Background="#FF5252" BorderThickness="0">
+                                            <TextBlock Text="Aceptar" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center"/>
+                                        </Button>
+                                        <Button x:Name="btnCancelarAccion" Style="{StaticResource QamBtn}" Click="BtnCancelarAccion_Click" Height="36" Margin="0,6,0,0">
+                                            <TextBlock Text="Cancelar" FontSize="12" FontWeight="SemiBold" Foreground="#9CA3AF" HorizontalAlignment="Center"/>
+                                        </Button>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Grid>
                 </Grid>
-            </Grid>
-        </Border>
+            </Border>
+        </Grid>
     </Grid>
 </Window>
