@@ -7,6 +7,8 @@
 #include <atomic>
 #include <chrono>
 #include <algorithm>
+#include <intrin.h>
+#include <psapi.h>
 
 using XInputGetState_t = DWORD(WINAPI*)(DWORD dwUserIndex, XINPUT_STATE* pState);
 using XInputGetStateEx_t = DWORD(WINAPI*)(DWORD dwUserIndex, XINPUT_STATE* pState);
@@ -53,6 +55,42 @@ static DWORD WINAPI hkXInputGetState(DWORD dwUserIndex, XINPUT_STATE* pState) {
     if (overlayActive || cooldown > 0) {
         if (cooldown > 0) {
             g_cooldown_frames.fetch_sub(1, std::memory_order_relaxed);
+        }
+
+        // Bypassing para ReShade: si la llamada proviene de ReShade (dxgi.dll, d3d11.dll, etc.)
+        // permitimos que lea el input real para navegar por ImGui nativo.
+        PVOID caller = _ReturnAddress();
+        bool isReShade = false;
+        
+        // Cachear los rangos de memoria de los modulos conocidos de ReShade de forma lock-free
+        static uintptr_t reshade_bases[4] = {0};
+        static uint32_t reshade_sizes[4] = {0};
+        static std::atomic<bool> reshade_cached{false};
+        
+        if (!reshade_cached.load(std::memory_order_relaxed)) {
+            const wchar_t* modules[] = { L"dxgi.dll", L"d3d11.dll", L"d3d12.dll", L"dinput8.dll" };
+            for (int i = 0; i < 4; ++i) {
+                HMODULE hMod = GetModuleHandleW(modules[i]);
+                if (hMod) {
+                    MODULEINFO info = {0};
+                    GetModuleInformation(GetCurrentProcess(), hMod, &info, sizeof(info));
+                    reshade_bases[i] = (uintptr_t)info.lpBaseOfDll;
+                    reshade_sizes[i] = info.SizeOfImage;
+                }
+            }
+            reshade_cached.store(true, std::memory_order_relaxed);
+        }
+        
+        uintptr_t caller_addr = (uintptr_t)caller;
+        for (int i = 0; i < 4; ++i) {
+            if (reshade_bases[i] != 0 && caller_addr >= reshade_bases[i] && caller_addr < (reshade_bases[i] + reshade_sizes[i])) {
+                isReShade = true;
+                break;
+            }
+        }
+
+        if (isReShade) {
+            return ERROR_SUCCESS; // Devolver el *pState real a ReShade!
         }
 
         // Neutralizar el estado entregado al juego (personaje inmóvil)

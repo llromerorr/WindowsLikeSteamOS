@@ -3,18 +3,18 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$DeployDir = "C:\ProgramData\SteamOS\WindowsLikeSteamOS"
+$DeployDir = "C:\ProgramData\SteamOS"
 
 Write-Host "0. Deteniendo procesos en ejecución y limpiando memoria..." -ForegroundColor Cyan
-$procesos = @("WindowsLikeSteamOS", "DiagnosticoRTSS", "DarkSoulsIII")
+$procesos = @("WindowsLikeSteamOS", "WLSOS_Shell", "DiagnosticoRTSS", "DarkSoulsIII")
 foreach ($p in $procesos) {
     Get-Process -Name $p -ErrorAction SilentlyContinue | Stop-Process -Force
 }
 Start-Sleep -Seconds 2
 
-Write-Host "0.1 Limpiando archivos antiguos..." -ForegroundColor Cyan
+Write-Host "0.1 Limpiando binarios antiguos..." -ForegroundColor Cyan
 if (Test-Path $DeployDir) {
-    Remove-Item -Path "$DeployDir\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -Path $DeployDir -Include *.exe, *.dll, *.pdb, *.addon -File | Remove-Item -Force -ErrorAction SilentlyContinue
 }
 if (Test-Path "$GameDir\dxgi.dll") {
     Remove-Item -Path "$GameDir\dxgi.dll" -Force -ErrorAction SilentlyContinue
@@ -51,6 +51,9 @@ $publishDir = "bin\Release\net8.0-windows\win-x64\publish"
 
 if (-not (Test-Path $DeployDir)) { New-Item -ItemType Directory -Path $DeployDir | Out-Null }
 Copy-Item "$publishDir\*" -Destination $DeployDir -Recurse -Force
+
+# Crear copia separada para el Shell
+Copy-Item "$DeployDir\WindowsLikeSteamOS.exe" -Destination "$DeployDir\WLSOS_Shell.exe" -Force -ErrorAction SilentlyContinue
 
 # Copiar WLSOS.addon
 $addonSource = "SteamOSHooks64\build\Release\WLSOS.addon"

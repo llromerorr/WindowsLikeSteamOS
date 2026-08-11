@@ -184,9 +184,30 @@ namespace SteamOSConfigurator
                         if (lx > 50000) dpadRight = true;
                     }
 
+                    var appInst = System.Windows.Application.Current as App;
+                    bool enJuego = (appInst != null && appInst.SteamServiceInstance != null && appInst.SteamServiceInstance.JuegoActivoHwnd != IntPtr.Zero);
+
                     if (IsQAMOpen)
                     {
-                        // Release all virtual buttons to block the game from receiving inputs
+                        if (enJuego)
+                        {
+                            // MODO IN-GAME: Enviar los botones del mando físico al mando virtual Xbox
+                            // para que el hook de XInput en ReShade alimente a ImGui nativo directamente!
+                            _xboxVirtual.SetButtonState(Xbox360Button.Up, dpadUp);
+                            _xboxVirtual.SetButtonState(Xbox360Button.Down, dpadDown);
+                            _xboxVirtual.SetButtonState(Xbox360Button.Left, dpadLeft);
+                            _xboxVirtual.SetButtonState(Xbox360Button.Right, dpadRight);
+                            _xboxVirtual.SetButtonState(Xbox360Button.A, btnA);
+                            _xboxVirtual.SetButtonState(Xbox360Button.B, btnB);
+                            _xboxVirtual.SetButtonState(Xbox360Button.LeftShoulder, btnLB);
+                            _xboxVirtual.SetButtonState(Xbox360Button.RightShoulder, btnRB);
+                            _xboxVirtual.SetButtonState(Xbox360Button.Back, btnSelect);
+
+                            Thread.Sleep(20);
+                            continue;
+                        }
+
+                        // MODO ESCRITORIO (Out-game): Navegar en el panel WPF externo
                         _xboxVirtual.SetButtonState(Xbox360Button.A, false);
                         _xboxVirtual.SetButtonState(Xbox360Button.B, false);
                         _xboxVirtual.SetButtonState(Xbox360Button.X, false);

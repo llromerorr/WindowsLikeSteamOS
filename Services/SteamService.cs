@@ -118,6 +118,10 @@ namespace SteamOSConfigurator.Services
 
         public IntPtr JuegoActivoHwnd => _juegoActivoHwnd;
 
+        private ProfileSaveDebouncer? _debouncer = null;
+        private string? _currentGameId = null;
+        private GameProfile? _currentProfile = null;
+
         private void EnsureIpcForProcess(int pid)
         {
             lock (_ipcLock)
@@ -128,16 +132,60 @@ namespace SteamOSConfigurator.Services
 
                 _currentIpcPid = pid;
                 Logger.Log($"[SteamService] Creating IPC for PID {pid}: H2A=Local\\WLSOS_IPC_H2A_{pid} A2H=Local\\WLSOS_IPC_A2H_{pid}");
+                
                 try
                 {
+                    string exePath = System.Diagnostics.Process.GetProcessById(pid).MainModule?.FileName ?? pid.ToString();
+                    _currentGameId = ProfileService.ObtenerGameId(exePath);
+                    _currentProfile = ProfileService.CargarPerfil(_currentGameId);
+                    
+                    _debouncer = new ProfileSaveDebouncer(
+                        TimeSpan.FromMilliseconds(400),
+                        (gameId, snap) => ProfileService.SaveAsync(gameId, (GameProfile)snap));
+
                     _currentIpc = new WlsosIpc(pid);
-                    _currentIpc.OnFSRChanged += (enabled) => Logger.Log($"[IPC Event] FSR Changed: {enabled}");
-                    _currentIpc.OnFSRSharpnessChanged += (sharp) => Logger.Log($"[IPC Event] FSR Sharpness Changed: {sharp:F2}");
-                    _currentIpc.OnCRTChanged += (enabled) => Logger.Log($"[IPC Event] CRT Changed: {enabled}");
-                    _currentIpc.OnCRTIntensityChanged += (intensity) => Logger.Log($"[IPC Event] CRT Intensity Changed: {intensity:F2}");
 
                     _currentIpc.OnVolumeRequested += (vol) => {
-                        try { new AudioService().EstablecerVolumen(vol); } catch { }
+                        try { 
+                            new AudioService().EstablecerVolumen(vol);
+                            if (_currentProfile != null) {
+                                _currentProfile.MasterVolume = vol;
+                                _debouncer?.Request(_currentGameId, _currentProfile.Clone());
+                            }
+                        } catch { }
+                    };
+
+                    _currentIpc.OnAAModeRequested += (mode) => {
+                        if (_currentProfile != null) {
+                            _currentProfile.AaMode = mode;
+                            _currentIpc.SetMasterState(_currentProfile.MasterVolume / 100f, (uint)_currentProfile.FpsLimit, _currentProfile.AaMode, _currentProfile.SharpenMode, _currentProfile.SharpenStrength, _currentProfile.CrtEnabled, _currentProfile.CrtIntensity);
+                            _debouncer?.Request(_currentGameId, _currentProfile.Clone());
+                        }
+                    };
+
+                    _currentIpc.OnSharpenModeRequested += (mode) => {
+                        if (_currentProfile != null) {
+                            _currentProfile.SharpenMode = mode;
+                            _currentIpc.SetMasterState(_currentProfile.MasterVolume / 100f, (uint)_currentProfile.FpsLimit, _currentProfile.AaMode, _currentProfile.SharpenMode, _currentProfile.SharpenStrength, _currentProfile.CrtEnabled, _currentProfile.CrtIntensity);
+                            _debouncer?.Request(_currentGameId, _currentProfile.Clone());
+                        }
+                    };
+
+                    _currentIpc.OnCRTModeRequested += (enabledByte) => {
+                        if (_currentProfile != null) {
+                            _currentProfile.CrtEnabled = (enabledByte != 0);
+                            _currentIpc.SetMasterState(_currentProfile.MasterVolume / 100f, (uint)_currentProfile.FpsLimit, _currentProfile.AaMode, _currentProfile.SharpenMode, _currentProfile.SharpenStrength, _currentProfile.CrtEnabled, _currentProfile.CrtIntensity);
+                            _debouncer?.Request(_currentGameId, _currentProfile.Clone());
+                        }
+                    };
+
+                    _currentIpc.OnFPSLimitRequested += (limit) => {
+                        if (_currentProfile != null) {
+                            _currentProfile.FpsLimit = limit;
+                            _currentIpc.SetMasterState(_currentProfile.MasterVolume / 100f, (uint)_currentProfile.FpsLimit, _currentProfile.AaMode, _currentProfile.SharpenMode, _currentProfile.SharpenStrength, _currentProfile.CrtEnabled, _currentProfile.CrtIntensity);
+                            _debouncer?.Request(_currentGameId, _currentProfile.Clone());
+                            // Apply to RTSS in the future here
+                        }
                     };
 
                     _currentIpc.OnPowerActionRequested += (action) => {
@@ -161,14 +209,16 @@ namespace SteamOSConfigurator.Services
                     };
 
                     _currentIpc.SetOverlayVisible(false);
-                    _currentIpc.SetFSR(false, 0.5f);
-                    _currentIpc.SetCRT(false, 0.15f);
+                    // Push initial state
+                    _currentIpc.SetMasterState(_currentProfile.MasterVolume / 100f, (uint)_currentProfile.FpsLimit, _currentProfile.AaMode, _currentProfile.SharpenMode, _currentProfile.SharpenStrength, _currentProfile.CrtEnabled, _currentProfile.CrtIntensity);
                 }
                 catch (Exception ex)
                 {
                     Logger.Log($"[SteamService] Error al crear IPC para PID {pid}: {ex.Message}");
                     _currentIpc = null;
                     _currentIpcPid = 0;
+                    _debouncer?.Dispose();
+                    _debouncer = null;
                 }
             }
         }
@@ -199,6 +249,13 @@ namespace SteamOSConfigurator.Services
         {
             lock (_ipcLock)
             {
+                if (_debouncer != null)
+                {
+                    try { _debouncer.FlushAsync().Wait(1000); } catch { }
+                    _debouncer.Dispose();
+                    _debouncer = null;
+                }
+
                 if (_currentIpc != null)
                 {
                     Logger.Log($"[SteamService] Disposing IPC for PID {_currentIpcPid}");

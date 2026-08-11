@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace WindowsLikeSteamOS.Services
 {
-    [StructLayout(LayoutKind.Sequential)]
-    public struct HostToAddonState
+    [StructLayout(LayoutKind.Sequential, Pack = 8)]
+    public unsafe struct HostToAddonState
     {
         public uint protocol_version;
         public uint _pad0;
@@ -16,13 +16,20 @@ namespace WindowsLikeSteamOS.Services
         public uint seq;
 
         public byte overlay_visible;
-        public byte fsr_enabled;
+        public byte aa_mode;
+        public byte sharpen_mode;
         public byte crt_enabled;
-        public byte _pad1;
-        public float fsr_sharpness;
+
+        public float master_volume;
+        public uint fps_limit;
+        public float sharpen_strength;
         public float crt_intensity;
-        
-        public unsafe fixed byte reserved[64];
+
+        public float taa_jitter;
+        public float taa_seeking;
+        public float cmaa2_edge_threshold;
+
+        public fixed byte reserved[68];
     }
 
     public enum PowerAction : byte
@@ -35,8 +42,8 @@ namespace WindowsLikeSteamOS.Services
         Desktop = 5
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    public struct AddonToHostState
+    [StructLayout(LayoutKind.Sequential, Pack = 8)]
+    public unsafe struct AddonToHostState
     {
         public uint protocol_version;
         public uint _pad0;
@@ -45,19 +52,41 @@ namespace WindowsLikeSteamOS.Services
         public uint seq;
 
         public uint request_epoch;
-        public byte desired_fsr_mode;     // 0 = OFF, 1 = 720p, 2 = 900p
-        public byte desired_fps_limit;    // 0 = OFF, 30, 45, 60
-        public byte requested_volume;     // 0 a 100%
-        public byte requested_power_action; // enum PowerAction
-        public float desired_fsr_sharpness;
+        public uint request_mask;
+
+        public byte desired_overlay_visible;
+        public byte desired_aa_mode;
+        public byte desired_sharpen_mode;
+        public byte desired_crt_enabled;
+
+        public float desired_master_volume;
+        public uint desired_fps_limit;
+        public float desired_sharpen_strength;
         public float desired_crt_intensity;
-        
-        public unsafe fixed byte reserved[64];
+
+        public float desired_taa_jitter;
+        public float desired_taa_seeking;
+        public float desired_cmaa2_edge_threshold;
+
+        public byte requested_power_action;
+        public fixed byte reserved[55];
+    }
+
+    public enum IpcRequestMask : uint
+    {
+        REQ_OVERLAY   = 1u << 0,
+        REQ_VOLUME    = 1u << 1,
+        REQ_FPS_LIMIT = 1u << 2,
+        REQ_AA        = 1u << 3,
+        REQ_SHARPEN   = 1u << 4,
+        REQ_CRT       = 1u << 5,
+        REQ_POWER     = 1u << 6,
+        REQ_RESERVED7 = 1u << 7
     }
 
     public class WlsosIpc : IDisposable
     {
-        private const uint IPC_PROTOCOL_VERSION = 1;
+        private const uint IPC_PROTOCOL_VERSION = 2;
         private const string MMF_H2A_PREFIX = "Local\\WLSOS_IPC_H2A_";
         private const string MMF_A2H_PREFIX = "Local\\WLSOS_IPC_A2H_";
         private const int MMF_SIZE = 4096;
@@ -96,7 +125,9 @@ namespace WindowsLikeSteamOS.Services
 
         public event Action<byte> OnVolumeRequested;
         public event Action<PowerAction> OnPowerActionRequested;
-        public event Action<byte> OnFSRModeRequested;
+        public event Action<byte> OnAAModeRequested;
+        public event Action<byte> OnSharpenModeRequested;
+        public event Action<byte> OnCRTModeRequested;
         public event Action<byte> OnFPSLimitRequested;
 
         public WlsosIpc(int targetPid)
@@ -203,19 +234,39 @@ namespace WindowsLikeSteamOS.Services
             if (a2h.request_epoch != _lastProcessedEpoch)
             {
                 _lastProcessedEpoch = a2h.request_epoch;
+                uint mask = a2h.request_mask;
 
-                if (a2h.requested_volume <= 100)
+                if ((mask & (uint)IpcRequestMask.REQ_VOLUME) != 0)
                 {
-                    OnVolumeRequested?.Invoke(a2h.requested_volume);
+                    OnVolumeRequested?.Invoke((byte)(Math.Clamp(a2h.desired_master_volume, 0f, 1f) * 100f));
                 }
 
-                if (a2h.requested_power_action != (byte)PowerAction.None)
+                if ((mask & (uint)IpcRequestMask.REQ_AA) != 0)
+                {
+                    OnAAModeRequested?.Invoke(a2h.desired_aa_mode);
+                }
+
+                if ((mask & (uint)IpcRequestMask.REQ_SHARPEN) != 0)
+                {
+                    OnSharpenModeRequested?.Invoke(a2h.desired_sharpen_mode);
+                    // could also trigger event for sharpen strength if needed
+                }
+
+                if ((mask & (uint)IpcRequestMask.REQ_CRT) != 0)
+                {
+                    OnCRTModeRequested?.Invoke(a2h.desired_crt_enabled);
+                    // could also trigger event for crt intensity if needed
+                }
+
+                if ((mask & (uint)IpcRequestMask.REQ_FPS_LIMIT) != 0)
+                {
+                    OnFPSLimitRequested?.Invoke((byte)a2h.desired_fps_limit);
+                }
+
+                if ((mask & (uint)IpcRequestMask.REQ_POWER) != 0)
                 {
                     OnPowerActionRequested?.Invoke((PowerAction)a2h.requested_power_action);
                 }
-
-                OnFSRModeRequested?.Invoke(a2h.desired_fsr_mode);
-                OnFPSLimitRequested?.Invoke(a2h.desired_fps_limit);
             }
         }
 
@@ -242,10 +293,18 @@ namespace WindowsLikeSteamOS.Services
                 pState->host_heartbeat = _currentHostHeartbeat;
                 
                 pState->overlay_visible = (byte)(_overlayVisible ? 1 : 0);
-                pState->fsr_enabled = (byte)(_fsrEnabled ? 1 : 0);
-                pState->fsr_sharpness = _fsrSharpness;
+                pState->aa_mode = (byte)_aaMode;
+                pState->sharpen_mode = (byte)_sharpenMode;
                 pState->crt_enabled = (byte)(_crtEnabled ? 1 : 0);
+                
+                pState->master_volume = _masterVolume;
+                pState->fps_limit = _fpsLimit;
+                pState->sharpen_strength = _sharpenStrength;
                 pState->crt_intensity = _crtIntensity;
+
+                pState->taa_jitter = 0.5f; // Default for now
+                pState->taa_seeking = 0.1f; // Default for now
+                pState->cmaa2_edge_threshold = 0.05f; // Default for now
 
                 Thread.MemoryBarrier();
                 Volatile.Write(ref *pSeq, seq + 2); // Release to even
@@ -260,10 +319,26 @@ namespace WindowsLikeSteamOS.Services
             }
         }
         
+        // Internal state backing fields
+        private int _aaMode = 0;
+        private int _sharpenMode = 0;
+        private float _masterVolume = 0.8f;
+        private uint _fpsLimit = 0;
+        private float _sharpenStrength = 0.5f;
+
         // Public API for Host to change state
         public void SetOverlayVisible(bool visible) { _overlayVisible = visible; WriteHostToAddonState(); }
-        public void SetFSR(bool enabled, float sharpness) { _fsrEnabled = enabled; _fsrSharpness = Math.Clamp(sharpness, 0f, 1f); WriteHostToAddonState(); }
-        public void SetCRT(bool enabled, float intensity) { _crtEnabled = enabled; _crtIntensity = Math.Clamp(intensity, 0f, 1f); WriteHostToAddonState(); }
+        public void SetMasterState(float volume, uint fpsLimit, int aaMode, int sharpenMode, float sharpenStrength, bool crtEnabled, float crtIntensity)
+        {
+            _masterVolume = volume;
+            _fpsLimit = fpsLimit;
+            _aaMode = aaMode;
+            _sharpenMode = sharpenMode;
+            _sharpenStrength = sharpenStrength;
+            _crtEnabled = crtEnabled;
+            _crtIntensity = crtIntensity;
+            WriteHostToAddonState();
+        }
 
         public void Dispose()
         {

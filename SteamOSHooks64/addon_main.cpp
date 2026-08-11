@@ -7,6 +7,7 @@
 #include <atomic>
 #include <algorithm>
 #include <cmath>
+#include <unordered_set>
 
 #include "ipc_protocol.h"
 #include "overlay_texture_protocol.h"
@@ -42,8 +43,209 @@ namespace
 
     bool              g_debug_f10_overlay = false;
     bool              g_f10_was_down = false;
+    bool              g_qam_native_open = false;
 
-    // Variables de peticion pendientes han sido eliminadas
+    // --- Efectos ReShade Cache ---
+
+    struct EffectsCache
+    {
+        bool valid = false;
+
+        // --- techniques ---
+        reshade::api::effect_technique tech_smaa_prepass{0}; 
+        reshade::api::effect_technique tech_smaa_main{0};
+        reshade::api::effect_technique tech_taa{0};
+        reshade::api::effect_technique tech_cmaa2{0};
+        reshade::api::effect_technique tech_cas{0};
+        reshade::api::effect_technique tech_rcas{0};
+        reshade::api::effect_technique tech_crt_newpixie{0};
+
+        // --- uniforms ---
+        reshade::api::effect_uniform_variable u_taa_jitter{0};   
+        reshade::api::effect_uniform_variable u_taa_seeking{0};  
+        reshade::api::effect_uniform_variable u_taa_debug{0};    
+        reshade::api::effect_uniform_variable u_cmaa2_edge_threshold{0}; 
+
+        reshade::api::effect_uniform_variable u_crt_acc{0};      
+        reshade::api::effect_uniform_variable u_crt_blur_x{0};   
+        reshade::api::effect_uniform_variable u_crt_blur_y{0};   
+        reshade::api::effect_uniform_variable u_crt_curvature{0}; 
+        reshade::api::effect_uniform_variable u_crt_wiggle{0};   
+        reshade::api::effect_uniform_variable u_crt_scanroll{0}; 
+        reshade::api::effect_uniform_variable u_crt_frame{0};    
+
+        reshade::api::effect_uniform_variable u_cas_strength{0};
+        reshade::api::effect_uniform_variable u_rcas_sharpness{0};
+
+        uint64_t next_cache_attempt_ms = 0;
+    };
+
+    static EffectsCache g_fx;
+    static std::unordered_set<std::string> g_missing_logged;
+
+    static void invalidate_effect_cache()
+    {
+        g_fx = EffectsCache{};
+        g_missing_logged.clear();
+    }
+
+    static void log_missing_once(const char *what)
+    {
+        if (g_missing_logged.emplace(what).second)
+            reshade::log_message(reshade::log_level::warning, what);
+    }
+
+    static bool ensure_effect_cache(reshade::api::effect_runtime *runtime)
+    {
+        if (!runtime) return false;
+        if (g_fx.valid) return true;
+
+        const uint64_t now = GetTickCount64();
+        if (now < g_fx.next_cache_attempt_ms)
+            return false;
+
+        g_fx.next_cache_attempt_ms = now + 1000; 
+
+        g_fx.tech_taa = runtime->find_technique(nullptr, "TAA");
+        if (g_fx.tech_taa.handle == 0) log_missing_once("[WLSOS FX] Missing technique: TAA");
+
+        g_fx.tech_crt_newpixie = runtime->find_technique(nullptr, "CRTNewPixie");
+        if (g_fx.tech_crt_newpixie.handle == 0) log_missing_once("[WLSOS FX] Missing technique: CRTNewPixie");
+
+        g_fx.tech_smaa_main = runtime->find_technique(nullptr, "SMAA");
+        g_fx.tech_smaa_prepass = runtime->find_technique(nullptr, "SMAA_Prepass");
+        g_fx.tech_cmaa2 = runtime->find_technique(nullptr, "CMAA2");
+        g_fx.tech_cas = runtime->find_technique(nullptr, "CAS");
+        g_fx.tech_rcas = runtime->find_technique(nullptr, "RCAS");
+
+        g_fx.u_taa_jitter  = runtime->find_uniform_variable(nullptr, "Jitter_Ammount");
+        g_fx.u_taa_seeking = runtime->find_uniform_variable(nullptr, "Seeking");
+        g_fx.u_taa_debug   = runtime->find_uniform_variable(nullptr, "DebugOutput");
+
+        g_fx.u_crt_acc       = runtime->find_uniform_variable(nullptr, "acc_modulate");
+        g_fx.u_crt_blur_x    = runtime->find_uniform_variable(nullptr, "blur_x");
+        g_fx.u_crt_blur_y    = runtime->find_uniform_variable(nullptr, "blur_y");
+        g_fx.u_crt_curvature = runtime->find_uniform_variable(nullptr, "curvature");
+        g_fx.u_crt_wiggle    = runtime->find_uniform_variable(nullptr, "wiggle_toggle");
+        g_fx.u_crt_scanroll  = runtime->find_uniform_variable(nullptr, "scanroll");
+        g_fx.u_crt_frame     = runtime->find_uniform_variable(nullptr, "use_frame");
+
+        g_fx.u_cas_strength   = runtime->find_uniform_variable(nullptr, "ContrastAdaptation");
+        g_fx.u_rcas_sharpness = runtime->find_uniform_variable(nullptr, "Sharpness");
+        g_fx.u_cmaa2_edge_threshold = runtime->find_uniform_variable(nullptr, "EdgeThreshold");
+
+        const bool ok = (g_fx.tech_smaa_main.handle != 0) || (g_fx.tech_taa.handle != 0) || (g_fx.tech_crt_newpixie.handle != 0) || (g_fx.tech_cas.handle != 0) || (g_fx.tech_rcas.handle != 0);
+
+        if (!ok) return false;
+
+        g_fx.valid = true;
+        reshade::log_message(reshade::log_level::info, "[WLSOS FX] Effect handles cached.");
+        return true;
+    }
+
+    static void apply_effect_state(reshade::api::effect_runtime *runtime,
+                                   uint8_t aa_mode,
+                                   uint8_t sharpen_mode,
+                                   bool crt_enabled,
+                                   float sharpen_strength,
+                                   float crt_intensity,
+                                   float taa_jitter,
+                                   float taa_seeking,
+                                   float cmaa2_edge_threshold)
+    {
+        if (!ensure_effect_cache(runtime))
+            return;
+
+        const bool use_smaa  = (aa_mode == wls::AA_SMAA);
+        const bool use_taa   = (aa_mode == wls::AA_TAA);
+        const bool use_cmaa2 = (aa_mode == wls::AA_CMAA2);
+
+        if (g_fx.tech_smaa_prepass.handle != 0) runtime->set_technique_state(g_fx.tech_smaa_prepass, use_smaa);
+        if (g_fx.tech_smaa_main.handle != 0) runtime->set_technique_state(g_fx.tech_smaa_main, use_smaa);
+        if (g_fx.tech_taa.handle != 0) runtime->set_technique_state(g_fx.tech_taa, use_taa);
+        if (g_fx.tech_cmaa2.handle != 0) runtime->set_technique_state(g_fx.tech_cmaa2, use_cmaa2);
+
+        if (use_taa) {
+            const float j = std::clamp(taa_jitter, 0.0f, 1.0f);
+            const float s = std::clamp(taa_seeking, 0.025f, 0.25f);
+            const int dbg = 0;
+            if (g_fx.u_taa_jitter.handle)  runtime->set_uniform_value_float(g_fx.u_taa_jitter, j);
+            if (g_fx.u_taa_seeking.handle) runtime->set_uniform_value_float(g_fx.u_taa_seeking, s);
+            if (g_fx.u_taa_debug.handle)   runtime->set_uniform_value_int(g_fx.u_taa_debug, dbg);
+        }
+        
+        if (use_cmaa2) {
+            const float e = std::clamp(cmaa2_edge_threshold, 0.02f, 0.15f);
+            if (g_fx.u_cmaa2_edge_threshold.handle) runtime->set_uniform_value_float(g_fx.u_cmaa2_edge_threshold, e);
+        }
+
+        const bool use_cas  = (sharpen_mode == wls::SHARPEN_CAS);
+        const bool use_rcas = (sharpen_mode == wls::SHARPEN_RCAS);
+        if (g_fx.tech_cas.handle)  runtime->set_technique_state(g_fx.tech_cas, use_cas);
+        if (g_fx.tech_rcas.handle) runtime->set_technique_state(g_fx.tech_rcas, use_rcas);
+
+        const float strength = std::clamp(sharpen_strength, 0.0f, 1.0f);
+        if (use_cas && g_fx.u_cas_strength.handle)
+            runtime->set_uniform_value_float(g_fx.u_cas_strength, strength);
+        if (use_rcas && g_fx.u_rcas_sharpness.handle)
+            runtime->set_uniform_value_float(g_fx.u_rcas_sharpness, strength);
+
+        if (g_fx.tech_crt_newpixie.handle)
+            runtime->set_technique_state(g_fx.tech_crt_newpixie, crt_enabled);
+
+        if (crt_enabled) {
+            const float t = std::clamp(crt_intensity, 0.0f, 1.0f);
+            const float acc = (0.35f + (0.85f - 0.35f) * t);
+            const float blur = (0.0f + (2.0f - 0.0f) * t);
+            const float curv = (1.2f + (2.3f - 1.2f) * t);
+            const int scanroll = (t > 0.2f) ? 1 : 0;
+            const int wiggle   = (t > 0.6f) ? 1 : 0;
+            const int frame    = 0;
+
+            if (g_fx.u_crt_acc.handle)       runtime->set_uniform_value_float(g_fx.u_crt_acc, acc);
+            if (g_fx.u_crt_blur_x.handle)    runtime->set_uniform_value_float(g_fx.u_crt_blur_x, blur);
+            if (g_fx.u_crt_blur_y.handle)    runtime->set_uniform_value_float(g_fx.u_crt_blur_y, blur);
+            if (g_fx.u_crt_curvature.handle) runtime->set_uniform_value_float(g_fx.u_crt_curvature, curv);
+            if (g_fx.u_crt_scanroll.handle)  runtime->set_uniform_value_int(g_fx.u_crt_scanroll, scanroll);
+            if (g_fx.u_crt_wiggle.handle)    runtime->set_uniform_value_int(g_fx.u_crt_wiggle, wiggle);
+            if (g_fx.u_crt_frame.handle)     runtime->set_uniform_value_int(g_fx.u_crt_frame, frame);
+        }
+    }
+
+    struct LastAppliedState {
+        uint8_t aa_mode = 255;
+        uint8_t sharpen_mode = 255;
+        uint8_t crt_enabled = 255;
+        float sharpen_strength = -1.0f;
+        float crt_intensity = -1.0f;
+        float taa_jitter = -1.0f;
+        float taa_seeking = -1.0f;
+        float cmaa2_edge_threshold = -1.0f;
+
+        bool has_changed(const HostToAddonState& s) const {
+            return aa_mode != s.aa_mode || 
+                   sharpen_mode != s.sharpen_mode || 
+                   crt_enabled != s.crt_enabled ||
+                   sharpen_strength != s.sharpen_strength ||
+                   crt_intensity != s.crt_intensity ||
+                   taa_jitter != s.taa_jitter ||
+                   taa_seeking != s.taa_seeking ||
+                   cmaa2_edge_threshold != s.cmaa2_edge_threshold;
+        }
+
+        void update(const HostToAddonState& s) {
+            aa_mode = s.aa_mode;
+            sharpen_mode = s.sharpen_mode;
+            crt_enabled = s.crt_enabled;
+            sharpen_strength = s.sharpen_strength;
+            crt_intensity = s.crt_intensity;
+            taa_jitter = s.taa_jitter;
+            taa_seeking = s.taa_seeking;
+            cmaa2_edge_threshold = s.cmaa2_edge_threshold;
+        }
+    };
+
+    static LastAppliedState g_last_applied;
 
     void setup_steamos_theme()
     {
@@ -240,14 +442,17 @@ namespace
         colors[ImGuiCol_TextDisabled]      = ImVec4(0.50f, 0.55f, 0.64f, 1.00f);
     }
 
-    void notify_ipc_action()
+    void notify_ipc_action(uint32_t mask)
     {
         if (!g_a2h) return;
         uint32_t seq = g_a2h->seq.load(std::memory_order_relaxed);
         g_a2h->seq.store(seq + 1, std::memory_order_release);
+        g_a2h->request_mask = mask;
         g_a2h->request_epoch++;
         g_a2h->seq.store(seq + 2, std::memory_order_release);
     }
+
+
 
     void draw_native_qam_overlay(reshade::api::effect_runtime *)
     {
@@ -255,7 +460,7 @@ namespace
             return;
 
         bool is_alive = host_alive();
-        bool should_show = (g_snapshot.overlay_visible != 0 && is_alive) || g_debug_f10_overlay;
+        bool should_show = g_qam_native_open || (g_snapshot.overlay_visible != 0 && is_alive) || g_debug_f10_overlay;
 
         if (!should_show)
             return;
@@ -317,35 +522,60 @@ namespace
             // --- CONTENIDO DE PESTAÑAS ---
             if (s_active_tab == 0)
             {
-                // Pestaña: Ajustes de Sistema
-                ImGui::TextColored(ImVec4(0.10f, 0.62f, 1.00f, 1.00f), "AJUSTES DE AUDIO Y ESCALADO");
+                // Pestaña: Efectos (AA / Sharpen / CRT)
+                ImGui::TextColored(ImVec4(0.10f, 0.62f, 1.00f, 1.00f), "EFECTOS VISUALES");
                 ImGui::Spacing();
 
-                static int s_vol = 80;
-                if (ImGui::SliderInt("Volumen", &s_vol, 0, 100, "%d%%"))
-                {
-                    if (g_a2h) {
-                        g_a2h->requested_volume = (uint8_t)s_vol;
-                        notify_ipc_action();
-                    }
-                }
+                ImGui::Text("Anti-Aliasing");
+                static int s_aa_mode = 0; // 0=OFF, 1=SMAA, 2=TAA, 3=CMAA2
+                if (g_a2h) s_aa_mode = g_snapshot.aa_mode;
+                if (ImGui::RadioButton("OFF##AA", &s_aa_mode, 0)) { if (g_a2h) { g_a2h->desired_aa_mode = 0; notify_ipc_action(wls::REQ_AA); } }
+                ImGui::SameLine();
+                if (ImGui::RadioButton("SMAA", &s_aa_mode, 1)) { if (g_a2h) { g_a2h->desired_aa_mode = 1; notify_ipc_action(wls::REQ_AA); } }
+                ImGui::SameLine();
+                if (ImGui::RadioButton("TAA", &s_aa_mode, 2)) { if (g_a2h) { g_a2h->desired_aa_mode = 2; notify_ipc_action(wls::REQ_AA); } }
+                ImGui::SameLine();
+                if (ImGui::RadioButton("CMAA2", &s_aa_mode, 3)) { if (g_a2h) { g_a2h->desired_aa_mode = 3; notify_ipc_action(wls::REQ_AA); } }
 
                 ImGui::Spacing();
                 ImGui::Separator();
                 ImGui::Spacing();
 
-                ImGui::Text("Escalado FSR (FidelityFX)");
-                static int s_fsr_mode = 0; // 0=OFF, 1=720p, 2=900p
-                if (ImGui::RadioButton("OFF", &s_fsr_mode, 0)) {
-                    if (g_a2h) { g_a2h->desired_fsr_mode = 0; notify_ipc_action(); }
-                }
+                ImGui::Text("Filtro de Nitidez (Sharpen)");
+                static int s_sharp_mode = 0; // 0=OFF, 1=CAS, 2=RCAS
+                if (g_a2h) s_sharp_mode = g_snapshot.sharpen_mode;
+                if (ImGui::RadioButton("OFF##SHARP", &s_sharp_mode, 0)) { if (g_a2h) { g_a2h->desired_sharpen_mode = 0; notify_ipc_action(wls::REQ_SHARPEN); } }
                 ImGui::SameLine();
-                if (ImGui::RadioButton("720p (FSR)", &s_fsr_mode, 1)) {
-                    if (g_a2h) { g_a2h->desired_fsr_mode = 1; notify_ipc_action(); }
-                }
+                if (ImGui::RadioButton("FidelityFX CAS", &s_sharp_mode, 1)) { if (g_a2h) { g_a2h->desired_sharpen_mode = 1; notify_ipc_action(wls::REQ_SHARPEN); } }
                 ImGui::SameLine();
-                if (ImGui::RadioButton("900p (FSR)", &s_fsr_mode, 2)) {
-                    if (g_a2h) { g_a2h->desired_fsr_mode = 2; notify_ipc_action(); }
+                if (ImGui::RadioButton("AMD RCAS", &s_sharp_mode, 2)) { if (g_a2h) { g_a2h->desired_sharpen_mode = 2; notify_ipc_action(wls::REQ_SHARPEN); } }
+
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                ImGui::Text("Modo Retro (CRT)");
+                static int s_crt_mode = 0; // 0=OFF, 1=NewPixie
+                if (g_a2h) s_crt_mode = g_snapshot.crt_enabled;
+                if (ImGui::RadioButton("OFF##CRT", &s_crt_mode, 0)) { if (g_a2h) { g_a2h->desired_crt_enabled = 0; notify_ipc_action(wls::REQ_CRT); } }
+                ImGui::SameLine();
+                if (ImGui::RadioButton("NewPixie CRT", &s_crt_mode, 1)) { if (g_a2h) { g_a2h->desired_crt_enabled = 1; notify_ipc_action(wls::REQ_CRT); } }
+
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                ImGui::TextColored(ImVec4(0.10f, 0.62f, 1.00f, 1.00f), "SISTEMA");
+                ImGui::Spacing();
+                
+                static int s_vol = 80;
+                if (g_a2h) s_vol = (int)(g_snapshot.master_volume * 100.0f);
+                if (ImGui::SliderInt("Volumen", &s_vol, 0, 100, "%d%%"))
+                {
+                    if (g_a2h) {
+                        g_a2h->desired_master_volume = s_vol / 100.0f;
+                        notify_ipc_action(wls::REQ_VOLUME);
+                    }
                 }
             }
             else if (s_active_tab == 1)
@@ -356,19 +586,20 @@ namespace
 
                 ImGui::Text("Limite de FPS");
                 static int s_fps_cap = 0; // 0=OFF, 30, 45, 60
+                if (g_a2h) s_fps_cap = g_snapshot.fps_limit;
                 if (ImGui::RadioButton("Sin Limite", &s_fps_cap, 0)) {
-                    if (g_a2h) { g_a2h->desired_fps_limit = 0; notify_ipc_action(); }
+                    if (g_a2h) { g_a2h->desired_fps_limit = 0; notify_ipc_action(wls::REQ_FPS_LIMIT); }
                 }
                 if (ImGui::RadioButton("30 FPS", &s_fps_cap, 30)) {
-                    if (g_a2h) { g_a2h->desired_fps_limit = 30; notify_ipc_action(); }
+                    if (g_a2h) { g_a2h->desired_fps_limit = 30; notify_ipc_action(wls::REQ_FPS_LIMIT); }
                 }
                 ImGui::SameLine();
                 if (ImGui::RadioButton("45 FPS", &s_fps_cap, 45)) {
-                    if (g_a2h) { g_a2h->desired_fps_limit = 45; notify_ipc_action(); }
+                    if (g_a2h) { g_a2h->desired_fps_limit = 45; notify_ipc_action(wls::REQ_FPS_LIMIT); }
                 }
                 ImGui::SameLine();
                 if (ImGui::RadioButton("60 FPS", &s_fps_cap, 60)) {
-                    if (g_a2h) { g_a2h->desired_fps_limit = 60; notify_ipc_action(); }
+                    if (g_a2h) { g_a2h->desired_fps_limit = 60; notify_ipc_action(wls::REQ_FPS_LIMIT); }
                 }
             }
             else if (s_active_tab == 2)
@@ -380,13 +611,13 @@ namespace
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.25f, 0.35f, 1.00f));
                 
                 if (ImGui::Button("Suspender Consola", ImVec2(-1, 40))) {
-                    if (g_a2h) { g_a2h->requested_power_action = wls::POWER_ACTION_SUSPEND; notify_ipc_action(); }
+                    if (g_a2h) { g_a2h->requested_power_action = wls::POWER_ACTION_SUSPEND; notify_ipc_action(wls::REQ_POWER); }
                 }
                 if (ImGui::Button("Reiniciar Consola", ImVec2(-1, 40))) {
-                    if (g_a2h) { g_a2h->requested_power_action = wls::POWER_ACTION_RESTART; notify_ipc_action(); }
+                    if (g_a2h) { g_a2h->requested_power_action = wls::POWER_ACTION_RESTART; notify_ipc_action(wls::REQ_POWER); }
                 }
                 if (ImGui::Button("Apagar Consola", ImVec2(-1, 40))) {
-                    if (g_a2h) { g_a2h->requested_power_action = wls::POWER_ACTION_SHUTDOWN; notify_ipc_action(); }
+                    if (g_a2h) { g_a2h->requested_power_action = wls::POWER_ACTION_SHUTDOWN; notify_ipc_action(wls::REQ_POWER); }
                 }
                 
                 ImGui::Spacing();
@@ -395,7 +626,7 @@ namespace
 
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.70f, 0.15f, 0.15f, 1.00f)); // Rojo para salir
                 if (ImGui::Button("Modo Escritorio (Salir)", ImVec2(-1, 44))) {
-                    if (g_a2h) { g_a2h->requested_power_action = wls::POWER_ACTION_DESKTOP; notify_ipc_action(); }
+                    if (g_a2h) { g_a2h->requested_power_action = wls::POWER_ACTION_DESKTOP; notify_ipc_action(wls::REQ_POWER); }
                 }
                 ImGui::PopStyleColor();
                 ImGui::PopStyleColor();
@@ -483,16 +714,58 @@ namespace
             }
         }
 
-        // CONTROL DE MÁSCARA DE INPUT: Activo si Host vive + overlay_visible==1, F10 debug, o menú ReShade abierto
+        // CONTROL DE MÁSCARA DE INPUT Y TOGGLE NATIVO XINPUT (1.5s Select/Back)
+        static ULONGLONG s_back_down_ms = 0;
+        static bool s_back_handled = false;
+
+        XINPUT_STATE xstate;
+        if (XInputHooks::GetCapturedState(xstate))
+        {
+            bool back_down = (xstate.Gamepad.wButtons & XINPUT_GAMEPAD_BACK) != 0;
+            if (back_down)
+            {
+                const ULONGLONG now = GetTickCount64();
+                if (s_back_down_ms == 0)
+                {
+                    s_back_down_ms = now;
+                }
+                else if ((now - s_back_down_ms >= 1500) && !s_back_handled)
+                {
+                    s_back_handled = true;
+                    g_qam_native_open = !g_qam_native_open;
+                    reshade::log_message(reshade::log_level::info, ("[WLSOS] Native Select 1.5s hold detected! QAM state: " + std::to_string(g_qam_native_open)).c_str());
+                }
+            }
+            else
+            {
+                s_back_down_ms = 0;
+                s_back_handled = false;
+            }
+        }
+
         bool is_alive = host_alive();
         bool reshade_open = g_reshade_menu_open.load(std::memory_order_relaxed);
-        bool overlay_active = (is_alive && g_snapshot.overlay_visible != 0) || g_debug_f10_overlay || reshade_open;
+        bool overlay_active = g_qam_native_open || (is_alive && g_snapshot.overlay_visible != 0) || g_debug_f10_overlay || reshade_open;
 
         static bool s_last_overlay_active = false;
         if (overlay_active != s_last_overlay_active) {
             s_last_overlay_active = overlay_active;
             std::string state_msg = std::string("[WLSOS] Overlay & Input Mask state changed: active=") + (overlay_active ? "1" : "0") + " (host_alive=" + (is_alive ? "1" : "0") + ", reshade_open=" + (reshade_open ? "1" : "0") + ")";
             reshade::log_message(reshade::log_level::info, state_msg.c_str());
+        }
+
+        if (is_alive && g_last_applied.has_changed(g_snapshot))
+        {
+            apply_effect_state(runtime,
+                               g_snapshot.aa_mode,
+                               g_snapshot.sharpen_mode,
+                               g_snapshot.crt_enabled != 0,
+                               g_snapshot.sharpen_strength,
+                               g_snapshot.crt_intensity,
+                               g_snapshot.taa_jitter,
+                               g_snapshot.taa_seeking,
+                               g_snapshot.cmaa2_edge_threshold);
+            g_last_applied.update(g_snapshot);
         }
 
         XInputHooks::SetOverlayActive(overlay_active);
@@ -575,7 +848,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
         reshade::register_event<reshade::addon_event::init_device>(on_init_device);
         reshade::register_event<reshade::addon_event::destroy_device>(on_destroy_device);
         reshade::register_event<reshade::addon_event::reshade_present>(on_present);
-        reshade::register_overlay(nullptr, draw_addon_settings_inline);
         reshade::register_overlay("OSD", draw_native_qam_overlay);
         break;
     case DLL_PROCESS_DETACH:
@@ -585,7 +857,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
         reshade::unregister_event<reshade::addon_event::init_device>(on_init_device);
         reshade::unregister_event<reshade::addon_event::destroy_device>(on_destroy_device);
         reshade::unregister_event<reshade::addon_event::reshade_present>(on_present);
-        reshade::unregister_overlay(nullptr, draw_addon_settings_inline);
         reshade::unregister_overlay("OSD", draw_native_qam_overlay);
         reshade::unregister_addon(hModule);
         break;

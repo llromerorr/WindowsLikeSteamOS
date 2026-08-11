@@ -1077,6 +1077,13 @@ namespace SteamOSConfigurator
         {
             System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
             {
+                bool juegoActivo = (SteamServiceInstance.JuegoActivoHwnd != IntPtr.Zero);
+                if (juegoActivo)
+                {
+                    Logger.Log("[AbrirVentanaRecuperacionUI] Ignorando petición de abrir QAM WPF porque hay un juego activo (se usa QAM in-game).");
+                    return;
+                }
+
                 CrearVentanaRecuperacionSiEsNecesario();
                 if (_ventanaRecuperacion != null)
                 {
@@ -1084,8 +1091,7 @@ namespace SteamOSConfigurator
                     App.VentanaRecuperacionAbierta = true;
                     _keyboardHookService.DetenerHook();
                     
-                    bool juegoActivo = (SteamServiceInstance.JuegoActivoHwnd != IntPtr.Zero);
-                    _ventanaRecuperacion.ActivarModoInGame(juegoActivo);
+                    _ventanaRecuperacion.ActivarModoInGame(false);
 
                     SteamServiceInstance.SetOverlayVisible(true);
                     _ventanaRecuperacion.MostrarPanel();

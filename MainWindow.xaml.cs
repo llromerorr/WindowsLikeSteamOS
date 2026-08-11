@@ -614,18 +614,21 @@ namespace SteamOSConfigurator
             string carpetaDestino = AppPaths.RaizDatos; 
             string rutaDestino = AppPaths.EjecutableDestino; 
             if (!Directory.Exists(carpetaDestino)) Directory.CreateDirectory(carpetaDestino); 
-            File.Copy(rutaOrigen, rutaDestino, true); 
+            if (!rutaOrigen.Equals(rutaDestino, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Copy(rutaOrigen, rutaDestino, true); 
+            }
             
             string dllOrigen = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(rutaOrigen) ?? "", "SteamOSHooks64.dll");
             string dllDestino = System.IO.Path.Combine(carpetaDestino, "SteamOSHooks64.dll");
-            if (File.Exists(dllOrigen)) File.Copy(dllOrigen, dllDestino, true);
+            if (File.Exists(dllOrigen) && !dllOrigen.Equals(dllDestino, StringComparison.OrdinalIgnoreCase)) File.Copy(dllOrigen, dllDestino, true);
             
             string jsonOrigen = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(rutaOrigen) ?? "", "juegos_perfiles.json");
             string jsonDestino = System.IO.Path.Combine(carpetaDestino, "juegos_perfiles.json");
-            if (File.Exists(jsonOrigen)) File.Copy(jsonOrigen, jsonDestino, true);
+            if (File.Exists(jsonOrigen) && !jsonOrigen.Equals(jsonDestino, StringComparison.OrdinalIgnoreCase)) File.Copy(jsonOrigen, jsonDestino, true);
             
             return rutaDestino; 
         }
-        private void ConstruirPerfilEnSegundoPlano(string usuario, string contrasena, string rutaEjecutable) { IntPtr token = IntPtr.Zero; try { if (!LogonUser(usuario, ".", contrasena, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, out token)) throw new Exception("Error token."); PROFILEINFO p = new PROFILEINFO { dwSize = Marshal.SizeOf(typeof(PROFILEINFO)), lpUserName = usuario }; if (LoadUserProfile(token, ref p)) { string sid = ObtenerSidUsuario(usuario); using (RegistryKey? key = Registry.Users.CreateSubKey($@"{sid}\Software\Microsoft\Windows NT\CurrentVersion\Winlogon")) { if (key != null) { key.SetValue("Shell", $"\"{rutaEjecutable}\" -shell", RegistryValueKind.String); key.Flush(); } } UnloadUserProfile(token, p.hProfile); } } finally { if (token != IntPtr.Zero) CloseHandle(token); } }
+        private void ConstruirPerfilEnSegundoPlano(string usuario, string contrasena, string rutaEjecutable) { IntPtr token = IntPtr.Zero; try { if (!LogonUser(usuario, ".", contrasena, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, out token)) throw new Exception("Error token."); PROFILEINFO p = new PROFILEINFO { dwSize = Marshal.SizeOf(typeof(PROFILEINFO)), lpUserName = usuario }; if (LoadUserProfile(token, ref p)) { string sid = ObtenerSidUsuario(usuario); using (RegistryKey? key = Registry.Users.CreateSubKey($@"{sid}\Software\Microsoft\Windows NT\CurrentVersion\Winlogon")) { if (key != null) { string rutaShell = rutaEjecutable.Replace("WindowsLikeSteamOS.exe", "WLSOS_Shell.exe", StringComparison.OrdinalIgnoreCase); key.SetValue("Shell", $"\"{rutaShell}\" -shell", RegistryValueKind.String); key.Flush(); } } UnloadUserProfile(token, p.hProfile); } } finally { if (token != IntPtr.Zero) CloseHandle(token); } }
     }
 }
