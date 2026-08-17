@@ -17,7 +17,7 @@ namespace SteamOSConfigurator.Helpers
         public static string Avatar => Path.Combine(RaizDatos, "avatar.png");
 
         // ── Ejecutable desplegado ──
-        public static string EjecutableDestino => Path.Combine(RaizDatos, "WindowsLikeSteamOS.exe");
+        public static string EjecutableDestino => Path.Combine(RaizDatos, "SteamOS.exe");
 
         // ── Dependencias externas ──
         public static readonly string RutaInstaladorRTSS = Path.Combine(RaizDatos, @"Dependencias\RTSSSetup.exe");

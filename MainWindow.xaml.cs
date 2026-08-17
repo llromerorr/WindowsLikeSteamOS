@@ -219,13 +219,13 @@ namespace SteamOSConfigurator
 
             if (!_entornoInstalado)
             {
-                btnInstalar.Content = "INSTALAR ENTORNO";
-                btnAccionPrincipal.Content = "INSTALAR STEAMKIOSK";
+                btnInstalar.Content = "INSTALAR STEAMOS";
+                btnAccionPrincipal.Content = "INSTALAR STEAMOS";
             }
             else if (_requiereActualizacion)
             {
-                btnInstalar.Content = "ACTUALIZAR ENTORNO";
-                btnAccionPrincipal.Content = "ACTUALIZAR CONFIGURACIÓN";
+                btnInstalar.Content = "ACTUALIZAR STEAMOS";
+                btnAccionPrincipal.Content = "ACTUALIZAR STEAMOS";
             }
             else
             {
@@ -678,10 +678,19 @@ namespace SteamOSConfigurator
             try
             {
                 string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
-                string shortcutLocation = Path.Combine(desktopPath, "Configurar WindowsLikeSteamOS.lnk");
+                string shortcutLocation = Path.Combine(desktopPath, "SteamOS.lnk");
+                string oldShortcutLocation = Path.Combine(desktopPath, "Configurar WindowsLikeSteamOS.lnk");
+                if (File.Exists(oldShortcutLocation)) { try { File.Delete(oldShortcutLocation); } catch { } }
+
                 string targetPath = AppPaths.EjecutableDestino;
-                
-                string script = $"$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{shortcutLocation}'); $Shortcut.TargetPath = '{targetPath}'; $Shortcut.Save()";
+                string iconPath = Path.Combine(AppPaths.RaizDatos, "icon.ico");
+                if (!File.Exists(iconPath) && File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico")))
+                {
+                    try { File.Copy(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico"), iconPath, true); } catch { }
+                }
+
+                string iconScript = File.Exists(iconPath) ? $"$Shortcut.IconLocation = '{iconPath}';" : "";
+                string script = $"$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{shortcutLocation}'); $Shortcut.TargetPath = '{targetPath}'; {iconScript} $Shortcut.Save()";
                 EjecutarComandoOculto($"powershell -Command \"{script}\"");
             }
             catch { }
@@ -700,6 +709,13 @@ namespace SteamOSConfigurator
             if (!Directory.Exists(carpetaDestino)) Directory.CreateDirectory(carpetaDestino); 
             File.Copy(rutaOrigen, rutaDestino, true); 
             
+            string iconOrigen = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(rutaOrigen) ?? "", "icon.ico");
+            string iconDestino = System.IO.Path.Combine(carpetaDestino, "icon.ico");
+            if (File.Exists(iconOrigen)) try { File.Copy(iconOrigen, iconDestino, true); } catch { }
+
+            string oldExe = System.IO.Path.Combine(carpetaDestino, "WindowsLikeSteamOS.exe");
+            if (File.Exists(oldExe)) try { File.Delete(oldExe); } catch { }
+
             string jsonOrigen = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(rutaOrigen) ?? "", "juegos_perfiles.json");
             string jsonDestino = System.IO.Path.Combine(carpetaDestino, "juegos_perfiles.json");
             if (File.Exists(jsonOrigen)) File.Copy(jsonOrigen, jsonDestino, true);

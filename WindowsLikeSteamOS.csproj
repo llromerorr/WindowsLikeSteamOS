@@ -8,6 +8,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <AssemblyName>SteamOS</AssemblyName>
+    <AssemblyTitle>SteamOS</AssemblyTitle>
+    <Product>SteamOS</Product>
+    <Title>SteamOS</Title>
 
     <!-- Propiedades de compilación y empaquetado autocontenido -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -49,7 +54,7 @@
 
   <Target Name="AutoPublish" AfterTargets="Build" Condition="'$(IsPublishing)' != 'true'">
     <Exec Command="dotnet publish -c $(Configuration) -r win-x64 --no-build -p:IsPublishing=true" />
-    <Copy SourceFiles="$(OutputPath)publish\WindowsLikeSteamOS.exe" DestinationFolder="bin\$(Configuration)\" />
+    <Copy SourceFiles="$(OutputPath)publish\SteamOS.exe" DestinationFolder="bin\$(Configuration)\" />
   </Target>
 
 </Project>

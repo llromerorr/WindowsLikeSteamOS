@@ -371,7 +371,7 @@ namespace SteamOSConfigurator.Services
 
                             var ignoreList = new HashSet<string>
                             {
-                                "steam", "steamwebhelper", "gameoverlayui", "windowslikesteamos", "explorer",
+                                "steam", "steamwebhelper", "gameoverlayui", "steamos", "windowslikesteamos", "explorer",
                                 "idle", "svchost", "ctfmon", "conhost", "taskmgr", "logonui", "dwm", 
                                 "rundll32", "spoolsv", "shellexperiencehost", "searchhost", 
                                 "startmenuexperiencehost", "lockapp", "sihost", "smartscreen", 
