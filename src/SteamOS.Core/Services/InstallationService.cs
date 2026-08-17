@@ -179,6 +179,10 @@ namespace SteamOSConfigurator.Services
                             ConfigurarIconoSteamOS(sid);
                     }
 
+                    // Asegurar SIEMPRE que la Shell del usuario SteamOS apunte a SteamOS_Shell.exe
+                    onProgreso?.Invoke("Configurando shell de consola...");
+                    ConfigurarShellUsuario("SteamOS", AppPaths.ShellExe);
+
                     // 4. Configurar Autologin sin contraseña
                     onProgreso?.Invoke("Configurando inicio de sesión automático...");
                     ConfigurarAutologin("SteamOS", true);
@@ -553,6 +557,48 @@ namespace SteamOSConfigurator.Services
             catch { }
         }
 
+        public static void ConfigurarShellUsuario(string usuario, string rutaEjecutable)
+        {
+            try
+            {
+                string sid = ObtenerSidUsuario(usuario);
+                string valorShell = rutaEjecutable;
+
+                // 1. Si la sesión del usuario está activa o su hive está montado
+                if (!string.IsNullOrEmpty(sid))
+                {
+                    try
+                    {
+                        using (RegistryKey? key = Registry.Users.OpenSubKey($@"{sid}\Software\Microsoft\Windows NT\CurrentVersion\Winlogon", true))
+                        {
+                            if (key != null)
+                            {
+                                key.SetValue("Shell", valorShell, RegistryValueKind.String);
+                                key.Flush();
+                                Logger.Log($"[InstallationService] Shell configurado en HKU\\{sid} a {valorShell}");
+                                return;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                // 2. Si no está montado, usar reg load y reg add
+                string rutaNtuser = $@"C:\Users\{usuario}\NTUSER.DAT";
+                if (File.Exists(rutaNtuser))
+                {
+                    EjecutarComandoOculto($"reg load HKU\\SteamOSTemp \"{rutaNtuser}\"");
+                    EjecutarComandoOculto($"reg add \"HKU\\SteamOSTemp\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v Shell /t REG_SZ /d \"{valorShell}\" /f");
+                    EjecutarComandoOculto("reg unload HKU\\SteamOSTemp");
+                    Logger.Log($"[InstallationService] Shell configurado via reg en {rutaNtuser} a {valorShell}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[InstallationService] Error al configurar shell de usuario: {ex.Message}");
+            }
+        }
+
         private static void ConstruirPerfilEnSegundoPlano(string usuario, string contrasena, string rutaEjecutable)
         {
             IntPtr token = IntPtr.Zero;
@@ -569,7 +615,7 @@ namespace SteamOSConfigurator.Services
                     {
                         if (key != null)
                         {
-                            key.SetValue("Shell", $"\"{rutaEjecutable}\" -shell", RegistryValueKind.String);
+                            key.SetValue("Shell", rutaEjecutable, RegistryValueKind.String);
                             key.Flush();
                         }
                     }
