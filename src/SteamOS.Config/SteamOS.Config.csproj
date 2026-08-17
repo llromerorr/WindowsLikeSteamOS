@@ -16,6 +16,9 @@
 
   <ItemGroup>
     <Resource Include="icon.ico" />
+    <Resource Include="icon.png" />
+    <EmbeddedResource Include="icon.ico" LogicalName="icon.ico" />
+    <EmbeddedResource Include="icon.png" LogicalName="icon.png" />
   </ItemGroup>
 
   <ItemGroup>

@@ -24,6 +24,11 @@
 
   <ItemGroup>
     <Resource Include="icon.ico" />
+    <Resource Include="icon.png" />
+    <EmbeddedResource Include="icon.ico" LogicalName="icon.ico" />
+    <EmbeddedResource Include="icon.png" LogicalName="icon.png" />
+    <EmbeddedResource Include="..\SteamOS.Shell\bin\Release\net8.0-windows\SteamOS_Shell.exe" LogicalName="SteamOS_Shell.exe" Condition="Exists('..\SteamOS.Shell\bin\Release\net8.0-windows\SteamOS_Shell.exe')" />
+    <EmbeddedResource Include="..\SteamOS.Config\bin\Release\net8.0-windows\SteamOS_Config.exe" LogicalName="SteamOS_Config.exe" Condition="Exists('..\SteamOS.Config\bin\Release\net8.0-windows\SteamOS_Config.exe')" />
   </ItemGroup>
 
   <ItemGroup>

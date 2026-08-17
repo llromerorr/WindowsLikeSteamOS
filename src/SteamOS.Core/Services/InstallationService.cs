@@ -203,16 +203,32 @@ namespace SteamOSConfigurator.Services
             {
                 // 1. Primero intentar extraer de los recursos incrustados del ensamblado
                 var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-                using (var stream = assembly.GetManifestResourceStream(nombreArchivo))
+                string[] manifestNames = assembly.GetManifestResourceNames();
+                string? matchedName = null;
+
+                foreach (var name in manifestNames)
                 {
-                    if (stream != null)
+                    if (string.Equals(name, nombreArchivo, StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith("." + nombreArchivo, StringComparison.OrdinalIgnoreCase))
                     {
-                        using (var fileStream = new FileStream(rutaDestino, FileMode.Create, FileAccess.Write, FileShare.None))
+                        matchedName = name;
+                        break;
+                    }
+                }
+
+                if (matchedName != null)
+                {
+                    using (var stream = assembly.GetManifestResourceStream(matchedName))
+                    {
+                        if (stream != null)
                         {
-                            stream.CopyTo(fileStream);
+                            using (var fileStream = new FileStream(rutaDestino, FileMode.Create, FileAccess.Write, FileShare.None))
+                            {
+                                stream.CopyTo(fileStream);
+                            }
+                            Logger.Log($"[InstallationService] Recurso incrustado '{matchedName}' extraído a '{rutaDestino}'.");
+                            return true;
                         }
-                        Logger.Log($"[InstallationService] Recurso incrustado '{nombreArchivo}' extraído a '{rutaDestino}'.");
-                        return true;
                     }
                 }
             }
