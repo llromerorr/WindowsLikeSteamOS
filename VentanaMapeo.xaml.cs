@@ -33,6 +33,7 @@ namespace SteamOSConfigurator
         public VentanaMapeo()
         {
             InitializeComponent();
+            IconHelper.AsignarIcono(this);
             _directInput = new DirectInput();
         }
 

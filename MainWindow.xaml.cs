@@ -53,7 +53,13 @@ namespace SteamOSConfigurator
         private List<DEVMODE> _resolucionesSoportadas = new List<DEVMODE>();
         private List<(string DeviceName, bool IsPrimary)> _monitorInfo = new();
 
-        public MainWindow() { InitializeComponent(); VerificarEstadoSistema(); CargarDatosIniciales(); }
+        public MainWindow() 
+        { 
+            InitializeComponent(); 
+            IconHelper.AsignarIcono(this);
+            VerificarEstadoSistema(); 
+            CargarDatosIniciales(); 
+        }
 
         /// <summary>
         /// Enumera los monitores activos del sistema usando EnumDisplayDevices (P/Invoke).

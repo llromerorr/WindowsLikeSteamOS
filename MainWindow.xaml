@@ -6,7 +6,6 @@
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
         WindowBackdropType="Mica"
-        Icon="icon.ico"
         FontFamily="Segoe UI" ResizeMode="NoResize">
 
     <Grid>

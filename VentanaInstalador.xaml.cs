@@ -16,6 +16,7 @@ namespace SteamOSConfigurator
         public VentanaInstalador()
         {
             InitializeComponent();
+            IconHelper.AsignarIcono(this, imgLogo);
             CargarEstadoInicial();
         }
 

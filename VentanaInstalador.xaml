@@ -6,7 +6,6 @@
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
         WindowBackdropType="Mica"
-        Icon="icon.ico"
         FontFamily="Segoe UI" ResizeMode="NoResize">
 
     <Grid>
@@ -30,7 +29,7 @@
 
                 <!-- Encabezado de Marca -->
                 <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,10,0,15">
-                    <Image Source="icon.ico" Width="64" Height="64" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                    <Image x:Name="imgLogo" Width="64" Height="64" HorizontalAlignment="Center" Margin="0,0,0,12"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                         <ui:TextBlock Text="S T E A M O S" FontTypography="Title" FontWeight="Black" Foreground="{DynamicResource SystemFillColorCautionBrush}"/>
                         <ui:TextBlock Text="  FOR WINDOWS" FontTypography="Title" FontWeight="Black"/>
