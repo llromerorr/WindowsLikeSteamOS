@@ -12,6 +12,7 @@ using AudioSwitcher.AudioApi.CoreAudio;
 using System.Security.Principal; 
 using SteamOSConfigurator.Models;
 using SteamOSConfigurator.Helpers;
+using SteamOSConfigurator.Services;
 using Wpf.Ui.Controls;
 using Wpf.Ui.Appearance;
 
@@ -633,12 +634,12 @@ namespace SteamOSConfigurator
 
         private async void BtnDesinstalar_Click(object sender, RoutedEventArgs e)
         {
-            if (System.Windows.MessageBox.Show("¿Eliminar el entorno de consola y purgar la cuenta SteamOS?", "Desinstalar", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes)
+            if (System.Windows.MessageBox.Show("¿Eliminar el entorno de consola y purgar la cuenta SteamOS?", "Desinstalar SteamOS", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes)
             {
                 DeshabilitarControlesInteraccion("Eliminando cuenta SteamOS y desinstalando entorno... Por favor espera.");
                 try 
                 { 
-                    await Task.Run(() => { EliminarUsuarioSteamOS(); }); 
+                    await InstallationService.DesinstalarEntornoAsync(); 
                     System.Windows.MessageBox.Show("Entorno desinstalado con éxito del sistema.", "Desinstalación Completada", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information); 
                 }
                 catch (Exception ex) 

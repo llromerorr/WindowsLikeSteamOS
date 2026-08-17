@@ -469,16 +469,43 @@ namespace SteamOSConfigurator
 
                 _ = EjecutarModoConsolaAsync(); 
             } 
+            else if (e.Args.Length > 0 && e.Args[0] == "-uninstall")
+            {
+                Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                if (MessageBox.Show("¿Deseas desinstalar SteamOS y purgar el entorno de tu equipo?", "Desinstalar SteamOS", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                {
+                    Task.Run(async () =>
+                    {
+                        await InstallationService.DesinstalarEntornoAsync();
+                        Dispatcher.Invoke(() =>
+                        {
+                            MessageBox.Show("SteamOS ha sido desinstalado correctamente del sistema.", "Desinstalación Completada", MessageBoxButton.OK, MessageBoxImage.Information);
+                            Shutdown();
+                        });
+                    });
+                }
+                else
+                {
+                    Shutdown();
+                }
+            }
             else 
             { 
-                // En modo Configuración Normal (sin -shell), se cierra limpiamente al cerrar MainWindow
                 Application.Current.ShutdownMode = ShutdownMode.OnLastWindowClose;
-                MainWindow main = new MainWindow();
-                main.Closed += (s, ev) => 
+                var estado = InstallationService.EvaluarEstado();
+
+                // Si se está ejecutando desde la ruta instalada (C:\ProgramData\SteamOS\SteamOS.exe), abrir panel de configuración
+                if (estado.Estado == EstadoInstalacion.InstaladoYEnEjecucion)
                 {
-                    Application.Current.Shutdown();
-                };
-                main.Show(); 
+                    MainWindow main = new MainWindow();
+                    main.Show(); 
+                }
+                else
+                {
+                    // Si se ejecuta desde un archivo descargado / instalador externo, abrir Asistente de Instalación
+                    VentanaInstalador instalador = new VentanaInstalador();
+                    instalador.Show();
+                }
             }
         }
 

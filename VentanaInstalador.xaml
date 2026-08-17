@@ -1,0 +1,107 @@
+<ui:FluentWindow x:Class="SteamOSConfigurator.VentanaInstalador"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="Instalador de SteamOS" Height="480" Width="520"
+        WindowStartupLocation="CenterScreen"
+        ExtendsContentIntoTitleBar="True"
+        WindowBackdropType="Mica"
+        Icon="icon.ico"
+        FontFamily="Segoe UI" ResizeMode="NoResize">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Barra de título Fluent -->
+        <ui:TitleBar x:Name="titleBar" Grid.Row="0" Title="Instalador de SteamOS"/>
+
+        <Grid Grid.Row="1" Margin="30, 10, 30, 25">
+            
+            <!-- ── VISTA 1: INICIO (PREPARADO PARA INSTALAR / ACTUALIZAR) ── -->
+            <Grid x:Name="viewInicio" Visibility="Visible">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Encabezado de Marca -->
+                <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,10,0,15">
+                    <Image Source="icon.ico" Width="64" Height="64" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <ui:TextBlock Text="S T E A M O S" FontTypography="Title" FontWeight="Black" Foreground="{DynamicResource SystemFillColorCautionBrush}"/>
+                        <ui:TextBlock Text="  FOR WINDOWS" FontTypography="Title" FontWeight="Black"/>
+                    </StackPanel>
+                    <ui:TextBlock x:Name="lblSubtitulo" Text="Transforma tu PC en una consola con inicio directo a Steam Big Picture" FontTypography="Caption" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- Tarjeta de Estado y Metadatos de Compilación -->
+                <Border Grid.Row="1" CornerRadius="8" Padding="16" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" Margin="0,5,0,15" VerticalAlignment="Center">
+                    <StackPanel>
+                        <ui:TextBlock x:Name="lblEstadoTitulo" Text="ESTADO DE LA INSTALACIÓN" FontTypography="Caption" FontWeight="Bold" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
+                        
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBlock Text="Versión a instalar:" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                            <ui:TextBlock x:Name="lblFechaInstalador" Grid.Column="1" Text="--/--/---- --:--" FontWeight="Bold" HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBlock Text="Versión en el sistema:" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                            <ui:TextBlock x:Name="lblFechaInstalada" Grid.Column="1" Text="No instalada" FontWeight="Bold" HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <Border Height="1" Background="{DynamicResource ControlStrokeColorDefaultBrush}" Margin="0,8,0,8"/>
+
+                        <ui:TextBlock x:Name="lblMensajeEstado" Text="Listo para configurar el entorno por primera vez." FontTypography="Caption" TextWrapping="Wrap" Foreground="{DynamicResource SystemFillColorSuccessBrush}" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Botones de Acción -->
+                <StackPanel Grid.Row="2">
+                    <ui:Button x:Name="btnAccionPrincipal" Content="INSTALAR STEAMOS" Appearance="Primary" Height="46" HorizontalAlignment="Stretch" FontWeight="Bold" FontSize="14" Click="BtnAccionPrincipal_Click"/>
+                    <ui:Button x:Name="btnSalir" Content="Salir" Appearance="Transparent" Height="30" Margin="0,8,0,0" HorizontalAlignment="Center" Click="BtnSalir_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ── VISTA 2: PROGRESO DE INSTALACIÓN ── -->
+            <Grid x:Name="viewProgreso" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <StackPanel HorizontalAlignment="Center">
+                    <ui:ProgressRing IsIndeterminate="True" Width="55" Height="55" Margin="0,0,0,20"/>
+                    <ui:TextBlock x:Name="lblProgresoPaso" Text="Instalando SteamOS..." FontTypography="Subtitle" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                    <ui:TextBlock x:Name="lblProgresoDetalle" Text="Por favor espera un momento..." FontTypography="Caption" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ── VISTA 3: COMPLETADO CON ÉXITO ── -->
+            <Grid x:Name="viewCompletado" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="64" Foreground="{DynamicResource SystemFillColorSuccessBrush}" HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                    <ui:TextBlock x:Name="lblCompletadoTitulo" Text="¡Instalación Completada!" FontTypography="Title" FontWeight="Black" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                    <ui:TextBlock x:Name="lblCompletadoDesc" Text="SteamOS se ha configurado correctamente en tu equipo. Se ha creado un acceso directo en tu Escritorio para que puedas abrir el panel de configuración cuando lo necesites." FontTypography="Body" TextAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="20,0,20,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Margin="0,15,0,0">
+                    <ui:Button x:Name="btnAbrirConfiguracion" Content="ABRIR PANEL DE CONFIGURACIÓN" Appearance="Primary" Height="46" HorizontalAlignment="Stretch" FontWeight="Bold" FontSize="13" Click="BtnAbrirConfiguracion_Click"/>
+                    <ui:Button x:Name="btnFinalizar" Content="Finalizar" Appearance="Secondary" Height="34" Margin="0,8,0,0" HorizontalAlignment="Stretch" Click="BtnFinalizar_Click"/>
+                </StackPanel>
+            </Grid>
+
+        </Grid>
+    </Grid>
+</ui:FluentWindow>
