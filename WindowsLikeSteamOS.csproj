@@ -47,6 +47,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="icon.ico" />
     <None Update="juegos_perfiles.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

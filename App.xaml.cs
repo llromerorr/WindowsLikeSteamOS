@@ -432,8 +432,14 @@ namespace SteamOSConfigurator
             
             this.DispatcherUnhandledException += (s, ev) => 
             {
-                System.IO.File.WriteAllText(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "CrashLogWPF.txt"), ev.Exception.ToString());
+                try
+                {
+                    System.IO.File.WriteAllText(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "CrashLogWPF.txt"), ev.Exception.ToString());
+                    MessageBox.Show($"Error al iniciar la aplicación:\n\n{ev.Exception.Message}", "Error Crítico", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                catch { }
                 ev.Handled = true;
+                Application.Current.Shutdown(1);
             };
 
             try { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); } catch { }
