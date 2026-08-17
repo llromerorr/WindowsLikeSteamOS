@@ -32,13 +32,13 @@ namespace SteamOSConfigurator.Services
 
     public static class InstallationService
     {
-        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "LogonUserW")]
         private static extern bool LogonUser(string lpszUsername, string lpszDomain, string lpszPassword, int dwLogonType, int dwLogonProvider, out IntPtr phToken);
 
-        [DllImport("userenv.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        [DllImport("userenv.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "LoadUserProfileW")]
         private static extern bool LoadUserProfile(IntPtr hToken, ref PROFILEINFO lpProfileInfo);
 
-        [DllImport("userenv.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        [DllImport("userenv.dll", SetLastError = true)]
         private static extern bool UnloadUserProfile(IntPtr hToken, IntPtr hProfile);
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -50,16 +50,21 @@ namespace SteamOSConfigurator.Services
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool DestroyIcon(IntPtr hIcon);
 
-        [StructLayout(LayoutKind.Sequential)]
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct PROFILEINFO
         {
             public int dwSize;
             public int dwFlags;
+            [MarshalAs(UnmanagedType.LPWStr)]
             public string lpUserName;
-            public string lpProfilePath;
-            public string lpDefaultPath;
-            public string lpServerName;
-            public string lpPolicyPath;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string? lpProfilePath;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string? lpDefaultPath;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string? lpServerName;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string? lpPolicyPath;
             public IntPtr hProfile;
         }
 
