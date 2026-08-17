@@ -8,6 +8,18 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Propiedades de compilación y empaquetado autocontenido -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    
+    <!-- Optimizaciones de rendimiento (Arranque rápido) -->
+    <TieredCompilation>true</TieredCompilation>
+    <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
+    <DebugType>None</DebugType>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,5 +46,10 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <Target Name="AutoPublish" AfterTargets="Build" Condition="'$(IsPublishing)' != 'true'">
+    <Exec Command="dotnet publish -c $(Configuration) -r win-x64 --no-build -p:IsPublishing=true" />
+    <Copy SourceFiles="$(OutputPath)publish\WindowsLikeSteamOS.exe" DestinationFolder="bin\$(Configuration)\" />
+  </Target>
 
 </Project>

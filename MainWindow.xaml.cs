@@ -177,10 +177,12 @@ namespace SteamOSConfigurator
             }
             
             // 5. Botón Acción Principal
-            btnAccionPrincipal.Content = _entornoInstalado ? "APLICAR Y DEPLOYAR CONFIGURACIÓN" : "INSTALAR STEAMKIOSK";
+            // El Content ahora se asigna en VerificarEstadoSistema
             
             btnDesinstalarSimple.Visibility = _entornoInstalado ? Visibility.Visible : Visibility.Collapsed;
         }
+
+        private bool _requiereActualizacion = false;
 
         private void VerificarEstadoSistema()
         {
@@ -194,7 +196,42 @@ namespace SteamOSConfigurator
             { 
                 _entornoInstalado = false; 
             }
-            btnInstalar.Content = _entornoInstalado ? "APLICAR Y DEPLOYAR" : "INSTALAR ENTORNO";
+
+            _requiereActualizacion = false;
+            if (_entornoInstalado && File.Exists(AppPaths.EjecutableDestino))
+            {
+                try
+                {
+                    string rutaActual = Environment.ProcessPath ?? "";
+                    if (!string.IsNullOrEmpty(rutaActual) && File.Exists(rutaActual) && !rutaActual.Equals(AppPaths.EjecutableDestino, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var infoActual = new FileInfo(rutaActual);
+                        var infoDestino = new FileInfo(AppPaths.EjecutableDestino);
+                        // Si el que estamos corriendo es más nuevo, es una actualización
+                        if (infoActual.LastWriteTime > infoDestino.LastWriteTime.AddMinutes(1))
+                        {
+                            _requiereActualizacion = true;
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            if (!_entornoInstalado)
+            {
+                btnInstalar.Content = "INSTALAR ENTORNO";
+                btnAccionPrincipal.Content = "INSTALAR STEAMKIOSK";
+            }
+            else if (_requiereActualizacion)
+            {
+                btnInstalar.Content = "ACTUALIZAR ENTORNO";
+                btnAccionPrincipal.Content = "ACTUALIZAR CONFIGURACIÓN";
+            }
+            else
+            {
+                btnInstalar.Content = "APLICAR Y DEPLOYAR";
+                btnAccionPrincipal.Content = "APLICAR CONFIGURACIÓN";
+            }
             
             ActualizarUIEstado();
         }
@@ -515,6 +552,7 @@ namespace SteamOSConfigurator
                 await Task.Run(() =>
                 {
                     string rutaSeguraExe = InstalarEjecutableEnRutaSegura();
+                    CrearAccesoDirectoConfiguracion();
 
                     if (!_entornoInstalado)
                     {
@@ -524,9 +562,41 @@ namespace SteamOSConfigurator
                         
                         string sid = ObtenerSidUsuario(nombreUsuario);
                         if (!string.IsNullOrEmpty(sid)) ConfigurarIconoSteamOS(sid); 
-                        
-                        EjecutarComandoOculto($"net user {nombreUsuario} \"\"");
                     }
+                    
+                    // Configurar AutoAdminLogon siempre, incluso si es solo actualizar/aplicar
+                    bool autoLogon = false;
+                    Application.Current.Dispatcher.Invoke(() => autoLogon = chkAutoLogon.IsChecked ?? false);
+                    
+                    try
+                    {
+                        // Asegurarnos de borrar la contraseña para que el usuario no tenga que poner clave al cambiar de cuenta
+                        EjecutarComandoOculto($"net user {nombreUsuario} \"\"");
+
+                        using (RegistryKey pwlessKey = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device"))
+                        {
+                            pwlessKey?.SetValue("DevicePasswordLessBuildVersion", 0, RegistryValueKind.DWord);
+                        }
+
+                        using (RegistryKey key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"))
+                        {
+                            if (autoLogon)
+                            {
+                                key.SetValue("AutoAdminLogon", "1", RegistryValueKind.String);
+                                key.SetValue("DefaultUserName", nombreUsuario, RegistryValueKind.String);
+                                key.SetValue("DefaultDomainName", Environment.MachineName, RegistryValueKind.String);
+                                key.SetValue("DefaultPassword", "", RegistryValueKind.String);
+                            }
+                            else
+                            {
+                                key.SetValue("AutoAdminLogon", "0", RegistryValueKind.String);
+                                key.DeleteValue("DefaultUserName", false);
+                                key.DeleteValue("DefaultDomainName", false);
+                                key.DeleteValue("DefaultPassword", false);
+                            }
+                        }
+                    }
+                    catch { }
                 });
 
                 GuardarConfiguracionJson(indiceMonitor, w, h, hz, audioTexto, emuladorActivado, fps, fastSync, delay);
@@ -603,6 +673,20 @@ namespace SteamOSConfigurator
         }
 
         // --- Funciones auxiliares de Windows ---
+        private void CrearAccesoDirectoConfiguracion()
+        {
+            try
+            {
+                string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+                string shortcutLocation = Path.Combine(desktopPath, "Configurar WindowsLikeSteamOS.lnk");
+                string targetPath = AppPaths.EjecutableDestino;
+                
+                string script = $"$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{shortcutLocation}'); $Shortcut.TargetPath = '{targetPath}'; $Shortcut.Save()";
+                EjecutarComandoOculto($"powershell -Command \"{script}\"");
+            }
+            catch { }
+        }
+
         private void CrearUsuarioSteam(string nombreUsuario, string passwordTemporal) { EjecutarComandoOculto($"net user {nombreUsuario} {passwordTemporal} /add /y"); EjecutarComandoOculto($"wmic useraccount where \"name='{nombreUsuario}'\" set PasswordExpires=FALSE"); EjecutarComandoOculto($"net localgroup Administradores {nombreUsuario} /add"); EjecutarComandoOculto($"net localgroup Administrators {nombreUsuario} /add"); try { using (RegistryKey? key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList")) { key?.SetValue(nombreUsuario, 1, RegistryValueKind.DWord); } } catch { } }
         private void EliminarUsuarioSteamOS() { string sid = ObtenerSidUsuario("SteamOS"); if (!string.IsNullOrEmpty(sid)) { /* DeleteProfile(sid, null, null); */ } EjecutarComandoOculto("net user SteamOS /delete"); /* try { Directory.Delete(@"C:\Users\SteamOS", true); } catch { } */ }
         private void EjecutarComandoOculto(string comando) { try { ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", $"/c {comando}") { WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true, UseShellExecute = false }; Process.Start(psi)?.WaitForExit(); } catch { } }
@@ -615,10 +699,6 @@ namespace SteamOSConfigurator
             string rutaDestino = AppPaths.EjecutableDestino; 
             if (!Directory.Exists(carpetaDestino)) Directory.CreateDirectory(carpetaDestino); 
             File.Copy(rutaOrigen, rutaDestino, true); 
-            
-            string dllOrigen = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(rutaOrigen) ?? "", "SteamOSHooks64.dll");
-            string dllDestino = System.IO.Path.Combine(carpetaDestino, "SteamOSHooks64.dll");
-            if (File.Exists(dllOrigen)) File.Copy(dllOrigen, dllDestino, true);
             
             string jsonOrigen = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(rutaOrigen) ?? "", "juegos_perfiles.json");
             string jsonDestino = System.IO.Path.Combine(carpetaDestino, "juegos_perfiles.json");

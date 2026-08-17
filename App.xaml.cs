@@ -182,31 +182,8 @@ namespace SteamOSConfigurator
                 NivelOSDActual = nivelOSD;
                 OsdEngineActual = osdEngine;
                 
-                // Actualizar nuestro propio HUD Overlay Nativo (VentanaHUD)
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    try
-                    {
-                        if (osdEngine == "WPF" && nivelOSD > 0)
-                        {
-                            if (VentanaHUD.Instancia == null)
-                            {
-                                var hud = new VentanaHUD();
-                                hud.Show();
-                            }
-                            VentanaHUD.Instancia?.ActualizarNivelOSD(nivelOSD);
-                        }
-                        else
-                        {
-                            if (VentanaHUD.Instancia != null)
-                            {
-                                VentanaHUD.Instancia.Close();
-                            }
-                        }
-                    }
-                    catch { }
-                });
-
+                // Eliminado el soporte de VentanaHUD (Panel WPF).
+                
                 IniciarOSDBackground();
 
                 string dirPerfiles = Path.GetDirectoryName(RutaPerfilGlobal)!; 
@@ -489,17 +466,6 @@ namespace SteamOSConfigurator
             { 
                 // En modo Shell (-shell), operamos como servicio de fondo persistente
                 Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-                TraductorMando.OnRecoveryRequested = AbrirVentanaRecuperacionUI;
-
-                // Pre-calentar SysInfo y VentanaRecuperacion en segundo plano para abrir al instante (0ms)
-                Task.Run(() => 
-                {
-                    try { SysInfo.GetCpuUsage(); } catch { }
-                    Dispatcher.Invoke(() => 
-                    {
-                        CrearVentanaRecuperacionSiEsNecesario();
-                    });
-                });
 
                 _ = EjecutarModoConsolaAsync(); 
             } 
@@ -723,9 +689,7 @@ namespace SteamOSConfigurator
                 
                 if (!steamListo && !_modoEscritorio)
                 {
-                    Logger.Log("[EjecutarModoConsolaAsync] Steam no se inició correctamente (Timeout). Abriendo Modo de Recuperación...");
-                    AbrirVentanaRecuperacionUI();
-                    if (_modoEscritorio) return;
+                    Logger.Log("[EjecutarModoConsolaAsync] Steam no se inició correctamente (Timeout).");
                 }
                 
                 Logger.Log("[EjecutarModoConsolaAsync] Steam reportado como Listo. Iniciando bucle principal.");
@@ -933,12 +897,7 @@ namespace SteamOSConfigurator
                 try { using (Process.Start("explorer.exe")) {} } catch { }
                 handled = true; 
             } 
-            else if (msg == 0x0312 && wParam.ToInt32() == 2)
-            {
-                Logger.Log("[ShellWindowHook] Atajo de recuperación presionado (Ctrl+Shift+Alt+R).");
-                AbrirVentanaRecuperacionUI();
-                handled = true;
-            } 
+
             else if (msg == 0x007E && _displayService.AislamientoActivo) 
             { 
                 if (Interlocked.CompareExchange(ref _suppressDisplayChange, 0, 0) == 0) 
@@ -977,11 +936,6 @@ namespace SteamOSConfigurator
 
                         try
                         {
-                            if (_ventanaRecuperacion != null)
-                            {
-                                _ventanaRecuperacion.Dispatcher.Invoke(() => _ventanaRecuperacion.AjustarTamanioPantalla());
-                            }
-
                             var procs = Process.GetProcessesByName("steam");
                             if (procs.Length > 0)
                             {
@@ -995,93 +949,7 @@ namespace SteamOSConfigurator
             return IntPtr.Zero; 
         }
 
-        public static bool VentanaRecuperacionAbierta = false;
 
-        private VentanaRecuperacion? _ventanaRecuperacion;
-
-        private void CrearVentanaRecuperacionSiEsNecesario()
-        {
-            if (_ventanaRecuperacion == null)
-            {
-                _ventanaRecuperacion = new VentanaRecuperacion();
-                _ventanaRecuperacion.Show(); // Usa Show, WS_EX_NOACTIVATE previene el robo de foco
-                
-                _ventanaRecuperacion.PanelOcultado += (s, e) =>
-                {
-                    // ── LIMPIEZA POST-DIÁLOGO (siempre se ejecuta al cerrar) ──
-                    TraductorMando.IsQAMOpen = false;
-                    Logger.Log("[AbrirVentanaRecuperacionUI] QAM cerrado. IsQAMOpen = false");
-
-                    if (_ventanaRecuperacion.AccionResultante == AccionRecuperacion.ReintentarSteam)
-                    {
-                        _ventanaRecuperacion.AccionResultante = AccionRecuperacion.Ninguno;
-                        Logger.Log("[AbrirVentanaRecuperacionUI] Reintentando lanzamiento de Steam...");
-                        ReinstalandoOReinicioSteam = true;
-                        foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
-                        foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
-                        
-                        _ = System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
-                        {
-                            await Task.Delay(1500);
-                            _keyboardHookService.IniciarHook(() => !_modoEscritorio);
-                            _ = TraductorMando.IniciarAsync();
-
-                            string rutaSteam = _steamService.ObtenerRutaSteam();
-                            if (!string.IsNullOrEmpty(rutaSteam))
-                            {
-                                Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true });
-                            }
-                            await Task.Delay(4000);
-                            ReinstalandoOReinicioSteam = false;
-                        });
-                    }
-                    else if (_ventanaRecuperacion.AccionResultante == AccionRecuperacion.CerrarSesionWindows)
-                    {
-                        _ventanaRecuperacion.AccionResultante = AccionRecuperacion.Ninguno;
-                        Logger.Log("[AbrirVentanaRecuperacionUI] Usuario eligió cerrar sesión de Windows. Destruyendo Steam y cerrando sesión...");
-                        _cerrandoSesion = true;
-                        try { _displayService.RestaurarEntornoOriginal(_gpuScalingService); } catch (Exception ex) { Logger.Log($"[CerrarSesionWindows] Error restaurando pantalla: {ex.Message}"); }
-                        foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
-                        foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
-                        CerrarSesionRapido();
-                    }
-                    else if (_ventanaRecuperacion.AccionResultante == AccionRecuperacion.ModoEscritorio)
-                    {
-                        _ventanaRecuperacion.AccionResultante = AccionRecuperacion.Ninguno;
-                        Logger.Log("[AbrirVentanaRecuperacionUI] Usuario eligió salir al escritorio. Destruyendo Steam y restaurando entorno...");
-                        _modoEscritorio = true;
-                        try { _displayService.RestaurarEntornoOriginal(_gpuScalingService); } catch (Exception ex) { Logger.Log($"[ModoEscritorio] Error restaurando pantalla: {ex.Message}"); }
-                        foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
-                        foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
-                        try { using (Process.Start("explorer.exe")) {} } catch { }
-                    }
-                    else
-                    {
-                        if (!_modoEscritorio)
-                        {
-                            _keyboardHookService.IniciarHook(() => !_modoEscritorio);
-                        }
-                    }
-                };
-            }
-        }
-
-        private void AbrirVentanaRecuperacionUI()
-        {
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
-            {
-                CrearVentanaRecuperacionSiEsNecesario();
-                if (_ventanaRecuperacion != null)
-                {
-                    Logger.Log("[AbrirVentanaRecuperacionUI] Abriendo panel QAM...");
-                    App.VentanaRecuperacionAbierta = true;
-                    _keyboardHookService.DetenerHook();
-                    
-                    _ventanaRecuperacion.MostrarPanel();
-                    TraductorMando.IsQAMOpen = true;
-                }
-            });
-        }
         
         private void ReaplicarEscaladoCallback(object? state) 
         { 

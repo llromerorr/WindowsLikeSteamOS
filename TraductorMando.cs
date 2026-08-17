@@ -21,10 +21,6 @@ namespace SteamOSConfigurator
 {
     public static class TraductorMando
     {
-        public static Action? OnRecoveryRequested;
-        public static bool IsQAMOpen = false;
-        private static bool _esperarLiberacionAcordesQAM = false;
-
         private static long _ultimoTickArriba = 0;
         private static long _ultimoTickAbajo = 0;
         private static long _ultimoTickIzquierda = 0;
@@ -88,12 +84,6 @@ namespace SteamOSConfigurator
 
                 BucleTraduccion(config, token);
             });
-        }
-
-        public static void NotificarQAMCerrado()
-        {
-            IsQAMOpen = false;
-            _esperarLiberacionAcordesQAM = true;
         }
 
         public static void Detener()
@@ -184,133 +174,6 @@ namespace SteamOSConfigurator
                         if (lx > 50000) dpadRight = true;
                     }
 
-                    if (IsQAMOpen)
-                    {
-                        // Release all virtual buttons to block the game from receiving inputs
-                        _xboxVirtual.SetButtonState(Xbox360Button.A, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.B, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.X, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Y, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.LeftShoulder, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.RightShoulder, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.LeftThumb, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.RightThumb, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Up, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Down, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Left, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Right, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Guide, false);
-                        _xboxVirtual.SetSliderValue(Xbox360Slider.LeftTrigger, 0);
-                        _xboxVirtual.SetSliderValue(Xbox360Slider.RightTrigger, 0);
-                        _xboxVirtual.SetAxisValue(Xbox360Axis.LeftThumbX, 0);
-                        _xboxVirtual.SetAxisValue(Xbox360Axis.LeftThumbY, 0);
-                        _xboxVirtual.SetAxisValue(Xbox360Axis.RightThumbX, 0);
-                        _xboxVirtual.SetAxisValue(Xbox360Axis.RightThumbY, 0);
-
-                        // Latch: ignorar combinaciones de apertura hasta que el usuario suelte los botones
-                        if (_esperarLiberacionAcordesQAM)
-                        {
-                            if (!btnSelect && !btnStart && !btnLB && !btnRB)
-                            {
-                                _esperarLiberacionAcordesQAM = false;
-                            }
-                        }
-
-                        // Llamadas directas a los métodos de navegación (sin depender de foco de teclado)
-                        long currentTick = Environment.TickCount64;
-
-                        if (dpadUp) 
-                        { 
-                            if (currentTick - _ultimoTickArriba > 250) { VentanaRecuperacion.Instancia?.NavUp(); _ultimoTickArriba = currentTick; } 
-                        }
-                        else _ultimoTickArriba = 0;
-
-                        if (dpadDown) 
-                        { 
-                            if (currentTick - _ultimoTickAbajo > 250) { VentanaRecuperacion.Instancia?.NavDown(); _ultimoTickAbajo = currentTick; } 
-                        }
-                        else _ultimoTickAbajo = 0;
-
-                        if (dpadLeft) 
-                        { 
-                            if (currentTick - _ultimoTickIzquierda > 250) { VentanaRecuperacion.Instancia?.NavLeft(); _ultimoTickIzquierda = currentTick - 150; } 
-                        }
-                        else _ultimoTickIzquierda = 0;
-
-                        if (dpadRight) 
-                        { 
-                            if (currentTick - _ultimoTickDerecha > 250) { VentanaRecuperacion.Instancia?.NavRight(); _ultimoTickDerecha = currentTick - 150; } 
-                        }
-                        else _ultimoTickDerecha = 0;
-
-                        if (btnA) 
-                        { 
-                            if (currentTick - _ultimoTickEnter > 300) { VentanaRecuperacion.Instancia?.NavSelect(); _ultimoTickEnter = currentTick; } 
-                        }
-                        else _ultimoTickEnter = 0;
-
-                        if (btnLB) 
-                        { 
-                            if (currentTick - _ultimoTickLB > 300) { VentanaRecuperacion.Instancia?.NavPrevTab(); _ultimoTickLB = currentTick; } 
-                        }
-                        else _ultimoTickLB = 0;
-
-                        if (btnRB) 
-                        { 
-                            if (currentTick - _ultimoTickRB > 300) { VentanaRecuperacion.Instancia?.NavNextTab(); _ultimoTickRB = currentTick; } 
-                        }
-                        else _ultimoTickRB = 0;
-
-                        // Solo procesar cancelar (B) o acorde de cierre tras haber liberado los botones de apertura
-                        bool cerrarPorAcorde = !_esperarLiberacionAcordesQAM && (btnSelect && btnStart);
-                        if (btnB || cerrarPorAcorde) 
-                        { 
-                            if (currentTick - _ultimoTickCancelar > 300) { VentanaRecuperacion.Instancia?.NavBack(); _ultimoTickCancelar = currentTick; } 
-                        }
-                        else _ultimoTickCancelar = 0;
-
-                        Thread.Sleep(20); // Maintain poll rate loop
-                        continue;
-                    }
-
-                    if (_esperarLiberacionAcordesQAM)
-                    {
-                        if (!btnSelect && !btnStart && !btnLB && !btnRB && !btnA && !btnB && !btnX && !btnY)
-                        {
-                            _esperarLiberacionAcordesQAM = false;
-                        }
-                        else
-                        {
-                            // Release all virtual buttons to swallow the remaining hold after QAM closes
-                            _xboxVirtual.SetButtonState(Xbox360Button.A, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.B, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.X, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Y, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.LeftShoulder, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.RightShoulder, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.LeftThumb, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.RightThumb, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Up, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Down, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Left, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Right, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Guide, false);
-                            _xboxVirtual.SetSliderValue(Xbox360Slider.LeftTrigger, 0);
-                            _xboxVirtual.SetSliderValue(Xbox360Slider.RightTrigger, 0);
-                            _xboxVirtual.SetAxisValue(Xbox360Axis.LeftThumbX, 0);
-                            _xboxVirtual.SetAxisValue(Xbox360Axis.LeftThumbY, 0);
-                            _xboxVirtual.SetAxisValue(Xbox360Axis.RightThumbX, 0);
-                            _xboxVirtual.SetAxisValue(Xbox360Axis.RightThumbY, 0);
-                            _xboxVirtual.SubmitReport();
-                            Thread.Sleep(10);
-                            continue;
-                        }
-                    }
-
                     _xboxVirtual.SetButtonState(Xbox360Button.A, btnA);
                     _xboxVirtual.SetButtonState(Xbox360Button.B, btnB);
                     _xboxVirtual.SetButtonState(Xbox360Button.X, btnX);
@@ -330,24 +193,6 @@ namespace SteamOSConfigurator
 
                     _xboxVirtual.SetSliderValue(Xbox360Slider.LeftTrigger, ltValue);
                     _xboxVirtual.SetSliderValue(Xbox360Slider.RightTrigger, rtValue);
-
-                    // Detección de QAM: Mantener Select por 1.5s
-                    if (btnSelect && !btnStart && !btnLB && !btnRB && !btnA && !btnB && !btnX && !btnY)
-                    {
-                        if (tickRecoveryChord == 0) tickRecoveryChord = Environment.TickCount64;
-                        else if (Environment.TickCount64 - tickRecoveryChord > 1500 && !recoveryDisparado)
-                        {
-                            recoveryDisparado = true;
-                            _esperarLiberacionAcordesQAM = true;
-                            Logger.Log("[TraductorMando] Select mantenido por 1.5s. Disparando evento QAM.");
-                            OnRecoveryRequested?.Invoke();
-                        }
-                    }
-                    else
-                    {
-                        tickRecoveryChord = 0;
-                        recoveryDisparado = false;
-                    }
 
                     // Detección del Botón Home/Guide (Select + Start) con Latch para Atajos de Steam (Guide + Y / Guide + A)
                     if (btnSelect && btnStart)
@@ -478,13 +323,19 @@ namespace SteamOSConfigurator
                 var devs = DeviceList.Local.GetHidDevices().Where(d => d.VendorID == vendorId && d.ProductID == productId).ToList();
                 foreach (var dev in devs)
                 {
-                    string devicePath = dev.DevicePath.Replace('#', '\\').ToUpperInvariant();
+                    string rawPath = dev.DevicePath;
+                    if (rawPath.StartsWith(@"\\?\")) rawPath = rawPath.Substring(4);
+                    int guidIndex = rawPath.IndexOf("#{");
+                    if (guidIndex > 0) rawPath = rawPath.Substring(0, guidIndex);
+                    
+                    string instanceId = rawPath.Replace('#', '\\').ToUpperInvariant();
+                    
                     try
                     {
-                        hidHide.AddBlockedInstanceId(devicePath);
-                        _rutasOcultadas.Add(devicePath);
+                        hidHide.AddBlockedInstanceId(instanceId);
+                        _rutasOcultadas.Add(instanceId);
                     }
-                    catch (Exception ex) { Logger.Log($"Error ocultando dispositivo {devicePath}: {ex.Message}"); }
+                    catch (Exception ex) { Logger.Log($"Error ocultando dispositivo {instanceId}: {ex.Message}"); }
 
                     if (_hidRumbleStream == null && dev.TryOpen(out var stream))
                     {
