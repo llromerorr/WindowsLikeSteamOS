@@ -55,10 +55,18 @@ namespace SteamOSConfigurator
 
         public MainWindow() 
         { 
+            Logger.Log("[MainWindow] Inicializando componentes XAML...");
             InitializeComponent(); 
+            Logger.Log("[MainWindow] Asignando icono...");
             IconHelper.AsignarIcono(this);
+            Logger.Log("[MainWindow] Verificando estado del sistema...");
             VerificarEstadoSistema(); 
-            CargarDatosIniciales(); 
+            Logger.Log("[MainWindow] Registrando evento Loaded...");
+            this.Loaded += async (s, e) => 
+            {
+                await CargarDatosInicialesAsync();
+            };
+            Logger.Log("[MainWindow] Constructor completado exitosamente.");
         }
 
         /// <summary>
@@ -184,8 +192,6 @@ namespace SteamOSConfigurator
             }
             
             // 5. Botón Acción Principal
-            // El Content ahora se asigna en VerificarEstadoSistema
-            
             btnDesinstalarSimple.Visibility = _entornoInstalado ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -214,7 +220,6 @@ namespace SteamOSConfigurator
                     {
                         var infoActual = new FileInfo(rutaActual);
                         var infoDestino = new FileInfo(AppPaths.EjecutableDestino);
-                        // Si el que estamos corriendo es más nuevo, es una actualización
                         if (infoActual.LastWriteTime > infoDestino.LastWriteTime.AddMinutes(1))
                         {
                             _requiereActualizacion = true;
@@ -243,18 +248,70 @@ namespace SteamOSConfigurator
             ActualizarUIEstado();
         }
 
-        private void CargarDatosIniciales()
+        private async Task CargarDatosInicialesAsync()
         {
-            _monitorInfo = EnumerarMonitores();
-            cmbMonitores.Items.Clear(); foreach (var monitor in _monitorInfo) cmbMonitores.Items.Add($"{monitor.DeviceName} ({(monitor.IsPrimary ? "Principal" : "Secundario")})");
-            if (cmbMonitores.Items.Count > 0) cmbMonitores.SelectedIndex = 0;
-            
-            cmbAudio.Items.Clear();
-            try { CoreAudioController controller = new CoreAudioController(); foreach (var device in controller.GetPlaybackDevices()) cmbAudio.Items.Add(device.FullName); } catch { }
-            if (cmbAudio.Items.Count == 0) cmbAudio.Items.Add("Salida de audio por defecto"); cmbAudio.SelectedIndex = 0;
-            
-            VerificarDependenciasExtra();
-            CargarConfiguracionGuardada();
+            try
+            {
+                Logger.Log("[CargarDatosIniciales] Enumerando monitores...");
+                _monitorInfo = EnumerarMonitores();
+                Logger.Log($"[CargarDatosIniciales] Monitores encontrados: {_monitorInfo.Count}");
+
+                cmbMonitores.Items.Clear(); 
+                foreach (var monitor in _monitorInfo) 
+                    cmbMonitores.Items.Add($"{monitor.DeviceName} ({(monitor.IsPrimary ? "Principal" : "Secundario")})");
+                
+                if (cmbMonitores.Items.Count > 0) 
+                {
+                    Logger.Log("[CargarDatosIniciales] Seleccionando primer monitor...");
+                    cmbMonitores.SelectedIndex = 0;
+                }
+                
+                Logger.Log("[CargarDatosIniciales] Enumerando dispositivos de audio...");
+                cmbAudio.Items.Clear();
+                cmbAudio.Items.Add("Salida de audio por defecto");
+                cmbAudio.SelectedIndex = 0;
+
+                try 
+                { 
+                    var audioDevices = await Task.Run(() => 
+                    {
+                        var list = new List<string>();
+                        try
+                        {
+                            using var controller = new CoreAudioController();
+                            foreach (var d in controller.GetPlaybackDevices())
+                            {
+                                list.Add(d.FullName);
+                            }
+                        }
+                        catch { }
+                        return list;
+                    });
+
+                    if (audioDevices.Count > 0)
+                    {
+                        cmbAudio.Items.Clear();
+                        foreach (var name in audioDevices) 
+                            cmbAudio.Items.Add(name); 
+                        cmbAudio.SelectedIndex = 0;
+                    }
+                } 
+                catch (Exception exAudio) 
+                {
+                    Logger.Log($"[CargarDatosIniciales] Error en audio: {exAudio.Message}");
+                }
+
+                Logger.Log("[CargarDatosIniciales] Verificando dependencias...");
+                VerificarDependenciasExtra();
+
+                Logger.Log("[CargarDatosIniciales] Cargando configuracion guardada...");
+                CargarConfiguracionGuardada();
+                Logger.Log("[CargarDatosIniciales] Finalizado con éxito.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[CargarDatosIniciales] EXCEPCION FATAL: {ex}");
+            }
         }
 
         private void VerificarDependenciasExtra()
@@ -271,7 +328,7 @@ namespace SteamOSConfigurator
                     var config = JsonSerializer.Deserialize<ConfiguracionSteamOS>(File.ReadAllText(AppPaths.Config));
                     if (config != null)
                     {
-                        for (int i = 0; i < cmbMonitores.Items.Count; i++) 
+                        for (int i = 0; i < cmbMonitores.Items.Count && i < _monitorInfo.Count; i++) 
                         {
                             string idFisico = DisplayHelper.ObtenerDeviceIdFisico(_monitorInfo[i].DeviceName);
                             if (!string.IsNullOrEmpty(config.MonitorDeviceId) && idFisico == config.MonitorDeviceId) { cmbMonitores.SelectedIndex = i; break; }
@@ -331,7 +388,7 @@ namespace SteamOSConfigurator
 
         private void CmbMonitores_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            if (cmbMonitores.SelectedIndex < 0) return; 
+            if (cmbMonitores.SelectedIndex < 0 || cmbMonitores.SelectedIndex >= _monitorInfo.Count) return; 
             cmbResoluciones.Items.Clear(); 
             _resolucionesSoportadas.Clear();
             

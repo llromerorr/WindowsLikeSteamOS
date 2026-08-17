@@ -11,8 +11,13 @@
     <AssemblyTitle>SteamOS Shell</AssemblyTitle>
     <Product>SteamOS Shell</Product>
     <ApplicationIcon>..\SteamOS.Core\icon.ico</ApplicationIcon>
-    
-    <!-- Optimizaciones de rendimiento de inicio rápido -->
+
+    <!-- Propiedades para ejecutable único autónomo de inicio ultra-rápido -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <TieredCompilation>true</TieredCompilation>
     <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
     <DebugType>None</DebugType>

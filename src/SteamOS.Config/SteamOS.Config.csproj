@@ -12,6 +12,15 @@
     <AssemblyName>SteamOS_Config</AssemblyName>
     <AssemblyTitle>SteamOS Configurator</AssemblyTitle>
     <Product>SteamOS</Product>
+
+    <!-- Propiedades para ejecutable único autónomo -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>None</DebugType>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>

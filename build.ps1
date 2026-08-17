@@ -2,7 +2,7 @@
 # Script de Compilación y Publicación de SteamOS
 # Genera el instalador único autónomo SteamOS_Setup.exe
 # =========================================================
-Write-Host "Iniciando compilación del ecosistema modular SteamOS..." -ForegroundColor Cyan
+Write-Host "Iniciando compilación del ecosistema modular autónomo SteamOS..." -ForegroundColor Cyan
 
 $releaseDir = Join-Path $PSScriptRoot "bin\Release"
 if (Test-Path $releaseDir) {
@@ -10,18 +10,19 @@ if (Test-Path $releaseDir) {
 }
 New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 
-# 1. Compilar binarios internos (Shell y Config)
-Write-Host "`n[1/3] Compilando SteamOS_Shell (Modo Consola)..." -ForegroundColor Yellow
-dotnet build src\SteamOS.Shell\SteamOS.Shell.csproj -c Release
-if ($LASTEXITCODE -ne 0) { Write-Error "Error compilando SteamOS.Shell"; exit 1 }
+# 1. Publicar SteamOS_Shell como Single-File autónomo
+Write-Host "`n[1/3] Publicando SteamOS_Shell (Single-File Autónomo)..." -ForegroundColor Yellow
+dotnet publish src\SteamOS.Shell\SteamOS.Shell.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+if ($LASTEXITCODE -ne 0) { Write-Error "Error publicando SteamOS.Shell"; exit 1 }
 
-Write-Host "`n[2/3] Compilando SteamOS_Config (Panel de Configuración)..." -ForegroundColor Yellow
-dotnet build src\SteamOS.Config\SteamOS.Config.csproj -c Release
-if ($LASTEXITCODE -ne 0) { Write-Error "Error compilando SteamOS.Config"; exit 1 }
+# 2. Publicar SteamOS_Config como Single-File autónomo
+Write-Host "`n[2/3] Publicando SteamOS_Config (Single-File Autónomo)..." -ForegroundColor Yellow
+dotnet publish src\SteamOS.Config\SteamOS.Config.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+if ($LASTEXITCODE -ne 0) { Write-Error "Error publicando SteamOS.Config"; exit 1 }
 
-# 2. Publicar SteamOS_Setup.exe empaquetando todo adentro
-Write-Host "`n[3/3] Publicando Instalador Autónomo SteamOS_Setup.exe..." -ForegroundColor Yellow
-dotnet publish src\SteamOS.Installer\SteamOS.Installer.csproj -c Release -r win-x64 -p:PublishSingleFile=true --self-contained true -o $releaseDir
+# 3. Publicar SteamOS_Setup.exe empaquetando todo adentro
+Write-Host "`n[3/3] Publicando Instalador Maestro SteamOS_Setup.exe..." -ForegroundColor Yellow
+dotnet publish src\SteamOS.Installer\SteamOS.Installer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o $releaseDir
 if ($LASTEXITCODE -ne 0) { Write-Error "Error publicando SteamOS.Installer"; exit 1 }
 
 # Limpieza de archivos secundarios en bin/Release para dejar únicamente el instalador

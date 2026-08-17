@@ -1,6 +1,4 @@
 using System;
-using System.Diagnostics;
-using System.Security.Principal;
 using System.Windows;
 using SteamOSConfigurator.Helpers;
 
@@ -28,35 +26,23 @@ namespace SteamOSConfigurator
 
             try { NativeMethods.SetProcessDpiAwarenessContext(NativeMethods.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); } catch { }
             base.OnStartup(e);
-            
-            if (!EsAdministrador()) 
-            { 
-                try 
-                { 
-                    using (var pStart = Process.Start(new ProcessStartInfo 
-                    { 
-                        UseShellExecute = true, 
-                        WorkingDirectory = Environment.CurrentDirectory, 
-                        FileName = Environment.ProcessPath, 
-                        Arguments = e.Args.Length > 0 ? string.Join(" ", e.Args) : "", 
-                        Verb = "runas" 
-                    })) {} 
-                } 
-                catch { } 
-                Environment.Exit(0);  
-                return; 
+
+            try
+            {
+                Logger.Log("[SteamOS.Config] Iniciando proceso de configuración...");
+                NativeMethods.SystemParametersInfoTimeout(NativeMethods.SPI_SETFOREGROUNDLOCKTIMEOUT, 0, IntPtr.Zero, NativeMethods.SPIF_SENDCHANGE | NativeMethods.SPIF_UPDATEINIFILE);
+
+                this.ShutdownMode = ShutdownMode.OnMainWindowClose;
+                MainWindow main = new MainWindow();
+                this.MainWindow = main;
+                main.Show();
+                Logger.Log("[SteamOS.Config] MainWindow mostrada correctamente.");
             }
-
-            NativeMethods.SystemParametersInfoTimeout(NativeMethods.SPI_SETFOREGROUNDLOCKTIMEOUT, 0, IntPtr.Zero, NativeMethods.SPIF_SENDCHANGE | NativeMethods.SPIF_UPDATEINIFILE);
-
-            MainWindow main = new MainWindow();
-            main.Show();
-        }
-
-        private bool EsAdministrador() 
-        { 
-            using (WindowsIdentity identity = WindowsIdentity.GetCurrent()) 
-                return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator); 
+            catch (Exception ex)
+            {
+                Logger.Log($"[App.OnStartup] Error al iniciar ventana principal: {ex}");
+                MessageBox.Show($"Error al iniciar la interfaz de configuración:\n{ex.Message}\n\n{ex.StackTrace}", "Error SteamOS", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 }
