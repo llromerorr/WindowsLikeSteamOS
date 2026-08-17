@@ -15,9 +15,13 @@ namespace SteamOSConfigurator.Helpers
         public static string MapeoConfig => Path.Combine(RaizDatos, "mapeo_config.json");
         public static string LogFile => Path.Combine(RaizDatos, "debug_log.txt");
         public static string Avatar => Path.Combine(RaizDatos, "avatar.png");
+        public static string Icon => Path.Combine(RaizDatos, "icon.ico");
 
-        // ── Ejecutable desplegado ──
-        public static string EjecutableDestino => Path.Combine(RaizDatos, "SteamOS.exe");
+        // ── Ejecutables del ecosistema SteamOS ──
+        public static string ShellExe => Path.Combine(RaizDatos, "SteamOS_Shell.exe");
+        public static string ConfigExe => Path.Combine(RaizDatos, "SteamOS_Config.exe");
+        public static string SetupExe => Path.Combine(RaizDatos, "SteamOS_Setup.exe");
+        public static string EjecutableDestino => ConfigExe;
 
         // ── Dependencias externas ──
         public static readonly string RutaInstaladorRTSS = Path.Combine(RaizDatos, @"Dependencias\RTSSSetup.exe");

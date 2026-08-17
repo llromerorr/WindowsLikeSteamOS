@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <UseWPF>false</UseWPF>
+    <AssemblyName>SteamOS_Shell</AssemblyName>
+    <AssemblyTitle>SteamOS Shell</AssemblyTitle>
+    <Product>SteamOS Shell</Product>
+    <ApplicationIcon>..\SteamOS.Core\icon.ico</ApplicationIcon>
+    
+    <!-- Optimizaciones de rendimiento de inicio rápido -->
+    <TieredCompilation>true</TieredCompilation>
+    <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
+    <DebugType>None</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SteamOS.Core\SteamOS.Core.csproj" />
+  </ItemGroup>
+
+</Project>

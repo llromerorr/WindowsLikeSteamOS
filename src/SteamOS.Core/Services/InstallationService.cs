@@ -138,12 +138,10 @@ namespace SteamOSConfigurator.Services
             {
                 try
                 {
-                    string rutaOrigen = Environment.ProcessPath ?? throw new Exception("No se pudo obtener la ruta del instalador actual.");
                     string carpetaDestino = AppPaths.RaizDatos;
-                    string rutaDestino = AppPaths.EjecutableDestino;
 
                     onProgreso?.Invoke("Preparando entorno de instalación...");
-                    Logger.Log("[InstallationService] Iniciando instalación/actualización...");
+                    Logger.Log("[InstallationService] Iniciando instalación/actualización modular...");
 
                     // 1. Cerrar procesos de SteamOS en ejecución para desbloquear archivos
                     CerrarProcesosSteamOS();
@@ -151,24 +149,13 @@ namespace SteamOSConfigurator.Services
                     if (!Directory.Exists(carpetaDestino))
                         Directory.CreateDirectory(carpetaDestino);
 
-                    // 2. Copiar binario y archivos complementarios
-                    onProgreso?.Invoke("Copiando archivos del sistema...");
-                    File.Copy(rutaOrigen, rutaDestino, true);
-                    Logger.Log($"[InstallationService] Binario copiado a {rutaDestino}");
-
-                    string iconOrigen = Path.Combine(Path.GetDirectoryName(rutaOrigen) ?? "", "icon.ico");
-                    string iconDestino = Path.Combine(carpetaDestino, "icon.ico");
-                    if (File.Exists(iconOrigen))
-                    {
-                        try { File.Copy(iconOrigen, iconDestino, true); } catch { }
-                    }
-
-                    string jsonOrigen = Path.Combine(Path.GetDirectoryName(rutaOrigen) ?? "", "juegos_perfiles.json");
-                    string jsonDestino = Path.Combine(carpetaDestino, "juegos_perfiles.json");
-                    if (File.Exists(jsonOrigen) && !File.Exists(jsonDestino))
-                    {
-                        try { File.Copy(jsonOrigen, jsonDestino, true); } catch { }
-                    }
+                    // 2. Desplegar ejecutables modulares y recursos
+                    onProgreso?.Invoke("Desplegando componentes del sistema (Shell y Configuración)...");
+                    ExtraerRecursoOArchivo("SteamOS_Shell.exe", AppPaths.ShellExe);
+                    ExtraerRecursoOArchivo("SteamOS_Config.exe", AppPaths.ConfigExe);
+                    ExtraerRecursoOArchivo("icon.ico", AppPaths.Icon);
+                    ExtraerRecursoOArchivo("avatar.png", AppPaths.Avatar);
+                    ExtraerRecursoOArchivo("juegos_perfiles.json", Path.Combine(carpetaDestino, "juegos_perfiles.json"));
 
                     // 3. Crear usuario y configurar perfil si no existe
                     var estado = EvaluarEstado();
@@ -180,26 +167,26 @@ namespace SteamOSConfigurator.Services
                         OptimizarInicioNuevoUsuario();
 
                         onProgreso?.Invoke("Configurando perfil de consola...");
-                        ConstruirPerfilEnSegundoPlano("SteamOS", passwordTemporal, rutaDestino);
+                        ConstruirPerfilEnSegundoPlano("SteamOS", passwordTemporal, AppPaths.ShellExe);
 
                         string sid = ObtenerSidUsuario("SteamOS");
                         if (!string.IsNullOrEmpty(sid))
                             ConfigurarIconoSteamOS(sid);
                     }
 
-                    // 4. Configurar Autologin sin contraseña y directiva sin password
+                    // 4. Configurar Autologin sin contraseña
                     onProgreso?.Invoke("Configurando inicio de sesión automático...");
                     ConfigurarAutologin("SteamOS", true);
 
                     // 5. Crear accesos directos profesionales (Escritorio + Menú Inicio)
                     onProgreso?.Invoke("Creando accesos directos...");
-                    CrearAccesosDirectos(rutaDestino, iconDestino);
+                    CrearAccesosDirectos(AppPaths.ConfigExe, AppPaths.Icon);
 
                     // 6. Registrar en Configuración / Panel de Control de Windows (Apps instaladas)
                     onProgreso?.Invoke("Registrando en el sistema operativo...");
-                    RegistrarEnAplicacionesWindows(rutaDestino, iconDestino);
+                    RegistrarEnAplicacionesWindows(AppPaths.ConfigExe, AppPaths.Icon);
 
-                    Logger.Log("[InstallationService] Instalación completada con éxito.");
+                    Logger.Log("[InstallationService] Instalación modular completada con éxito.");
                     return true;
                 }
                 catch (Exception ex)
@@ -208,6 +195,66 @@ namespace SteamOSConfigurator.Services
                     throw;
                 }
             });
+        }
+
+        public static bool ExtraerRecursoOArchivo(string nombreArchivo, string rutaDestino)
+        {
+            try
+            {
+                // 1. Primero intentar extraer de los recursos incrustados del ensamblado
+                var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
+                using (var stream = assembly.GetManifestResourceStream(nombreArchivo))
+                {
+                    if (stream != null)
+                    {
+                        using (var fileStream = new FileStream(rutaDestino, FileMode.Create, FileAccess.Write, FileShare.None))
+                        {
+                            stream.CopyTo(fileStream);
+                        }
+                        Logger.Log($"[InstallationService] Recurso incrustado '{nombreArchivo}' extraído a '{rutaDestino}'.");
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[InstallationService] Aviso al extraer recurso '{nombreArchivo}': {ex.Message}");
+            }
+
+            // 2. Si no estaba incrustado, buscarlo como archivo suelto en la carpeta del ejecutable o subdirectorios
+            try
+            {
+                string dirActual = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+                string[] posiblesRutas = new[]
+                {
+                    Path.Combine(dirActual, nombreArchivo),
+                    Path.Combine(AppContext.BaseDirectory, nombreArchivo),
+                    Path.Combine(dirActual, "bin", nombreArchivo),
+                    Path.Combine(dirActual, "Release", nombreArchivo),
+                    Path.Combine(dirActual, "net8.0-windows", nombreArchivo),
+                    Path.Combine(dirActual, "..", "SteamOS.Shell", "bin", "Release", "net8.0-windows", nombreArchivo),
+                    Path.Combine(dirActual, "..", "SteamOS.Config", "bin", "Release", "net8.0-windows", nombreArchivo),
+                    Path.Combine(dirActual, "..", "..", "..", "SteamOS.Shell", "bin", "Release", "net8.0-windows", nombreArchivo),
+                    Path.Combine(dirActual, "..", "..", "..", "SteamOS.Config", "bin", "Release", "net8.0-windows", nombreArchivo),
+                    Path.Combine(AppPaths.RaizDatos, nombreArchivo)
+                };
+
+                foreach (var ruta in posiblesRutas)
+                {
+                    if (File.Exists(ruta) && !string.Equals(Path.GetFullPath(ruta), Path.GetFullPath(rutaDestino), StringComparison.OrdinalIgnoreCase))
+                    {
+                        File.Copy(ruta, rutaDestino, true);
+                        Logger.Log($"[InstallationService] Archivo '{ruta}' copiado a '{rutaDestino}'.");
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[InstallationService] Error al copiar archivo '{nombreArchivo}': {ex.Message}");
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -275,10 +322,17 @@ namespace SteamOSConfigurator.Services
             }
         }
 
-        public static void CrearAccesosDirectos(string rutaExe, string rutaIcono)
+        public static void ConfigurarAutoAdminLogon(bool autoLogon)
+        {
+            ConfigurarAutologin("SteamOS", autoLogon);
+        }
+
+        public static void CrearAccesosDirectos(string? rutaExe = null, string? rutaIcono = null)
         {
             try
             {
+                rutaExe ??= AppPaths.ConfigExe;
+                rutaIcono ??= AppPaths.Icon;
                 string iconScript = File.Exists(rutaIcono) ? $"$s.IconLocation = '{rutaIcono}';" : "";
 
                 // 1. Acceso directo en Escritorio Público

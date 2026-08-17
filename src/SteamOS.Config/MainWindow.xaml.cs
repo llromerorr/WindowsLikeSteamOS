@@ -554,64 +554,21 @@ namespace SteamOSConfigurator
 
             try
             {
-                string nombreUsuario = "SteamOS"; string passwordTemporal = "SteamOS123!"; 
+                GuardarConfiguracionJson(indiceMonitor, w, h, hz, audioTexto, emuladorActivado, fps, fastSync, delay);
 
                 await Task.Run(() =>
                 {
-                    string rutaSeguraExe = InstalarEjecutableEnRutaSegura();
-                    CrearAccesoDirectoConfiguracion();
-
-                    if (!_entornoInstalado)
-                    {
-                        OptimizarInicioNuevoUsuario();
-                        CrearUsuarioSteam(nombreUsuario, passwordTemporal);
-                        ConstruirPerfilEnSegundoPlano(nombreUsuario, passwordTemporal, rutaSeguraExe);
-                        
-                        string sid = ObtenerSidUsuario(nombreUsuario);
-                        if (!string.IsNullOrEmpty(sid)) ConfigurarIconoSteamOS(sid); 
-                    }
-                    
-                    // Configurar AutoAdminLogon siempre, incluso si es solo actualizar/aplicar
+                    InstallationService.CrearAccesosDirectos();
                     bool autoLogon = false;
                     Application.Current.Dispatcher.Invoke(() => autoLogon = chkAutoLogon.IsChecked ?? false);
-                    
-                    try
-                    {
-                        // Asegurarnos de borrar la contraseña para que el usuario no tenga que poner clave al cambiar de cuenta
-                        EjecutarComandoOculto($"net user {nombreUsuario} \"\"");
-
-                        using (RegistryKey pwlessKey = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device"))
-                        {
-                            pwlessKey?.SetValue("DevicePasswordLessBuildVersion", 0, RegistryValueKind.DWord);
-                        }
-
-                        using (RegistryKey key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"))
-                        {
-                            if (autoLogon)
-                            {
-                                key.SetValue("AutoAdminLogon", "1", RegistryValueKind.String);
-                                key.SetValue("DefaultUserName", nombreUsuario, RegistryValueKind.String);
-                                key.SetValue("DefaultDomainName", Environment.MachineName, RegistryValueKind.String);
-                                key.SetValue("DefaultPassword", "", RegistryValueKind.String);
-                            }
-                            else
-                            {
-                                key.SetValue("AutoAdminLogon", "0", RegistryValueKind.String);
-                                key.DeleteValue("DefaultUserName", false);
-                                key.DeleteValue("DefaultDomainName", false);
-                                key.DeleteValue("DefaultPassword", false);
-                            }
-                        }
-                    }
-                    catch { }
+                    InstallationService.ConfigurarAutoAdminLogon(autoLogon);
                 });
 
-                GuardarConfiguracionJson(indiceMonitor, w, h, hz, audioTexto, emuladorActivado, fps, fastSync, delay);
-                System.Windows.MessageBox.Show(_entornoInstalado ? "Configuración de juego actualizada con éxito." : "¡Entorno Gaming creado con éxito!\n\nTu cuenta SteamOS está lista.", "Éxito", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                System.Windows.MessageBox.Show("Configuración guardada y aplicada con éxito.", "SteamOS", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
             }
             catch (Exception ex) 
             { 
-                System.Windows.MessageBox.Show($"Error en despliegue:\n{ex.Message}", "Error Crítico", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error); 
+                System.Windows.MessageBox.Show($"Error al guardar la configuración:\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error); 
                 throw;
             }
         }

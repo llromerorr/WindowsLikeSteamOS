@@ -1,27 +1,33 @@
-$ErrorActionPreference = "Stop"
+# =========================================================
+# Script de Compilación y Publicación Modular de SteamOS
+# =========================================================
+Write-Host "Compilando ecosistema modular SteamOS..." -ForegroundColor Cyan
 
-Write-Host "1. Compilando SteamOSHooks64.dll (C++)..." -ForegroundColor Cyan
-# Asegurarnos de usar el cmake recién instalado
-$cmake = "C:\Program Files\CMake\bin\cmake.exe"
-if (-not (Test-Path $cmake)) {
-    $cmake = "cmake"
+$releaseDir = Join-Path $PSScriptRoot "bin\Release"
+if (Test-Path $releaseDir) {
+    Remove-Item -Path $releaseDir -Recurse -Force -ErrorAction SilentlyContinue
 }
+New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 
-& $cmake -B SteamOSHooks64\build -S SteamOSHooks64
-if ($LASTEXITCODE -ne 0) { throw "Error configurando CMake" }
+# 1. Compilar y Publicar SteamOS.Shell (Windowless Console Shell)
+Write-Host "`n[1/3] Publicando SteamOS_Shell (Modo Consola)..." -ForegroundColor Yellow
+dotnet publish src\SteamOS.Shell\SteamOS.Shell.csproj -c Release -r win-x64 --no-self-contained -o $releaseDir
+if ($LASTEXITCODE -ne 0) { Write-Error "Error compilando SteamOS.Shell"; exit 1 }
 
-& $cmake --build SteamOSHooks64\build --config Release
-if ($LASTEXITCODE -ne 0) { throw "Error compilando la DLL en C++" }
+# 2. Compilar y Publicar SteamOS.Config (WPF Settings Panel)
+Write-Host "`n[2/3] Publicando SteamOS_Config (Panel de Configuración)..." -ForegroundColor Yellow
+dotnet publish src\SteamOS.Config\SteamOS.Config.csproj -c Release -r win-x64 --no-self-contained -o $releaseDir
+if ($LASTEXITCODE -ne 0) { Write-Error "Error compilando SteamOS.Config"; exit 1 }
 
-Write-Host "2. Compilando WindowsLikeSteamOS (C#)..." -ForegroundColor Cyan
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false
-if ($LASTEXITCODE -ne 0) { throw "Error compilando la aplicación en C#" }
+# 3. Compilar y Publicar SteamOS.Installer (Standalone Setup Wizard)
+Write-Host "`n[3/3] Publicando SteamOS_Setup (Asistente de Instalación)..." -ForegroundColor Yellow
+dotnet publish src\SteamOS.Installer\SteamOS.Installer.csproj -c Release -r win-x64 -p:PublishSingleFile=true --self-contained true -o $releaseDir
+if ($LASTEXITCODE -ne 0) { Write-Error "Error compilando SteamOS.Installer"; exit 1 }
 
-Write-Host "3. Copiando SteamOSHooks64.dll al directorio final..." -ForegroundColor Cyan
-$outDir = "bin\Release\net8.0-windows\win-x64\publish"
-Copy-Item "SteamOSHooks64\build\Release\SteamOSHooks64.dll" -Destination $outDir -Force
+# Copiar recursos complementarios
+Copy-Item "src\SteamOS.Core\icon.ico" -Destination $releaseDir -Force -ErrorAction SilentlyContinue
 
-Write-Host "=======================================================" -ForegroundColor Green
-Write-Host "¡Construcción completada con éxito!" -ForegroundColor Green
-Write-Host "Todo el sistema (EXE y DLL) está listo en: $outDir" -ForegroundColor Yellow
-Write-Host "=======================================================" -ForegroundColor Green
+Write-Host "`n========================================================" -ForegroundColor Green
+Write-Host " ¡Compilación completada con éxito en bin\Release! " -ForegroundColor Green
+Write-Host "========================================================" -ForegroundColor Green
+Get-ChildItem -Path $releaseDir -Filter "*.exe" | Select-Object Name, Length, LastWriteTime | Format-Table -AutoSize

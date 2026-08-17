@@ -137,8 +137,19 @@ namespace SteamOSConfigurator
 
         private void BtnAbrirConfiguracion_Click(object sender, RoutedEventArgs e)
         {
-            var mainWin = new MainWindow();
-            mainWin.Show();
+            try
+            {
+                if (File.Exists(AppPaths.ConfigExe))
+                {
+                    using (var p = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = AppPaths.ConfigExe,
+                        WorkingDirectory = AppPaths.RaizDatos,
+                        UseShellExecute = true
+                    })) { }
+                }
+            }
+            catch { }
             Close();
         }
 
