@@ -53,8 +53,9 @@
   </ItemGroup>
 
   <Target Name="AutoPublish" AfterTargets="Build" Condition="'$(IsPublishing)' != 'true'">
-    <Exec Command="dotnet publish -c $(Configuration) -r win-x64 --no-build -p:IsPublishing=true" />
-    <Copy SourceFiles="$(OutputPath)publish\SteamOS.exe" DestinationFolder="bin\$(Configuration)\" />
+    <Exec Command="dotnet publish -c $(Configuration) -r win-x64 --no-build -p:IsPublishing=true -o &quot;$(BaseIntermediateOutputPath)publish&quot;" />
+    <Copy SourceFiles="$(BaseIntermediateOutputPath)publish\SteamOS.exe" DestinationFolder="bin\$(Configuration)\" />
+    <RemoveDir Directories="bin\$(Configuration)\net8.0-windows" />
   </Target>
 
 </Project>
