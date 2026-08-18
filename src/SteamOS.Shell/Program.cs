@@ -109,6 +109,7 @@ namespace SteamOS.Shell
             try
             {
                 Logger.Log("[Shell] Iniciando modo consola...");
+                FontSmoothingHelper.ActivarClearType();
                 GameBarHelper.DesactivarGameBarEnUsuarioActual();
 
                 var config = CargarConfig();

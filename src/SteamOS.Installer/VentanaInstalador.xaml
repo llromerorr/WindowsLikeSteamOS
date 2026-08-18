@@ -6,7 +6,12 @@
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
         WindowBackdropType="Mica"
-        FontFamily="Segoe UI" ResizeMode="NoResize">
+        FontFamily="Segoe UI" ResizeMode="NoResize"
+        TextOptions.TextRenderingMode="ClearType"
+        TextOptions.TextFormattingMode="Display"
+        RenderOptions.ClearTypeHint="Enabled"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True">
 
     <Grid>
         <Grid.RowDefinitions>

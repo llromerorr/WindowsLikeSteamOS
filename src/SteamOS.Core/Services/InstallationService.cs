@@ -576,9 +576,21 @@ namespace SteamOSConfigurator.Services
                                 key.SetValue("Shell", valorShell, RegistryValueKind.String);
                                 key.Flush();
                                 Logger.Log($"[InstallationService] Shell configurado en HKU\\{sid} a {valorShell}");
-                                return;
                             }
                         }
+
+                        using (RegistryKey? keyDesk = Registry.Users.CreateSubKey($@"{sid}\Control Panel\Desktop"))
+                        {
+                            if (keyDesk != null)
+                            {
+                                keyDesk.SetValue("FontSmoothing", "2", RegistryValueKind.String);
+                                keyDesk.SetValue("FontSmoothingType", 2, RegistryValueKind.DWord);
+                                keyDesk.SetValue("FontSmoothingGamma", 0, RegistryValueKind.DWord);
+                                keyDesk.SetValue("FontSmoothingOrientation", 1, RegistryValueKind.DWord);
+                                keyDesk.Flush();
+                            }
+                        }
+                        return;
                     }
                     catch { }
                 }
@@ -589,8 +601,12 @@ namespace SteamOSConfigurator.Services
                 {
                     EjecutarComandoOculto($"reg load HKU\\SteamOSTemp \"{rutaNtuser}\"");
                     EjecutarComandoOculto($"reg add \"HKU\\SteamOSTemp\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v Shell /t REG_SZ /d \"{valorShell}\" /f");
+                    EjecutarComandoOculto("reg add \"HKU\\SteamOSTemp\\Control Panel\\Desktop\" /v FontSmoothing /t REG_SZ /d \"2\" /f");
+                    EjecutarComandoOculto("reg add \"HKU\\SteamOSTemp\\Control Panel\\Desktop\" /v FontSmoothingType /t REG_DWORD /d 2 /f");
+                    EjecutarComandoOculto("reg add \"HKU\\SteamOSTemp\\Control Panel\\Desktop\" /v FontSmoothingGamma /t REG_DWORD /d 0 /f");
+                    EjecutarComandoOculto("reg add \"HKU\\SteamOSTemp\\Control Panel\\Desktop\" /v FontSmoothingOrientation /t REG_DWORD /d 1 /f");
                     EjecutarComandoOculto("reg unload HKU\\SteamOSTemp");
-                    Logger.Log($"[InstallationService] Shell configurado via reg en {rutaNtuser} a {valorShell}");
+                    Logger.Log($"[InstallationService] Shell y FontSmoothing configurados via reg en {rutaNtuser} a {valorShell}");
                 }
             }
             catch (Exception ex)

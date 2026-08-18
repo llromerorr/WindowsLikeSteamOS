@@ -7,6 +7,11 @@
         ExtendsContentIntoTitleBar="True"
         WindowBackdropType="Mica"
         FontFamily="Segoe UI" ResizeMode="NoResize"
+        TextOptions.TextRenderingMode="ClearType"
+        TextOptions.TextFormattingMode="Display"
+        RenderOptions.ClearTypeHint="Enabled"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
         Loaded="Window_Loaded" Closing="Window_Closing">
 
     <Grid>
