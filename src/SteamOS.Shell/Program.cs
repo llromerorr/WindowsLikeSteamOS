@@ -47,6 +47,8 @@ namespace SteamOS.Shell
             Logger.Log("=== SteamOS Shell Engine (Background Service) ===");
             Logger.Log("==================================================");
 
+            _keyboardHookService.OnSalirModoEscritorio += SalirAModoEscritorio;
+
             await EjecutarModoConsolaAsync();
         }
 
@@ -308,6 +310,43 @@ namespace SteamOS.Shell
                 });
             }
             catch { }
+        }
+
+        private static void SalirAModoEscritorio()
+        {
+            if (_modoEscritorio) return;
+            _modoEscritorio = true;
+            Logger.Log("[Shell] Atajo Ctrl+Shift+Alt+S detectado: Saliendo a Modo Escritorio (explorer.exe)...");
+
+            try { _displayService.RestaurarEntornoOriginal(_gpuScalingService); } catch (Exception ex) { Logger.Log($"[ModoEscritorio] Error restaurando pantalla: {ex.Message}"); }
+            try { _powerService.RestaurarPlanEnergia(); } catch { }
+            try { _powerService.PermitirSuspension(); } catch { }
+            try { RivaTunerCore.ApagarFantasma(); } catch { }
+            try { NvidiaFastSync.Restaurar(); } catch { }
+            try { TraductorMando.Detener(); } catch { }
+            try { _keyboardHookService.DetenerHook(); } catch { }
+            try { if (_hWinEventHook != IntPtr.Zero) { NativeMethods.UnhookWinEvent(_hWinEventHook); _hWinEventHook = IntPtr.Zero; } } catch { }
+
+            // Matar procesos de Steam para liberar la pantalla
+            foreach (var p in Process.GetProcessesByName("steam")) { try { p.Kill(); p.Dispose(); } catch { } }
+            foreach (var p in Process.GetProcessesByName("steamwebhelper")) { try { p.Kill(); p.Dispose(); } catch { } }
+
+            // Iniciar explorer.exe (el escritorio de Windows)
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    UseShellExecute = true
+                });
+                Logger.Log("[Shell] explorer.exe lanzado exitosamente.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[Shell] Error lanzando explorer.exe: {ex.Message}");
+            }
+
+            Environment.Exit(0);
         }
 
         private static ConfiguracionSteamOS? CargarConfig()
