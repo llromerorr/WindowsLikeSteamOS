@@ -95,6 +95,24 @@ namespace SteamOS.Shell
                     string pName = proc.ProcessName.ToLower();
                     if (pName == "steam" || pName == "steamwebhelper")
                     {
+                        int length = NativeMethods.GetWindowTextLength(hwnd);
+                        string titulo = "";
+                        if (length > 0)
+                        {
+                            StringBuilder sb = new StringBuilder(length + 1);
+                            NativeMethods.GetWindowText(hwnd, sb, sb.Capacity);
+                            titulo = sb.ToString();
+                        }
+
+                        // Proteger la interfaz de Steam, Big Picture, GameOverlayUI y superficies CEF
+                        if (string.IsNullOrWhiteSpace(titulo) ||
+                            titulo.Contains("Big Picture", StringComparison.OrdinalIgnoreCase) ||
+                            titulo.Contains("Overlay", StringComparison.OrdinalIgnoreCase) ||
+                            titulo.Equals("Steam", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return;
+                        }
+
                         NativeMethods.ShowWindow(hwnd, NativeMethods.SW_HIDE);
                         _steamService.AddVentanaSteamOculta(hwnd);
                         NativeMethods.SetForegroundWindow(_steamService.JuegoActivoHwnd);

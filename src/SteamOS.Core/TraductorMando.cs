@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 using SharpDX.DirectInput;
 using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets;
@@ -21,6 +22,15 @@ namespace SteamOSConfigurator
 {
     public static class TraductorMando
     {
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern IntPtr CreateWindowEx(
+            int dwExStyle, string lpClassName, string lpWindowName, int dwStyle,
+            int x, int y, int nWidth, int nHeight, IntPtr hWndParent, IntPtr hMenu, IntPtr hInstance, IntPtr lpParam);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyWindow(IntPtr hWnd);
+
+        private static IntPtr _dummyHwnd = IntPtr.Zero;
 
 
         private static CancellationTokenSource? _cts;
@@ -91,6 +101,11 @@ namespace SteamOSConfigurator
             try { _rumbleEffect?.Stop(); _rumbleEffect?.Dispose(); _rumbleEffect = null; } catch (Exception ex) { Logger.Log($"Error disposing RumbleEffect: {ex.Message}"); }
             try { _joystick?.Unacquire(); _joystick?.Dispose(); } catch (Exception ex) { Logger.Log($"Error disposing Joystick: {ex.Message}"); }
             try { _directInput?.Dispose(); } catch (Exception ex) { Logger.Log($"Error disposing DirectInput: {ex.Message}"); }
+            if (_dummyHwnd != IntPtr.Zero)
+            {
+                try { DestroyWindow(_dummyHwnd); } catch { }
+                _dummyHwnd = IntPtr.Zero;
+            }
             RevertirOcultamiento();
         }
 
@@ -105,12 +120,19 @@ namespace SteamOSConfigurator
                     _joystick.Properties.BufferSize = 128;
                     try
                     {
-                        IntPtr handle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
-                        _joystick.SetCooperativeLevel(handle, CooperativeLevel.Background | CooperativeLevel.NonExclusive);
+                        if (_dummyHwnd == IntPtr.Zero)
+                        {
+                            _dummyHwnd = CreateWindowEx(0, "STATIC", "SteamOS_DI_Host", 0x08000000 /* WS_DISABLED */, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                        }
+                        _joystick.SetCooperativeLevel(_dummyHwnd, CooperativeLevel.Background | CooperativeLevel.Exclusive);
+                        Logger.Log($"[ConectarJoystick] SetCooperativeLevel Background + Exclusive aplicado con HWND=0x{_dummyHwnd.ToInt64():X}.");
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[ConectarJoystick] Error al configurar CooperativeLevel: {ex.Message}");
+                    }
                     _joystick.Acquire();
-                    Logger.Log("[ConectarJoystick] Joystick conectado y adquirido en modo Background + NonExclusive.");
+                    Logger.Log("[ConectarJoystick] Joystick conectado y adquirido en modo Background + Exclusive.");
 
                     // Inicializar el efecto de vibración dual nativo (Controlpanel Force)
                     try
@@ -147,6 +169,7 @@ namespace SteamOSConfigurator
         {
             long tickSelectPresionado = 0;
             long tickStartPresionado = 0;
+            long tickGuideActivado = 0;
             bool selectBloqueadoPorChord = false;
 
             while (!token.IsCancellationRequested && _joystick != null && _xboxVirtual != null)
@@ -188,9 +211,10 @@ namespace SteamOSConfigurator
                     _xboxVirtual.SetSliderValue(Xbox360Slider.LeftTrigger, ltValue);
                     _xboxVirtual.SetSliderValue(Xbox360Slider.RightTrigger, rtValue);
 
-                    // Detección del Botón Home/Guide (Select + Start) sin latch para evitar activar Desktop Chord en juegos
+                    // Detección del Botón Home/Guide (Select + Start) con pulso garantizado de 100ms (sin exceder 200ms)
                     if (btnSelect && btnStart)
                     {
+                        tickGuideActivado = Environment.TickCount64;
                         _xboxVirtual.SetButtonState(Xbox360Button.Guide, true);
                         _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
                         _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
@@ -200,51 +224,61 @@ namespace SteamOSConfigurator
                     }
                     else
                     {
-                        _xboxVirtual.SetButtonState(Xbox360Button.Guide, false);
-
-                        if (!btnSelect && !btnStart)
-                        {
-                            selectBloqueadoPorChord = false;
-                        }
-
                         long now = Environment.TickCount64;
 
-                        if (btnSelect)
+                        // Mantener Guide activo al menos 100ms para que Steam lo registre con total fiabilidad
+                        if (now - tickGuideActivado < 100)
                         {
-                            if (!selectBloqueadoPorChord)
+                            _xboxVirtual.SetButtonState(Xbox360Button.Guide, true);
+                            _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
+                            _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
+                        }
+                        else
+                        {
+                            _xboxVirtual.SetButtonState(Xbox360Button.Guide, false);
+
+                            if (!btnSelect && !btnStart)
                             {
-                                if (tickSelectPresionado == 0) tickSelectPresionado = now;
-                                bool enviarBack = (now - tickSelectPresionado > _tiempoChordMs);
-                                _xboxVirtual.SetButtonState(Xbox360Button.Back, enviarBack);
+                                selectBloqueadoPorChord = false;
+                            }
+
+                            if (btnSelect)
+                            {
+                                if (!selectBloqueadoPorChord)
+                                {
+                                    if (tickSelectPresionado == 0) tickSelectPresionado = now;
+                                    bool enviarBack = (now - tickSelectPresionado > _tiempoChordMs);
+                                    _xboxVirtual.SetButtonState(Xbox360Button.Back, enviarBack);
+                                }
+                                else
+                                {
+                                    _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
+                                }
                             }
                             else
                             {
                                 _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
+                                tickSelectPresionado = 0;
                             }
-                        }
-                        else
-                        {
-                            _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
-                            tickSelectPresionado = 0;
-                        }
 
-                        if (btnStart)
-                        {
-                            if (!selectBloqueadoPorChord)
+                            if (btnStart)
                             {
-                                if (tickStartPresionado == 0) tickStartPresionado = now;
-                                bool enviarStart = (now - tickStartPresionado > _tiempoChordMs);
-                                _xboxVirtual.SetButtonState(Xbox360Button.Start, enviarStart);
+                                if (!selectBloqueadoPorChord)
+                                {
+                                    if (tickStartPresionado == 0) tickStartPresionado = now;
+                                    bool enviarStart = (now - tickStartPresionado > _tiempoChordMs);
+                                    _xboxVirtual.SetButtonState(Xbox360Button.Start, enviarStart);
+                                }
+                                else
+                                {
+                                    _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
+                                }
                             }
                             else
                             {
                                 _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
+                                tickStartPresionado = 0;
                             }
-                        }
-                        else
-                        {
-                            _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
-                            tickStartPresionado = 0;
                         }
                     }
 
