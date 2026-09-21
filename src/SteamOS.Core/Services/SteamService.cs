@@ -438,6 +438,15 @@ namespace SteamOSConfigurator.Services
                                         GetWindowText(hWnd, sb, sb.Capacity);
                                         titulo = sb.ToString();
                                     }
+
+                                    // Proteger Big Picture Mode, Overlay de Steam y superficies CEF sin título para no romper el overlay en juegos
+                                    if (string.IsNullOrWhiteSpace(titulo) ||
+                                        titulo.Contains("Big Picture", StringComparison.OrdinalIgnoreCase) ||
+                                        titulo.Contains("Overlay", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        return true;
+                                    }
+
                                     Logger.Log($"[CambiarVisibilidadSteam] Ocultando HWND={hWnd.ToInt64():X}, Title=\"{titulo}\" (Proceso={pName})");
                                     lock (_lockVentanas) { _ventanasSteamOcultas.Add(hWnd); }
                                     ShowWindow(hWnd, SW_HIDE);

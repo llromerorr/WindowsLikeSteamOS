@@ -21,21 +21,16 @@ namespace SteamOSConfigurator
 {
     public static class TraductorMando
     {
-        private static long _ultimoTickArriba = 0;
-        private static long _ultimoTickAbajo = 0;
-        private static long _ultimoTickIzquierda = 0;
-        private static long _ultimoTickDerecha = 0;
-        private static long _ultimoTickEnter = 0;
-        private static long _ultimoTickCancelar = 0;
-        private static long _ultimoTickLB = 0;
-        private static long _ultimoTickRB = 0;
+
 
         private static CancellationTokenSource? _cts;
         private static ViGEmClient? _vigemClient;
         private static IXbox360Controller? _xboxVirtual;
         private static DirectInput? _directInput;
         private static Joystick? _joystick;
-        private static HidStream? _hidRumbleStream; 
+        private static Effect? _rumbleEffect;
+        private static EffectParameters? _rumbleParams;
+        private static ConstantForce? _constantForce;
         private static readonly List<string> _rutasOcultadas = new();
         private static int _tiempoChordMs = 80; // Respetando la GUI
 
@@ -93,9 +88,9 @@ namespace SteamOSConfigurator
             _cts = null;
             try { _xboxVirtual?.Disconnect(); } catch (Exception ex) { Logger.Log($"Error disconnecting Xbox controller: {ex.Message}"); }
             try { _vigemClient?.Dispose(); } catch (Exception ex) { Logger.Log($"Error disposing ViGEmClient: {ex.Message}"); }
+            try { _rumbleEffect?.Stop(); _rumbleEffect?.Dispose(); _rumbleEffect = null; } catch (Exception ex) { Logger.Log($"Error disposing RumbleEffect: {ex.Message}"); }
             try { _joystick?.Unacquire(); _joystick?.Dispose(); } catch (Exception ex) { Logger.Log($"Error disposing Joystick: {ex.Message}"); }
             try { _directInput?.Dispose(); } catch (Exception ex) { Logger.Log($"Error disposing DirectInput: {ex.Message}"); }
-            try { _hidRumbleStream?.Dispose(); _hidRumbleStream = null; } catch (Exception ex) { Logger.Log($"Error disposing RumbleStream: {ex.Message}"); } 
             RevertirOcultamiento();
         }
 
@@ -116,6 +111,32 @@ namespace SteamOSConfigurator
                     catch { }
                     _joystick.Acquire();
                     Logger.Log("[ConectarJoystick] Joystick conectado y adquirido en modo Background + NonExclusive.");
+
+                    // Inicializar el efecto de vibración dual nativo (Controlpanel Force)
+                    try
+                    {
+                        var controlPanelGuid = new Guid("f71ec2ed-e1e4-4ac6-bda6-89f892d3800d");
+                        _rumbleParams = new EffectParameters
+                        {
+                            Flags = EffectFlags.Cartesian | EffectFlags.ObjectOffsets,
+                            Duration = 10000000,
+                            SamplePeriod = 0,
+                            Gain = 10000,
+                            TriggerButton = -1,
+                            TriggerRepeatInterval = 0,
+                            Axes = new int[] { 0, 4 },
+                            Directions = new int[] { 0, 100 }
+                        };
+                        _constantForce = new ConstantForce { Magnitude = 0 };
+                        _rumbleParams.Parameters = _constantForce;
+                        _rumbleEffect = new Effect(_joystick, controlPanelGuid, _rumbleParams);
+                        Logger.Log("[ConectarJoystick] Efecto de vibración dual inicializado con éxito.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[ConectarJoystick] No se pudo inicializar efecto de vibración dual: {ex.Message}");
+                    }
+
                     return;
                 }
                 Thread.Sleep(1000);
@@ -126,11 +147,7 @@ namespace SteamOSConfigurator
         {
             long tickSelectPresionado = 0;
             long tickStartPresionado = 0;
-            long tickRecoveryChord = 0;
-            long lastGuideTick = 0;
-
-            bool esChordActivo = false;
-            bool recoveryDisparado = false;
+            bool selectBloqueadoPorChord = false;
 
             while (!token.IsCancellationRequested && _joystick != null && _xboxVirtual != null)
             {
@@ -150,29 +167,6 @@ namespace SteamOSConfigurator
                     bool btnR3 = st.Buttons[config.Botones["R3"]];
                     bool btnSelect = st.Buttons[config.Botones["Select"]];
                     bool btnStart = st.Buttons[config.Botones["Start"]];
-
-                    bool dpadUp = false, dpadDown = false, dpadLeft = false, dpadRight = false;
-                    if (st.PointOfViewControllers.Length > 0)
-                    {
-                        int pov = st.PointOfViewControllers[0];
-                        dpadUp = pov == 0 || pov == 4500 || pov == 31500;
-                        dpadRight = pov == 4500 || pov == 9000 || pov == 13500;
-                        dpadDown = pov == 13500 || pov == 18000 || pov == 22500;
-                        dpadLeft = pov == 22500 || pov == 27000 || pov == 31500;
-                    }
-
-                    if (config.Ejes.ContainsKey("LeftY"))
-                    {
-                        int ly = JoystickHelper.ObtenerValorEje(st, config.Ejes["LeftY"]);
-                        if (ly < 15000) dpadUp = true;
-                        if (ly > 50000) dpadDown = true;
-                    }
-                    if (config.Ejes.ContainsKey("LeftX"))
-                    {
-                        int lx = JoystickHelper.ObtenerValorEje(st, config.Ejes["LeftX"]);
-                        if (lx < 15000) dpadLeft = true;
-                        if (lx > 50000) dpadRight = true;
-                    }
 
                     _xboxVirtual.SetButtonState(Xbox360Button.A, btnA);
                     _xboxVirtual.SetButtonState(Xbox360Button.B, btnB);
@@ -194,53 +188,39 @@ namespace SteamOSConfigurator
                     _xboxVirtual.SetSliderValue(Xbox360Slider.LeftTrigger, ltValue);
                     _xboxVirtual.SetSliderValue(Xbox360Slider.RightTrigger, rtValue);
 
-                    // Detección del Botón Home/Guide (Select + Start) con Latch para Atajos de Steam (Guide + Y / Guide + A)
+                    // Detección del Botón Home/Guide (Select + Start) sin latch para evitar activar Desktop Chord en juegos
                     if (btnSelect && btnStart)
                     {
-                        lastGuideTick = Environment.TickCount64;
                         _xboxVirtual.SetButtonState(Xbox360Button.Guide, true);
                         _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
                         _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
-                        esChordActivo = true;
-                    }
-                    else if (esChordActivo)
-                    {
-                        long now = Environment.TickCount64;
-                        bool cualquierOtroBoton = st.Buttons[config.Botones["Y"]] || st.Buttons[config.Botones["X"]] ||
-                                                  st.Buttons[config.Botones["A"]] || st.Buttons[config.Botones["B"]] ||
-                                                  st.Buttons[config.Botones["LB"]] || st.Buttons[config.Botones["RB"]];
-
-                        // Mantener Guide activado si se presiona Y/A/X/B o durante la ventana de gracia de 350ms
-                        if (cualquierOtroBoton || (now - lastGuideTick < 350))
-                        {
-                            _xboxVirtual.SetButtonState(Xbox360Button.Guide, true);
-                        }
-                        else
-                        {
-                            _xboxVirtual.SetButtonState(Xbox360Button.Guide, false);
-                        }
-
-                        _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
-
-                        if (!btnSelect && !btnStart && !cualquierOtroBoton && (now - lastGuideTick >= 350))
-                        {
-                            esChordActivo = false;
-                            tickSelectPresionado = 0;
-                            tickStartPresionado = 0;
-                        }
+                        selectBloqueadoPorChord = true;
+                        tickSelectPresionado = 0;
+                        tickStartPresionado = 0;
                     }
                     else
                     {
                         _xboxVirtual.SetButtonState(Xbox360Button.Guide, false);
 
+                        if (!btnSelect && !btnStart)
+                        {
+                            selectBloqueadoPorChord = false;
+                        }
+
                         long now = Environment.TickCount64;
 
                         if (btnSelect)
                         {
-                            if (tickSelectPresionado == 0) tickSelectPresionado = now;
-                            bool enviarBack = (now - tickSelectPresionado > _tiempoChordMs);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Back, enviarBack);
+                            if (!selectBloqueadoPorChord)
+                            {
+                                if (tickSelectPresionado == 0) tickSelectPresionado = now;
+                                bool enviarBack = (now - tickSelectPresionado > _tiempoChordMs);
+                                _xboxVirtual.SetButtonState(Xbox360Button.Back, enviarBack);
+                            }
+                            else
+                            {
+                                _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
+                            }
                         }
                         else
                         {
@@ -250,9 +230,16 @@ namespace SteamOSConfigurator
 
                         if (btnStart)
                         {
-                            if (tickStartPresionado == 0) tickStartPresionado = now;
-                            bool enviarStart = (now - tickStartPresionado > _tiempoChordMs);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Start, enviarStart);
+                            if (!selectBloqueadoPorChord)
+                            {
+                                if (tickStartPresionado == 0) tickStartPresionado = now;
+                                bool enviarStart = (now - tickStartPresionado > _tiempoChordMs);
+                                _xboxVirtual.SetButtonState(Xbox360Button.Start, enviarStart);
+                            }
+                            else
+                            {
+                                _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
+                            }
                         }
                         else
                         {
@@ -291,18 +278,34 @@ namespace SteamOSConfigurator
 
         private static void EnviarRumble(byte largeMotor, byte smallMotor)
         {
-            if (_hidRumbleStream == null) return;
+            if (_rumbleEffect == null || _rumbleParams == null || _constantForce == null) return;
             try
             {
-                byte[] report = new byte[8];
-                report[0] = 0x00; 
-                report[1] = 0x08; 
-                report[2] = 0x00;
-                report[3] = smallMotor; 
-                report[4] = largeMotor; 
-                _hidRumbleStream.Write(report, 0, report.Length);
+                if (largeMotor == 0 && smallMotor == 0)
+                {
+                    _rumbleEffect.Stop();
+                    return;
+                }
+
+                // Dirección empírica comprobada para DirectInput Controlpanel Force:
+                // -1000 = Motor izquierdo (pesado/frecuencia baja)
+                // +1000 = Motor derecho (ligero/frecuencia alta)
+                // 0 = Ambos motores simultáneos
+                int dirX = (largeMotor > 0 && smallMotor > 0) ? 0 : (largeMotor > 0 ? -1000 : 1000);
+                int magnitude = (largeMotor > 0 && smallMotor > 0)
+                    ? (int)(Math.Max(largeMotor, smallMotor) / 255.0 * 10000)
+                    : (largeMotor > 0 ? (int)(largeMotor / 255.0 * 10000) : (int)(smallMotor / 255.0 * 10000));
+
+                _rumbleParams.Directions = new int[] { dirX, 100 };
+                _constantForce.Magnitude = Math.Clamp(magnitude, 0, 10000);
+                _rumbleParams.Parameters = _constantForce;
+                _rumbleEffect.SetParameters(_rumbleParams, EffectParameterFlags.Direction | EffectParameterFlags.TypeSpecificParameters);
+                _rumbleEffect.Start(1, EffectPlayFlags.NoDownload);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.Log($"Error en EnviarRumble: {ex.Message}");
+            }
         }
 
         private static void PrepararMandoFisico(MapeoControl config)
@@ -337,10 +340,6 @@ namespace SteamOSConfigurator
                     }
                     catch (Exception ex) { Logger.Log($"Error ocultando dispositivo {instanceId}: {ex.Message}"); }
 
-                    if (_hidRumbleStream == null && dev.TryOpen(out var stream))
-                    {
-                        _hidRumbleStream = stream;
-                    }
                 }
             }
             catch (Exception ex) { Logger.Log($"Error configurando HidHide: {ex.Message}"); }
