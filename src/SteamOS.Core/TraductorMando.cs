@@ -42,7 +42,9 @@ namespace SteamOSConfigurator
         private static EffectParameters? _rumbleParams;
         private static ConstantForce? _constantForce;
         private static readonly List<string> _rutasOcultadas = new();
-        private static int _tiempoChordMs = 80; // Respetando la GUI
+        private static readonly InputSimulator _inputSimulator = new();
+        public static Func<bool>? EsJuegoEnPrimerPlano;
+        private static int _tiempoChordMs = 100; // Ventana de gracia para acordes humanos
 
         public static async Task IniciarAsync()
         {
@@ -55,7 +57,7 @@ namespace SteamOSConfigurator
                 try {
                     var jsonNode = JsonNode.Parse(File.ReadAllText(rutaConfigPrincipal));
                     if (jsonNode?["DelayBotonHome"] != null)
-                        _tiempoChordMs = Math.Max(10, jsonNode["DelayBotonHome"]!.GetValue<int>());
+                        _tiempoChordMs = Math.Max(80, jsonNode["DelayBotonHome"]!.GetValue<int>());
                 } catch (Exception ex) { Logger.Log($"Error al leer DelayBotonHome: {ex.Message}"); }
             }
 
@@ -169,8 +171,9 @@ namespace SteamOSConfigurator
         {
             long tickSelectPresionado = 0;
             long tickStartPresionado = 0;
-            long tickGuideActivado = 0;
-            bool selectBloqueadoPorChord = false;
+            long tickInicioPulsoGuide = 0;
+            bool chordGuideActivo = false;
+            bool chordBloqueadoHastaSoltar = false;
 
             while (!token.IsCancellationRequested && _joystick != null && _xboxVirtual != null)
             {
@@ -211,75 +214,102 @@ namespace SteamOSConfigurator
                     _xboxVirtual.SetSliderValue(Xbox360Slider.LeftTrigger, ltValue);
                     _xboxVirtual.SetSliderValue(Xbox360Slider.RightTrigger, rtValue);
 
-                    // Detección del Botón Home/Guide (Select + Start) con pulso garantizado de 100ms (sin exceder 200ms)
+                    long now = Environment.TickCount64;
+
+                    // ── DETECCIÓN ROBUSTA DEL BOTÓN HOME/GUIDE (CHORD SELECT + START) ──
                     if (btnSelect && btnStart)
                     {
-                        tickGuideActivado = Environment.TickCount64;
-                        _xboxVirtual.SetButtonState(Xbox360Button.Guide, true);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
-                        _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
-                        selectBloqueadoPorChord = true;
-                        tickSelectPresionado = 0;
-                        tickStartPresionado = 0;
+                        if (!chordBloqueadoHastaSoltar && !chordGuideActivo)
+                        {
+                            chordGuideActivo = true;
+                            chordBloqueadoHastaSoltar = true;
+                            tickInicioPulsoGuide = now;
+
+                            // Suprimir de inmediato cualquier Back o Start pendiente
+                            _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
+                            _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
+                            tickSelectPresionado = 0;
+                            tickStartPresionado = 0;
+
+                            // Activar botón Guide virtual en Xbox 360
+                            _xboxVirtual.SetButtonState(Xbox360Button.Guide, true);
+                            Logger.Log("[TraductorMando] ¡Chord Select+Start detectado! Iniciando pulso de Guide (120ms)...");
+
+                            // Si estamos en la interfaz de Steam (sin juego activo), enviar atajo nativo GamepadUI (Ctrl+1)
+                            if (EsJuegoEnPrimerPlano == null || !EsJuegoEnPrimerPlano())
+                            {
+                                try
+                                {
+                                    _inputSimulator.Keyboard.ModifiedKeyStroke(VirtualKeyCode.CONTROL, VirtualKeyCode.VK_1);
+                                    Logger.Log("[TraductorMando] Atajo Steam GamepadUI Ctrl+1 inyectado exitosamente.");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Logger.Log($"[TraductorMando] Advertencia al inyectar Ctrl+1: {ex.Message}");
+                                }
+                            }
+                        }
+                    }
+
+                    // Gestión del pulso discreto de Guide (duración fija de 120ms sin importar cuánto tiempo mantenga el usuario)
+                    if (chordGuideActivo)
+                    {
+                        if (now - tickInicioPulsoGuide >= 120)
+                        {
+                            _xboxVirtual.SetButtonState(Xbox360Button.Guide, false);
+                            chordGuideActivo = false;
+                            Logger.Log("[TraductorMando] Pulso de Guide finalizado (Guide=false).");
+                        }
                     }
                     else
                     {
-                        long now = Environment.TickCount64;
+                        _xboxVirtual.SetButtonState(Xbox360Button.Guide, false);
+                    }
 
-                        // Mantener Guide activo al menos 100ms para que Steam lo registre con total fiabilidad
-                        if (now - tickGuideActivado < 100)
+                    // Desbloqueo del Chord únicamente cuando ambos botones son soltados por completo
+                    if (!btnSelect && !btnStart)
+                    {
+                        chordBloqueadoHastaSoltar = false;
+                    }
+
+                    // Manejo individual de Select (Back)
+                    if (btnSelect)
+                    {
+                        if (!chordBloqueadoHastaSoltar && !chordGuideActivo)
                         {
-                            _xboxVirtual.SetButtonState(Xbox360Button.Guide, true);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
-                            _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
+                            if (tickSelectPresionado == 0) tickSelectPresionado = now;
+                            bool enviarBack = (now - tickSelectPresionado > _tiempoChordMs);
+                            _xboxVirtual.SetButtonState(Xbox360Button.Back, enviarBack);
                         }
                         else
                         {
-                            _xboxVirtual.SetButtonState(Xbox360Button.Guide, false);
-
-                            if (!btnSelect && !btnStart)
-                            {
-                                selectBloqueadoPorChord = false;
-                            }
-
-                            if (btnSelect)
-                            {
-                                if (!selectBloqueadoPorChord)
-                                {
-                                    if (tickSelectPresionado == 0) tickSelectPresionado = now;
-                                    bool enviarBack = (now - tickSelectPresionado > _tiempoChordMs);
-                                    _xboxVirtual.SetButtonState(Xbox360Button.Back, enviarBack);
-                                }
-                                else
-                                {
-                                    _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
-                                }
-                            }
-                            else
-                            {
-                                _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
-                                tickSelectPresionado = 0;
-                            }
-
-                            if (btnStart)
-                            {
-                                if (!selectBloqueadoPorChord)
-                                {
-                                    if (tickStartPresionado == 0) tickStartPresionado = now;
-                                    bool enviarStart = (now - tickStartPresionado > _tiempoChordMs);
-                                    _xboxVirtual.SetButtonState(Xbox360Button.Start, enviarStart);
-                                }
-                                else
-                                {
-                                    _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
-                                }
-                            }
-                            else
-                            {
-                                _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
-                                tickStartPresionado = 0;
-                            }
+                            _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
                         }
+                    }
+                    else
+                    {
+                        _xboxVirtual.SetButtonState(Xbox360Button.Back, false);
+                        tickSelectPresionado = 0;
+                    }
+
+                    // Manejo individual de Start
+                    if (btnStart)
+                    {
+                        if (!chordBloqueadoHastaSoltar && !chordGuideActivo)
+                        {
+                            if (tickStartPresionado == 0) tickStartPresionado = now;
+                            bool enviarStart = (now - tickStartPresionado > _tiempoChordMs);
+                            _xboxVirtual.SetButtonState(Xbox360Button.Start, enviarStart);
+                        }
+                        else
+                        {
+                            _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
+                        }
+                    }
+                    else
+                    {
+                        _xboxVirtual.SetButtonState(Xbox360Button.Start, false);
+                        tickStartPresionado = 0;
                     }
 
                     if (st.PointOfViewControllers.Length > 0)

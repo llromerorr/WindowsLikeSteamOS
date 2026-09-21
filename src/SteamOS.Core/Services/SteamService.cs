@@ -17,6 +17,7 @@ namespace SteamOSConfigurator.Services
         void CambiarVisibilidadSteam(bool ocultar);
         string ObtenerRutaSteam();
         void LimpiarPosicionVentanaSteam();
+        void SanitizarMapeosSdlSteam();
         void MoverVentanaSteamAlMonitorPrincipal(int steamPid, int intentos);
         IntPtr JuegoActivoHwnd { get; }
         void AddVentanaSteamOculta(IntPtr hwnd);
@@ -506,6 +507,41 @@ namespace SteamOSConfigurator.Services
             catch (Exception ex)
             {
                 Logger.Log($"[LimpiarPosicionVentanaSteam] Error al limpiar registro de Steam: {ex.Message}");
+            }
+        }
+
+        public void SanitizarMapeosSdlSteam()
+        {
+            try
+            {
+                string configVdfPath = @"C:\Program Files (x86)\Steam\config\config.vdf";
+                if (!File.Exists(configVdfPath)) return;
+
+                string content = File.ReadAllText(configVdfPath);
+                if (content.Contains("030000005e0400008e02000000006701") || (content.Contains("5e0400008e02") && content.Contains("guide:b5")))
+                {
+                    var lineas = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                    var sb = new StringBuilder();
+                    bool modificado = false;
+                    foreach (var linea in lineas)
+                    {
+                        if (linea.Contains("030000005e0400008e02000000006701") || (linea.Contains("5e0400008e02") && linea.Contains("guide:b5")))
+                        {
+                            modificado = true;
+                            continue;
+                        }
+                        sb.AppendLine(linea);
+                    }
+                    if (modificado)
+                    {
+                        File.WriteAllText(configVdfPath, sb.ToString().TrimEnd() + Environment.NewLine);
+                        Logger.Log("[SteamService] Sanitización config.vdf completada: Mapeo DirectInput corrupto para Xbox 360 eliminado.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[SteamService] Advertencia al sanitizar config.vdf: {ex.Message}");
             }
         }
 

@@ -195,6 +195,9 @@ namespace SteamOSConfigurator.Services
                     onProgreso?.Invoke("Registrando en el sistema operativo...");
                     RegistrarEnAplicacionesWindows(AppPaths.ConfigExe, AppPaths.Icon);
 
+                    // 7. Sanitizar configuraciones de Steam (remover mapeos SDL corruptos que anulan XInput en Xbox 360)
+                    new SteamService().SanitizarMapeosSdlSteam();
+
                     Logger.Log("[InstallationService] Instalación modular completada con éxito.");
                     return true;
                 }

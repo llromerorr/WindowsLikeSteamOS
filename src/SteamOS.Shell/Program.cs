@@ -182,6 +182,7 @@ namespace SteamOS.Shell
 
                 if (config.EmuladorActivado)
                 {
+                    TraductorMando.EsJuegoEnPrimerPlano = () => _steamService.JuegoActivoHwnd != IntPtr.Zero;
                     _ = TraductorMando.IniciarAsync();
                 }
 
@@ -198,6 +199,7 @@ namespace SteamOS.Shell
                 }
 
                 _steamService.LimpiarPosicionVentanaSteam();
+                _steamService.SanitizarMapeosSdlSteam();
 
                 Logger.Log("[Shell] Iniciando Steam con '-gamepadui'...");
                 using (Process? steam = Process.Start(new ProcessStartInfo { FileName = rutaSteam, Arguments = "-gamepadui", UseShellExecute = true }))
