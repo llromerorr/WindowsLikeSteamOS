@@ -386,6 +386,54 @@ namespace SteamOSConfigurator
 
         private void BtnConfigurarMando_Click(object sender, RoutedEventArgs e) { VentanaMapeo ventana = new VentanaMapeo { Owner = this }; ventana.ShowDialog(); ActualizarNombreMando(); }
 
+        private async void BtnProbarVibracion_Click(object sender, RoutedEventArgs e)
+        {
+            btnProbarVibracion.IsEnabled = false;
+            btnProbarVibracion.Content = "PROBANDO...";
+            try
+            {
+                string shellExe = AppPaths.ShellExe;
+                string localShell = Path.Combine(AppContext.BaseDirectory, "SteamOS_Shell.exe");
+                if (File.Exists(localShell))
+                {
+                    shellExe = localShell;
+                }
+
+                if (!File.Exists(shellExe))
+                {
+                    System.Windows.MessageBox.Show("No se encontró el ejecutable SteamOS_Shell.exe para ejecutar la prueba de vibración.", "SteamOS", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = shellExe,
+                    Arguments = "--test-rumble",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = Process.Start(psi);
+                if (proc != null)
+                {
+                    await proc.WaitForExitAsync();
+                    if (proc.ExitCode != 0)
+                    {
+                        System.Windows.MessageBox.Show("No se pudo detectar o adquirir el mando físico para la vibración.\nAsegúrate de conectar el mando por USB y tenerlo mapeado.", "Prueba de Vibración", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[BtnProbarVibracion] Error: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error al ejecutar la prueba de vibración:\n{ex.Message}", "SteamOS", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+            finally
+            {
+                btnProbarVibracion.IsEnabled = true;
+                btnProbarVibracion.Content = "PROBAR VIBRACIÓN";
+            }
+        }
+
         private void CmbMonitores_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
             if (cmbMonitores.SelectedIndex < 0 || cmbMonitores.SelectedIndex >= _monitorInfo.Count) return; 

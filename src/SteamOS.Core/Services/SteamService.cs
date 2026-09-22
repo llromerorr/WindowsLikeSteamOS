@@ -673,16 +673,12 @@ namespace SteamOSConfigurator.Services
                 if (fgThreadId != 0 && fgThreadId != curThreadId)
                 {
                     AttachThreadInput(curThreadId, fgThreadId, true);
-                    ShowWindow(hWnd, SW_RESTORE);
-                    SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-                    SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
                     BringWindowToTop(hWnd);
                     SetForegroundWindow(hWnd);
                     AttachThreadInput(curThreadId, fgThreadId, false);
                 }
                 else
                 {
-                    ShowWindow(hWnd, SW_RESTORE);
                     BringWindowToTop(hWnd);
                     SetForegroundWindow(hWnd);
                 }

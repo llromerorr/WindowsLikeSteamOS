@@ -193,6 +193,7 @@
                                 <StackPanel>
                                     <ui:TextBlock x:Name="lblNombreMando" Text="Ningún mando mapeado" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontTypography="Caption" TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
                                     <ui:Button x:Name="btnConfigurarMando" Content="MAPEAR MANDO" Appearance="Secondary" HorizontalAlignment="Stretch" Height="30" Click="BtnConfigurarMando_Click"/>
+                                    <ui:Button x:Name="btnProbarVibracion" Content="PROBAR VIBRACIÓN" Appearance="Transparent" HorizontalAlignment="Stretch" Height="28" Margin="0,6,0,0" Click="BtnProbarVibracion_Click"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

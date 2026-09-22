@@ -43,6 +43,103 @@ namespace SteamOS.Shell
 
             NativeMethods.SystemParametersInfoTimeout(NativeMethods.SPI_SETFOREGROUNDLOCKTIMEOUT, 0, IntPtr.Zero, NativeMethods.SPIF_SENDCHANGE | NativeMethods.SPIF_UPDATEINIFILE);
 
+            if (args.Length > 0 && args[0].Equals("--test-rumble", StringComparison.OrdinalIgnoreCase))
+            {
+                [DllImport("kernel32.dll", SetLastError = true)]
+                static extern bool AttachConsole(int dwProcessId);
+
+                if (AttachConsole(-1))
+                {
+                    try
+                    {
+                        Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+                        Console.SetError(new StreamWriter(Console.OpenStandardError()) { AutoFlush = true });
+                    }
+                    catch { }
+                }
+
+                void Imprimir(string mensaje)
+                {
+                    Console.WriteLine(mensaje);
+                    Logger.Log(mensaje);
+                }
+
+                Imprimir("\n==================================================");
+                Imprimir("=== SteamOS - Prueba de Vibración de Mando ===");
+                Imprimir("==================================================");
+                Imprimir("Iniciando servicio de traducción de mando...");
+
+                _ = TraductorMando.IniciarAsync();
+
+                Imprimir("Buscando y adquiriendo mando físico...");
+                for (int i = 0; i < 20; i++)
+                {
+                    await Task.Delay(250);
+                    if (TraductorMando.EstaConectado) break;
+                }
+
+                if (!TraductorMando.EstaConectado)
+                {
+                    Imprimir("[AVISO] No se pudo adquirir el mando físico. Asegúrate de que esté conectado por USB y mapeado.");
+                    TraductorMando.Detener();
+                    Environment.ExitCode = 1;
+                    return;
+                }
+
+                Imprimir("[ÉXITO] ¡Mando adquirido! Toma el mando con las manos.\n");
+
+                Imprimir("-> [Paso 1] Disparo único: pulso de 80ms...");
+                TraductorMando.EnviarRumble(255, 255);
+                await Task.Delay(80);
+                TraductorMando.EnviarRumble(0, 0);
+                Imprimir("   -> Pulso finalizado (detención inmediata comprobada).");
+
+                await Task.Delay(1200);
+
+                Imprimir("-> [Paso 2] Ráfaga de 3 disparos rápidos...");
+                for (int r = 1; r <= 3; r++)
+                {
+                    Imprimir($"   Disparo {r}...");
+                    TraductorMando.EnviarRumble(255, 255);
+                    await Task.Delay(60);
+                    TraductorMando.EnviarRumble(0, 0);
+                    await Task.Delay(120);
+                }
+                Imprimir("   -> Ráfaga finalizada.");
+
+                await Task.Delay(1200);
+
+                Imprimir("-> [Paso 3] Motor pesado izquierdo (baja frecuencia / rumble grave)...");
+                TraductorMando.EnviarRumble(255, 0);
+                await Task.Delay(400);
+                TraductorMando.EnviarRumble(0, 0);
+                Imprimir("   -> Detenido.");
+
+                await Task.Delay(800);
+
+                Imprimir("-> [Paso 4] Motor ligero derecho (alta frecuencia / rumble agudo)...");
+                TraductorMando.EnviarRumble(0, 255);
+                await Task.Delay(400);
+                TraductorMando.EnviarRumble(0, 0);
+                Imprimir("   -> Detenido.");
+
+                await Task.Delay(800);
+
+                Imprimir("-> [Paso 5] Vibración continua (1.5 segundos a 50Hz)...");
+                long fin = Environment.TickCount64 + 1500;
+                while (Environment.TickCount64 < fin)
+                {
+                    TraductorMando.EnviarRumble(200, 200);
+                    await Task.Delay(20);
+                }
+                TraductorMando.EnviarRumble(0, 0);
+                Imprimir("   -> Corte inmediato aplicado.");
+
+                Imprimir("\n=== PRUEBA DE VIBRACIÓN COMPLETADA CON ÉXITO ===");
+                TraductorMando.Detener();
+                return;
+            }
+
             Logger.Log("==================================================");
             Logger.Log("=== SteamOS Shell Engine (Background Service) ===");
             Logger.Log("==================================================");
@@ -183,6 +280,17 @@ namespace SteamOS.Shell
                 if (config.EmuladorActivado)
                 {
                     TraductorMando.EsJuegoEnPrimerPlano = () => _steamService.JuegoActivoHwnd != IntPtr.Zero;
+                    TraductorMando.AlReanudarSistema = () =>
+                    {
+                        if (_steamService.JuegoActivoHwnd != IntPtr.Zero)
+                        {
+                            NativeMethods.SetForegroundWindow(_steamService.JuegoActivoHwnd);
+                        }
+                        else
+                        {
+                            _steamService.EnfocarBigPicture();
+                        }
+                    };
                     _ = TraductorMando.IniciarAsync();
                 }
 

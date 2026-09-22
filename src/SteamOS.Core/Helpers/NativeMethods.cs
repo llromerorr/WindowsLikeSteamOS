@@ -60,5 +60,7 @@ namespace SteamOSConfigurator.Helpers
         public const int WM_POWERBROADCAST = 0x0218;
         public const int PBT_APMSUSPEND = 0x0004;
         public const int PBT_APMRESUMESUSPEND = 0x0007;
+
+        [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hWnd);
     }
 }
