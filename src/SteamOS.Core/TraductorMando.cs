@@ -231,23 +231,9 @@ namespace SteamOSConfigurator
                             tickSelectPresionado = 0;
                             tickStartPresionado = 0;
 
-                            // Activar botón Guide virtual en Xbox 360
+                            // Activar botón Guide virtual en Xbox 360 (100% Nativo XInput)
                             _xboxVirtual.SetButtonState(Xbox360Button.Guide, true);
-                            Logger.Log("[TraductorMando] ¡Chord Select+Start detectado! Iniciando pulso de Guide (120ms)...");
-
-                            // Si estamos en la interfaz de Steam (sin juego activo), enviar atajo nativo GamepadUI (Ctrl+1)
-                            if (EsJuegoEnPrimerPlano == null || !EsJuegoEnPrimerPlano())
-                            {
-                                try
-                                {
-                                    _inputSimulator.Keyboard.ModifiedKeyStroke(VirtualKeyCode.CONTROL, VirtualKeyCode.VK_1);
-                                    Logger.Log("[TraductorMando] Atajo Steam GamepadUI Ctrl+1 inyectado exitosamente.");
-                                }
-                                catch (Exception ex)
-                                {
-                                    Logger.Log($"[TraductorMando] Advertencia al inyectar Ctrl+1: {ex.Message}");
-                                }
-                            }
+                            Logger.Log("[TraductorMando] ¡Chord Select+Start detectado! Pulsando Guide nativo (120ms)...");
                         }
                     }
 

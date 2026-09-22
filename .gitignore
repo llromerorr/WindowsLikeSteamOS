@@ -39,3 +39,7 @@ Desktop.ini
 ## Runtime files (build outputs)
 *.deps.json
 *.runtimeconfig.json
+
+## Scratch
+scratch/
+

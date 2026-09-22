@@ -211,7 +211,11 @@ namespace SteamOS.Shell
                 }
 
                 bool steamListo = await _steamService.EsperarSteamListoAsync(() => _modoEscritorio);
-                if (!steamListo && !_modoEscritorio)
+                if (steamListo)
+                {
+                    _steamService.EnfocarBigPicture();
+                }
+                else if (!_modoEscritorio)
                 {
                     Logger.Log("[Shell] Steam no se inició correctamente (Timeout).");
                 }

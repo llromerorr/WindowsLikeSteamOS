@@ -21,6 +21,7 @@ namespace SteamOSConfigurator.Services
         void MoverVentanaSteamAlMonitorPrincipal(int steamPid, int intentos);
         IntPtr JuegoActivoHwnd { get; }
         void AddVentanaSteamOculta(IntPtr hwnd);
+        void EnfocarBigPicture();
     }
 
     public class SteamService : ISteamService
@@ -37,7 +38,13 @@ namespace SteamOSConfigurator.Services
         [DllImport("user32.dll", SetLastError = true)] static extern int GetWindowLong(IntPtr hWnd, int nIndex);
         [DllImport("user32.dll", SetLastError = true)] static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
         [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
+        [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr hWnd);
+        [DllImport("user32.dll")] static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+        [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
 
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        private const uint SWP_NOMOVE = 0x0002;
         private const uint SWP_NOSIZE = 0x0001;
         private const uint SWP_NOZORDER = 0x0004;
         private const int SW_HIDE = 0;
@@ -298,6 +305,7 @@ namespace SteamOSConfigurator.Services
                 if (ventanaDetectada == "bigpicture")
                 {
                     Logger.Log("[EsperarSteamListoAsync] Big Picture detectado.");
+                    EnfocarBigPicture();
                     return true;
                 }
 
@@ -344,6 +352,7 @@ namespace SteamOSConfigurator.Services
                             _juegoActivoHwnd = IntPtr.Zero;
                             Logger.Log($"[MonitorDeJuegosAsync] Juego finalizado: PID={juegoActivo.Id}. Reactivando hook de teclado y restaurando visibilidad de Steam.");
                             CambiarVisibilidadSteam(false);
+                            EnfocarBigPicture();
                             keyboardHookService.Suspendido = false;
                             juegoActivo.Dispose();
                             juegoActivo = null;
@@ -354,6 +363,7 @@ namespace SteamOSConfigurator.Services
                         Logger.Log($"[MonitorDeJuegosAsync] Error al consultar salida del juego: {ex.Message}");
                         _juegoActivoHwnd = IntPtr.Zero;
                         CambiarVisibilidadSteam(false);
+                        EnfocarBigPicture();
                         keyboardHookService.Suspendido = false;
                         juegoActivo?.Dispose();
                         juegoActivo = null;
@@ -476,10 +486,11 @@ namespace SteamOSConfigurator.Services
                         }
                         Logger.Log($"[CambiarVisibilidadSteam] Mostrando y enfocando HWND={hWnd.ToInt64():X}, Title=\"{titulo}\"");
                         ShowWindow(hWnd, SW_SHOW);
-                        SetForegroundWindow(hWnd);
+                        ForzarFocoVentana(hWnd);
                     }
                     _ventanasSteamOcultas.Clear();
                 }
+                EnfocarBigPicture();
             }
         }
 
@@ -592,6 +603,7 @@ namespace SteamOSConfigurator.Services
                             Logger.Log($"[MoverVentanaSteamAlMonitorPrincipal] HWND={hWnd.ToInt64():X}, Title=\"{titulo}\" -> Restaurando y moviendo a (0,0)");
                             ShowWindow(hWnd, SW_RESTORE);
                             SetWindowPos(hWnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+                            ForzarFocoVentana(hWnd);
                         }
                         break;
                     }
@@ -603,6 +615,79 @@ namespace SteamOSConfigurator.Services
                 }
                 Logger.Log("[MoverVentanaSteamAlMonitorPrincipal] Tarea finalizada.");
             });
+        }
+
+        public void EnfocarBigPicture()
+        {
+            try
+            {
+                EnumWindows((hWnd, _) =>
+                {
+                    if (IsWindowVisible(hWnd))
+                    {
+                        GetWindowThreadProcessId(hWnd, out uint pid);
+                        try
+                        {
+                            using var proc = Process.GetProcessById((int)pid);
+                            string pName = proc.ProcessName.ToLower();
+                            if (pName == "steam" || pName == "steamwebhelper")
+                            {
+                                int length = GetWindowTextLength(hWnd);
+                                if (length > 0)
+                                {
+                                    StringBuilder sb = new StringBuilder(length + 1);
+                                    GetWindowText(hWnd, sb, sb.Capacity);
+                                    string titulo = sb.ToString();
+                                    if (titulo.Contains("Big Picture", StringComparison.OrdinalIgnoreCase) ||
+                                        titulo.Equals("Steam", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        Logger.Log($"[EnfocarBigPicture] HWND={hWnd.ToInt64():X}, Title=\"{titulo}\" enfocado en primer plano.");
+                                        ForzarFocoVentana(hWnd);
+                                        return false; // Detener enumeración
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                    return true;
+                }, IntPtr.Zero);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[EnfocarBigPicture] Error al enfocar Big Picture: {ex.Message}");
+            }
+        }
+
+        public static void ForzarFocoVentana(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero) return;
+            try
+            {
+                IntPtr fgHwnd = GetForegroundWindow();
+                if (fgHwnd == hWnd) return;
+
+                uint fgThreadId = GetWindowThreadProcessId(fgHwnd, out _);
+                uint curThreadId = GetCurrentThreadId();
+
+                if (fgThreadId != 0 && fgThreadId != curThreadId)
+                {
+                    AttachThreadInput(curThreadId, fgThreadId, true);
+                    ShowWindow(hWnd, SW_RESTORE);
+                    SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+                    SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+                    BringWindowToTop(hWnd);
+                    SetForegroundWindow(hWnd);
+                    AttachThreadInput(curThreadId, fgThreadId, false);
+                }
+                else
+                {
+                    ShowWindow(hWnd, SW_RESTORE);
+                    BringWindowToTop(hWnd);
+                    SetForegroundWindow(hWnd);
+                }
+            }
+            catch { }
         }
     }
 }

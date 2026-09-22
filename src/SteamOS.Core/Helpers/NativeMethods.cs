@@ -43,6 +43,20 @@ namespace SteamOSConfigurator.Helpers
         public const uint EVENT_SYSTEM_FOREGROUND = 3; 
         public const uint WINEVENT_OUTOFCONTEXT = 0;
 
+        [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+        [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+        [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+        [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        public const uint SWP_NOMOVE = 0x0002;
+        public const uint SWP_NOSIZE = 0x0001;
+        public const uint SWP_NOACTIVATE = 0x0010;
+        public const int SW_RESTORE = 9;
+        public const int SW_SHOW = 5;
+
         public const int WM_POWERBROADCAST = 0x0218;
         public const int PBT_APMSUSPEND = 0x0004;
         public const int PBT_APMRESUMESUSPEND = 0x0007;
